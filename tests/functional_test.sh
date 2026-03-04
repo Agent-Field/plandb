@@ -364,12 +364,13 @@ echo "────────────────────────�
 
 EVENTS=$($PLANDB --db "$DB" --json events list --project "$PROJ_ID")
 EVENTS_LEN=$(jq_len "$EVENTS")
-# CLI operations don't emit events (only HTTP/MCP routes do), so list may be empty
+# CLI operations now emit events for all core operations (create, claim, start, done, fail, cancel)
 assert_eq "events list returns array" "0" "$(echo "$EVENTS" | python3 -c "import sys,json;d=json.load(sys.stdin);print('0' if isinstance(d,list) else '1')")"
+assert_true "events list has entries" "[ $EVENTS_LEN -gt 0 ]"
 
-# Human-readable events (empty is OK for CLI-only operations)
+# Human-readable events should show event entries
 HR_EVENTS=$($PLANDB --db "$DB" events list --project "$PROJ_ID")
-assert_contains "events list command runs without error" "no rows" "$HR_EVENTS"
+assert_contains "events list shows event type" "task_" "$HR_EVENTS"
 
 echo ""
 
