@@ -167,7 +167,7 @@ struct CreateTaskArgs {
     priority: i32,
     #[arg(
         long = "dep",
-        help = "Dependency: TASK_ID (default: feeds_into) or TASK_ID:KIND where KIND is feeds_into|blocks|validates|informs"
+        help = "Dependency: TASK_ID (default: feeds_into) or TASK_ID:KIND where KIND is feeds_into|blocks|suggests"
     )]
     deps: Vec<String>,
     #[arg(long, help = "Parent task ID (for hierarchical decomposition)")]
