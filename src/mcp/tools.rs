@@ -5,11 +5,13 @@ use serde_json::{json, Value};
 use std::str::FromStr;
 
 use crate::db::{
-    add_dependency, add_note, add_task_files, check_file_conflicts, claim_next_task, claim_task,
-    complete_task, create_artifact, create_project, create_task, fail_task, get_artifact,
-    get_downstream_tasks, get_handoff_context, get_project, get_task, get_upstream_artifacts,
-    list_artifacts, list_dependencies, list_notes, list_tasks, pause_task, promote_ready_tasks,
-    remove_dependency, run_sweep, start_task, update_task, Database, TaskListFilters,
+    add_dependency, add_note, add_task_files, amend_task_description, check_file_conflicts,
+    claim_next_task, claim_task, complete_task, compute_effects, create_artifact, create_project,
+    create_task, fail_task, get_artifact, get_downstream_tasks, get_handoff_context, get_lookahead,
+    get_project, get_task, get_upstream_artifacts, insert_task_between, list_artifacts,
+    list_dependencies, list_notes, list_tasks, pause_task, pivot_subtree, project_state,
+    promote_ready_tasks, remove_dependency, run_sweep, snapshot_task_statuses, split_task,
+    start_task, update_task, Database, NewSubtask, SplitPart, TaskListFilters,
 };
 use crate::models::{
     generate_id, Artifact, DependencyCondition, DependencyKind, RetryBackoff, Task, TaskKind,
@@ -146,6 +148,50 @@ struct StatusArgs {
 struct TaskReplanArgs {
     task_id: String,
     subtasks: Vec<DecomposeSubtask>,
+}
+
+#[derive(Debug, Deserialize)]
+struct WhatIfArgs {
+    mutation_type: String,
+    task_id: Option<String>,
+    after_task: Option<String>,
+    before_task: Option<String>,
+    title: Option<String>,
+    project: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TaskInsertArgs {
+    after_task: String,
+    before_task: Option<String>,
+    title: String,
+    description: Option<String>,
+    project: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct AheadArgs {
+    project: String,
+    depth: Option<usize>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TaskAmendArgs {
+    task_id: String,
+    prepend: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct TaskPivotArgs {
+    parent_id: String,
+    keep_done: Option<bool>,
+    subtasks: Vec<NewSubtask>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TaskSplitArgs {
+    task_id: String,
+    parts: Vec<SplitPart>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -603,6 +649,86 @@ pub fn tool_schemas() -> Vec<Value> {
                 "required": ["task_id", "subtasks"]
             }
         }),
+        json!({
+            "name": "planq_what_if",
+            "description": "Dry-run mutation and return effect analysis",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "mutation_type": { "type": "string" },
+                    "task_id": { "type": "string" },
+                    "after_task": { "type": "string" },
+                    "before_task": { "type": "string" },
+                    "title": { "type": "string" },
+                    "project": { "type": "string" }
+                },
+                "required": ["mutation_type"]
+            }
+        }),
+        json!({
+            "name": "planq_task_insert",
+            "description": "Insert task between existing tasks",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "after_task": { "type": "string" },
+                    "before_task": { "type": "string" },
+                    "title": { "type": "string" },
+                    "description": { "type": "string" },
+                    "project": { "type": "string" }
+                },
+                "required": ["after_task", "title", "project"]
+            }
+        }),
+        json!({
+            "name": "planq_ahead",
+            "description": "Get running-task lookahead buffer",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "project": { "type": "string" },
+                    "depth": { "type": "integer" }
+                },
+                "required": ["project"]
+            }
+        }),
+        json!({
+            "name": "planq_task_amend",
+            "description": "Prepend context to a future task",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "task_id": { "type": "string" },
+                    "prepend": { "type": "string" }
+                },
+                "required": ["task_id", "prepend"]
+            }
+        }),
+        json!({
+            "name": "planq_task_pivot",
+            "description": "Replace a parent task subtree",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "parent_id": { "type": "string" },
+                    "keep_done": { "type": "boolean" },
+                    "subtasks": { "type": "array" }
+                },
+                "required": ["parent_id", "subtasks"]
+            }
+        }),
+        json!({
+            "name": "planq_task_split",
+            "description": "Split task into executable parts",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "task_id": { "type": "string" },
+                    "parts": { "type": "array" }
+                },
+                "required": ["task_id", "parts"]
+            }
+        }),
     ]
 }
 
@@ -638,6 +764,12 @@ pub fn call_tool(db: &Database, tool_name: &str, args: Value) -> ToolHandlerResu
         "planq_status" => planq_status(db, args),
         "planq_task_pause" => planq_task_pause(db, args),
         "planq_task_replan" => planq_task_replan(db, args),
+        "planq_what_if" => planq_what_if(db, args),
+        "planq_task_insert" => planq_task_insert(db, args),
+        "planq_ahead" => planq_ahead(db, args),
+        "planq_task_amend" => planq_task_amend(db, args),
+        "planq_task_pivot" => planq_task_pivot(db, args),
+        "planq_task_split" => planq_task_split(db, args),
         _ => Err(anyhow!("unknown tool: {tool_name}")),
     }
 }
@@ -1472,6 +1604,157 @@ fn planq_task_pause(db: &Database, args: Value) -> ToolHandlerResult {
     let args: TaskPauseArgs = serde_json::from_value(args)?;
     let task = pause_task(db, &args.task_id, args.progress, args.note)?;
     Ok(serde_json::to_value(task)?)
+}
+
+fn planq_what_if(db: &Database, args: Value) -> ToolHandlerResult {
+    let args: WhatIfArgs = serde_json::from_value(args)?;
+    match args.mutation_type.as_str() {
+        "cancel" => {
+            let task_id = args
+                .task_id
+                .ok_or_else(|| anyhow!("task_id is required for cancel mutation"))?;
+            let task = get_task(db, &task_id)?;
+            let before_snapshot = snapshot_task_statuses(db, &task.project_id)?;
+            {
+                let mut conn = db.lock()?;
+                let tx = conn.transaction()?;
+                tx.execute(
+                    "UPDATE tasks SET status = 'cancelled', updated_at = datetime('now') WHERE id = ?1 AND status NOT IN ('done', 'done_partial')",
+                    rusqlite::params![task_id],
+                )?;
+                tx.rollback()?;
+            }
+            let mut after_snapshot = before_snapshot.clone();
+            if let Some(status) = after_snapshot.get_mut(&task.id) {
+                if !matches!(status, TaskStatus::Done | TaskStatus::DonePartial) {
+                    *status = TaskStatus::Cancelled;
+                }
+            }
+            let effect = compute_effects(db, &task.project_id, &before_snapshot, &after_snapshot)?;
+            Ok(json!({
+                "action": "cancel",
+                "effect": effect,
+                "project_state": project_state(db, &task.project_id)?,
+            }))
+        }
+        "insert" => {
+            let project_id = args
+                .project
+                .ok_or_else(|| anyhow!("project is required for insert mutation"))?;
+            let after_task = args
+                .after_task
+                .ok_or_else(|| anyhow!("after_task is required for insert mutation"))?;
+            let title = args
+                .title
+                .ok_or_else(|| anyhow!("title is required for insert mutation"))?;
+
+            let before_snapshot = snapshot_task_statuses(db, &project_id)?;
+            {
+                let mut conn = db.lock()?;
+                let tx = conn.transaction()?;
+                tx.execute(
+                    "INSERT INTO tasks (id, project_id, title, status, kind) VALUES ('t-whatif-insert', ?1, ?2, 'pending', 'generic')",
+                    rusqlite::params![project_id, title],
+                )?;
+                tx.execute(
+                    "INSERT INTO dependencies(from_task, to_task, kind, condition, metadata) VALUES (?1, 't-whatif-insert', 'feeds_into', 'all', NULL)",
+                    rusqlite::params![after_task],
+                )?;
+                if let Some(before_task) = args.before_task {
+                    tx.execute(
+                        "DELETE FROM dependencies WHERE from_task = ?1 AND to_task = ?2",
+                        rusqlite::params![after_task, before_task],
+                    )?;
+                    tx.execute(
+                        "INSERT INTO dependencies(from_task, to_task, kind, condition, metadata) VALUES ('t-whatif-insert', ?1, 'feeds_into', 'all', NULL)",
+                        rusqlite::params![before_task],
+                    )?;
+                }
+                tx.rollback()?;
+            }
+            let mut after_snapshot = before_snapshot.clone();
+            after_snapshot.insert("t-whatif-insert".to_string(), TaskStatus::Pending);
+            let effect = compute_effects(db, &project_id, &before_snapshot, &after_snapshot)?;
+            Ok(json!({
+                "action": "insert",
+                "effect": effect,
+                "project_state": project_state(db, &project_id)?,
+            }))
+        }
+        _ => Err(anyhow!("mutation_type must be one of: cancel, insert")),
+    }
+}
+
+fn planq_task_insert(db: &Database, args: Value) -> ToolHandlerResult {
+    let args: TaskInsertArgs = serde_json::from_value(args)?;
+    let before_snapshot = snapshot_task_statuses(db, &args.project)?;
+    let task = insert_task_between(
+        db,
+        &args.project,
+        &args.after_task,
+        args.before_task.as_deref(),
+        &args.title,
+        args.description,
+    )?;
+    let after_snapshot = snapshot_task_statuses(db, &args.project)?;
+    let effect = compute_effects(db, &args.project, &before_snapshot, &after_snapshot)?;
+    Ok(json!({
+        "id": task.id,
+        "title": task.title,
+        "status": task.status,
+        "effect": effect,
+        "project_state": project_state(db, &args.project)?,
+    }))
+}
+
+fn planq_ahead(db: &Database, args: Value) -> ToolHandlerResult {
+    let args: AheadArgs = serde_json::from_value(args)?;
+    let result = get_lookahead(db, &args.project, args.depth.unwrap_or(2))?;
+    Ok(serde_json::to_value(result)?)
+}
+
+fn planq_task_amend(db: &Database, args: Value) -> ToolHandlerResult {
+    let args: TaskAmendArgs = serde_json::from_value(args)?;
+    let task = amend_task_description(db, &args.task_id, &args.prepend)?;
+    Ok(serde_json::to_value(task)?)
+}
+
+fn planq_task_pivot(db: &Database, args: Value) -> ToolHandlerResult {
+    let args: TaskPivotArgs = serde_json::from_value(args)?;
+    let parent = get_task(db, &args.parent_id)?;
+    let before_snapshot = snapshot_task_statuses(db, &parent.project_id)?;
+    let result = pivot_subtree(
+        db,
+        &args.parent_id,
+        args.keep_done.unwrap_or(false),
+        args.subtasks,
+    )?;
+    let after_snapshot = snapshot_task_statuses(db, &parent.project_id)?;
+    let effect = compute_effects(db, &parent.project_id, &before_snapshot, &after_snapshot)?;
+    Ok(json!({
+        "kept": result.kept,
+        "cancelled": result.cancelled,
+        "created": result.created,
+        "effect": effect,
+        "project_state": project_state(db, &parent.project_id)?,
+    }))
+}
+
+fn planq_task_split(db: &Database, args: Value) -> ToolHandlerResult {
+    let args: TaskSplitArgs = serde_json::from_value(args)?;
+    let parent = get_task(db, &args.task_id)?;
+    let before_snapshot = snapshot_task_statuses(db, &parent.project_id)?;
+    let result = split_task(db, &args.task_id, args.parts)?;
+    let after_snapshot = snapshot_task_statuses(db, &parent.project_id)?;
+    let effect = compute_effects(db, &parent.project_id, &before_snapshot, &after_snapshot)?;
+    Ok(json!({
+        "parent_task_id": result.parent_task_id,
+        "created": result.created,
+        "done": result.done,
+        "title_to_id": result.title_to_id,
+        "effect": effect,
+        "project_state": project_state(db, &parent.project_id)?,
+    }))
 }
 
 fn planq_status(db: &Database, args: Value) -> ToolHandlerResult {

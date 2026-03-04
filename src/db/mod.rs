@@ -1,5 +1,6 @@
 pub mod artifacts;
 pub mod dependencies;
+pub mod effects;
 pub mod events;
 pub mod files;
 pub mod meta;
@@ -20,6 +21,7 @@ pub use artifacts::{create_artifact, get_artifact, get_upstream_artifacts, list_
 pub use dependencies::{
     add_dependency, get_downstream_tasks, get_upstream_tasks, list_dependencies, remove_dependency,
 };
+pub use effects::{compute_effects, snapshot_task_statuses, MutationEffect};
 pub use events::{insert_event, list_events, EventFilters};
 pub use files::{add_task_files, check_file_conflicts, list_task_files, FileConflict};
 pub use meta::{delete_meta, get_meta, set_meta};
@@ -30,10 +32,12 @@ pub use projects::{
 pub use schema::init_db;
 pub use sweeper::{run_sweep, SweepResult};
 pub use tasks::{
-    approve_task, batch_create_tasks, cancel_task, claim_next_task, claim_task, complete_task,
-    create_task, fail_task, fuzzy_find_task, get_handoff_context, get_task, list_tasks, pause_task,
-    promote_ready_tasks, start_task, update_heartbeat, update_progress, update_task, HandoffEntry,
-    TaskListFilters,
+    amend_task_description, approve_task, batch_create_tasks, cancel_task, claim_next_task,
+    claim_task, complete_task, create_task, fail_task, fuzzy_find_task, get_handoff_context,
+    get_lookahead, get_task, insert_task_between, list_tasks, pause_task, pivot_subtree,
+    project_state, promote_ready_tasks, split_task, start_task, update_heartbeat, update_progress,
+    update_task, HandoffEntry, LookaheadResult, NewSubtask, PivotResult, ProjectState, SplitPart,
+    SplitResult, TaskListFilters,
 };
 
 #[derive(Debug, Error)]

@@ -3,11 +3,13 @@ use crate::cli::{
     print_json, print_table, resolve_project_id,
 };
 use crate::db::{
-    add_dependency, add_note, add_task_files, approve_task, batch_create_tasks, cancel_task,
-    check_file_conflicts, claim_next_task, claim_task, complete_task, create_task, fail_task,
-    fuzzy_find_task, get_handoff_context, get_task, list_dependencies, list_notes, list_task_files,
-    list_tasks, pause_task, promote_ready_tasks, remove_dependency, start_task, update_heartbeat,
-    update_progress, update_task, Database, TaskListFilters,
+    add_dependency, add_note, add_task_files, amend_task_description, approve_task,
+    batch_create_tasks, cancel_task, check_file_conflicts, claim_next_task, claim_task,
+    complete_task, compute_effects, create_task, fail_task, fuzzy_find_task, get_handoff_context,
+    get_lookahead, get_task, insert_task_between, list_dependencies, list_notes, list_task_files,
+    list_tasks, pause_task, pivot_subtree, project_state, promote_ready_tasks, remove_dependency,
+    snapshot_task_statuses, split_task, start_task, update_heartbeat, update_progress, update_task,
+    Database, NewSubtask, SplitPart, TaskListFilters,
 };
 use crate::models::{
     generate_id, DependencyCondition, DependencyKind, RetryBackoff, Task, TaskKind, TaskStatus,
@@ -49,12 +51,39 @@ enum TaskSubcommand {
     #[command(name = "remove-dep")]
     RemoveDep(RemoveDepArgs),
     Update(UpdateTaskArgs),
+    Insert(InsertTaskArgs),
+    Amend(AmendTaskArgs),
+    Pivot(PivotTaskArgs),
+    Split(SplitTaskArgs),
     Decompose(DecomposeArgs),
     Replan(ReplanArgs),
     Pause(PauseArgs),
     Note(NoteArgs),
     Notes(NotesArgs),
     Overview(OverviewArgs),
+}
+
+#[derive(Args, Debug)]
+pub struct WhatIfCommand {
+    #[command(subcommand)]
+    command: WhatIfSubcommand,
+}
+
+#[derive(Subcommand, Debug)]
+enum WhatIfSubcommand {
+    Cancel {
+        task_id: String,
+    },
+    Insert {
+        #[arg(long)]
+        after: String,
+        #[arg(long)]
+        before: Option<String>,
+        #[arg(long)]
+        title: String,
+        #[arg(long)]
+        project: Option<String>,
+    },
 }
 
 #[derive(Args, Debug)]
@@ -219,6 +248,45 @@ struct UpdateTaskArgs {
     kind: Option<TaskKind>,
     #[arg(long)]
     priority: Option<i32>,
+}
+
+#[derive(Args, Debug)]
+struct InsertTaskArgs {
+    #[arg(long)]
+    after: String,
+    #[arg(long)]
+    before: Option<String>,
+    #[arg(long)]
+    title: String,
+    #[arg(long)]
+    description: Option<String>,
+    #[arg(long)]
+    project: Option<String>,
+}
+
+#[derive(Args, Debug)]
+struct AmendTaskArgs {
+    task_id: String,
+    #[arg(long)]
+    prepend: String,
+}
+
+#[derive(Args, Debug)]
+struct PivotTaskArgs {
+    parent_id: String,
+    #[arg(long, default_value_t = false)]
+    keep_done: bool,
+    #[arg(long)]
+    subtasks: Option<String>,
+    #[arg(long)]
+    file: Option<String>,
+}
+
+#[derive(Args, Debug)]
+struct SplitTaskArgs {
+    task_id: String,
+    #[arg(long)]
+    into: String,
 }
 
 #[derive(Args, Debug)]
@@ -533,6 +601,85 @@ pub fn run(db: &Database, command: TaskCommand, global_json: bool, compact: bool
                 print_json(&task)?;
             } else {
                 println!("updated task {} ({})", task.id, task.title);
+            }
+        }
+        TaskSubcommand::Insert(args) => {
+            let project_id = resolve_project_id(db, args.project.as_deref())?;
+            let before_snapshot = snapshot_task_statuses(db, &project_id)?;
+            let created = insert_task_between(
+                db,
+                &project_id,
+                &args.after,
+                args.before.as_deref(),
+                &args.title,
+                args.description,
+            )?;
+            let after_snapshot = snapshot_task_statuses(db, &project_id)?;
+            let effect = compute_effects(db, &project_id, &before_snapshot, &after_snapshot)?;
+            let state = project_state(db, &project_id)?;
+            if global_json {
+                print_json(&serde_json::json!({
+                    "id": created.id,
+                    "title": created.title,
+                    "status": created.status,
+                    "effect": effect,
+                    "project_state": state,
+                }))?;
+            } else {
+                println!("inserted {}", created.id);
+            }
+        }
+        TaskSubcommand::Amend(args) => {
+            let task = amend_task_description(db, &args.task_id, &args.prepend)?;
+            if global_json {
+                if compact {
+                    print_json(&minimal_task(&task))?;
+                } else {
+                    print_json(&task)?;
+                }
+            } else {
+                println!("amended {}", task.id);
+            }
+        }
+        TaskSubcommand::Pivot(args) => {
+            let subtasks = parse_new_subtasks(args.subtasks, args.file)?;
+            let parent = get_task(db, &args.parent_id)?;
+            let before_snapshot = snapshot_task_statuses(db, &parent.project_id)?;
+            let result = pivot_subtree(db, &args.parent_id, args.keep_done, subtasks)?;
+            let after_snapshot = snapshot_task_statuses(db, &parent.project_id)?;
+            let effect =
+                compute_effects(db, &parent.project_id, &before_snapshot, &after_snapshot)?;
+            if global_json {
+                print_json(&serde_json::json!({
+                    "kept": result.kept,
+                    "cancelled": result.cancelled,
+                    "created": result.created,
+                    "effect": effect,
+                    "project_state": project_state(db, &parent.project_id)?,
+                }))?;
+            } else {
+                println!("pivoted {}", args.parent_id);
+            }
+        }
+        TaskSubcommand::Split(args) => {
+            let parts: Vec<SplitPart> = serde_json::from_str(&args.into)?;
+            let parent = get_task(db, &args.task_id)?;
+            let before_snapshot = snapshot_task_statuses(db, &parent.project_id)?;
+            let result = split_task(db, &args.task_id, parts)?;
+            let after_snapshot = snapshot_task_statuses(db, &parent.project_id)?;
+            let effect =
+                compute_effects(db, &parent.project_id, &before_snapshot, &after_snapshot)?;
+            if global_json {
+                print_json(&serde_json::json!({
+                    "parent_task_id": result.parent_task_id,
+                    "created": result.created,
+                    "done": result.done,
+                    "title_to_id": result.title_to_id,
+                    "effect": effect,
+                    "project_state": project_state(db, &parent.project_id)?,
+                }))?;
+            } else {
+                println!("split {}", args.task_id);
             }
         }
         TaskSubcommand::Decompose(args) => {
@@ -1166,6 +1313,129 @@ fn decompose_or_replan(
     }
     let _ = promote_ready_tasks(db)?;
     Ok(title_to_id)
+}
+
+pub fn run_what_if(
+    db: &Database,
+    command: WhatIfCommand,
+    global_json: bool,
+    _compact: bool,
+) -> Result<()> {
+    match command.command {
+        WhatIfSubcommand::Cancel { task_id } => {
+            let task = get_task(db, &task_id)?;
+            let project_id = task.project_id.clone();
+            let before_snapshot = snapshot_task_statuses(db, &project_id)?;
+            {
+                let mut conn = db.lock()?;
+                let tx = conn.transaction()?;
+                tx.execute(
+                    "UPDATE tasks SET status = 'cancelled', updated_at = datetime('now') WHERE id = ?1 AND status NOT IN ('done', 'done_partial')",
+                    rusqlite::params![task_id],
+                )?;
+                tx.rollback()?;
+            }
+            let mut simulated_after = before_snapshot.clone();
+            if let Some(status) = simulated_after.get_mut(&task_id) {
+                if !matches!(status, TaskStatus::Done | TaskStatus::DonePartial) {
+                    *status = TaskStatus::Cancelled;
+                }
+            }
+            let effect = compute_effects(db, &project_id, &before_snapshot, &simulated_after)?;
+            let response = serde_json::json!({
+                "action": "cancel",
+                "effect": effect,
+                "project_state": project_state(db, &project_id)?,
+            });
+            if global_json {
+                print_json(&response)?;
+            } else {
+                println!("what-if cancel {}", task_id);
+            }
+        }
+        WhatIfSubcommand::Insert {
+            after,
+            before,
+            title,
+            project,
+        } => {
+            let project_id = resolve_project_id(db, project.as_deref())?;
+            let before_snapshot = snapshot_task_statuses(db, &project_id)?;
+            {
+                let mut conn = db.lock()?;
+                let tx = conn.transaction()?;
+                let simulated_id = "t-whatif-insert";
+                tx.execute(
+                    "INSERT INTO tasks (id, project_id, title, status, kind) VALUES (?1, ?2, ?3, 'pending', 'generic')",
+                    rusqlite::params![simulated_id, project_id, title],
+                )?;
+                tx.execute(
+                    "INSERT INTO dependencies(from_task, to_task, kind, condition, metadata) VALUES (?1, ?2, 'feeds_into', 'all', NULL)",
+                    rusqlite::params![after, simulated_id],
+                )?;
+                if let Some(before_task) = before.as_deref() {
+                    tx.execute(
+                        "DELETE FROM dependencies WHERE from_task = ?1 AND to_task = ?2",
+                        rusqlite::params![after, before_task],
+                    )?;
+                    tx.execute(
+                        "INSERT INTO dependencies(from_task, to_task, kind, condition, metadata) VALUES (?1, ?2, 'feeds_into', 'all', NULL)",
+                        rusqlite::params![simulated_id, before_task],
+                    )?;
+                }
+                tx.rollback()?;
+            }
+
+            let mut simulated_after = before_snapshot.clone();
+            simulated_after.insert("t-whatif-insert".to_string(), TaskStatus::Pending);
+            let effect = compute_effects(db, &project_id, &before_snapshot, &simulated_after)?;
+            let response = serde_json::json!({
+                "action": "insert",
+                "effect": effect,
+                "project_state": project_state(db, &project_id)?,
+            });
+            if global_json {
+                print_json(&response)?;
+            } else {
+                println!("what-if insert after {}", after);
+            }
+        }
+    }
+    Ok(())
+}
+
+pub fn ahead_cmd(
+    db: &Database,
+    project: Option<String>,
+    depth: usize,
+    global_json: bool,
+    _compact: bool,
+) -> Result<()> {
+    let project_id = resolve_project_id(db, project.as_deref())?;
+    let lookahead = get_lookahead(db, &project_id, depth)?;
+    if global_json {
+        print_json(&lookahead)?;
+    } else {
+        println!("current={}", lookahead.current.len());
+    }
+    Ok(())
+}
+
+fn parse_new_subtasks(subtasks: Option<String>, file: Option<String>) -> Result<Vec<NewSubtask>> {
+    if let Some(raw) = subtasks {
+        let parsed: Vec<NewSubtask> = serde_json::from_str(&raw)?;
+        return Ok(parsed);
+    }
+    if let Some(path) = file {
+        let content = fs::read_to_string(path)?;
+        #[derive(Deserialize)]
+        struct PivotYaml {
+            subtasks: Vec<NewSubtask>,
+        }
+        let parsed: PivotYaml = serde_yaml::from_str(&content)?;
+        return Ok(parsed.subtasks);
+    }
+    Err(anyhow!("provide either --subtasks or --file"))
 }
 
 fn print_task_detail(task: &Task) {

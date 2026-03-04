@@ -63,6 +63,12 @@ pub fn api_routes() -> Router<AppState> {
         .route("/projects/:id/overview", get(project_overview_handler))
         .route("/tasks/:id/decompose", post(decompose_task_handler))
         .route("/tasks/:id/replan", post(replan_task_handler))
+        .route("/tasks/insert", post(insert_task_handler))
+        .route("/tasks/:id/amend", post(amend_task_handler))
+        .route("/tasks/:id/pivot", post(pivot_task_handler))
+        .route("/tasks/:id/split", post(split_task_handler))
+        .route("/ahead", get(ahead_handler))
+        .route("/what-if", post(what_if_handler))
 }
 
 #[derive(Debug, Serialize)]
@@ -336,6 +342,47 @@ pub struct DecomposeSubtaskRequest {
 #[derive(Debug, Deserialize)]
 pub struct DecomposeRequest {
     subtasks: Vec<DecomposeSubtaskRequest>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct InsertTaskRequest {
+    project: String,
+    after_task: String,
+    before_task: Option<String>,
+    title: String,
+    description: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AmendTaskRequest {
+    prepend: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PivotTaskRequest {
+    keep_done: Option<bool>,
+    subtasks: Vec<NewSubtask>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SplitTaskRequest {
+    parts: Vec<SplitPart>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AheadQuery {
+    project: String,
+    depth: Option<usize>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct WhatIfRequest {
+    mutation_type: String,
+    task_id: Option<String>,
+    after_task: Option<String>,
+    before_task: Option<String>,
+    title: Option<String>,
+    project: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -1481,6 +1528,196 @@ pub async fn replan_task_handler(
         .map_err(|e| ApiError::from(anyhow::Error::from(e)))?;
     }
     decompose_task_handler(State(db), Path(task_id), Json(body)).await
+}
+
+pub async fn insert_task_handler(
+    State(db): State<AppState>,
+    Json(body): Json<InsertTaskRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    let before_snapshot = snapshot_task_statuses(&db, &body.project).map_err(ApiError::from)?;
+    let task = insert_task_between(
+        &db,
+        &body.project,
+        &body.after_task,
+        body.before_task.as_deref(),
+        &body.title,
+        body.description,
+    )
+    .map_err(ApiError::from)?;
+    let after_snapshot = snapshot_task_statuses(&db, &body.project).map_err(ApiError::from)?;
+    let effect = compute_effects(&db, &body.project, &before_snapshot, &after_snapshot)
+        .map_err(ApiError::from)?;
+    Ok(Json(json!({
+        "id": task.id,
+        "title": task.title,
+        "status": task.status,
+        "effect": effect,
+        "project_state": project_state(&db, &body.project).map_err(ApiError::from)?,
+    })))
+}
+
+pub async fn amend_task_handler(
+    State(db): State<AppState>,
+    Path(task_id): Path<String>,
+    Json(body): Json<AmendTaskRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    let task = amend_task_description(&db, &task_id, &body.prepend).map_err(ApiError::from)?;
+    Ok(Json(serde_json::to_value(task).map_err(|e| ApiError::internal(e.to_string()))?))
+}
+
+pub async fn pivot_task_handler(
+    State(db): State<AppState>,
+    Path(task_id): Path<String>,
+    Json(body): Json<PivotTaskRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    let parent = get_task(&db, &task_id).map_err(ApiError::from)?;
+    let before_snapshot =
+        snapshot_task_statuses(&db, &parent.project_id).map_err(ApiError::from)?;
+    let result = pivot_subtree(
+        &db,
+        &task_id,
+        body.keep_done.unwrap_or(false),
+        body.subtasks,
+    )
+    .map_err(ApiError::from)?;
+    let after_snapshot =
+        snapshot_task_statuses(&db, &parent.project_id).map_err(ApiError::from)?;
+    let effect = compute_effects(&db, &parent.project_id, &before_snapshot, &after_snapshot)
+        .map_err(ApiError::from)?;
+    Ok(Json(json!({
+        "kept": result.kept,
+        "cancelled": result.cancelled,
+        "created": result.created,
+        "effect": effect,
+        "project_state": project_state(&db, &parent.project_id).map_err(ApiError::from)?,
+    })))
+}
+
+pub async fn split_task_handler(
+    State(db): State<AppState>,
+    Path(task_id): Path<String>,
+    Json(body): Json<SplitTaskRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    let parent = get_task(&db, &task_id).map_err(ApiError::from)?;
+    let before_snapshot =
+        snapshot_task_statuses(&db, &parent.project_id).map_err(ApiError::from)?;
+    let result = split_task(&db, &task_id, body.parts).map_err(ApiError::from)?;
+    let after_snapshot =
+        snapshot_task_statuses(&db, &parent.project_id).map_err(ApiError::from)?;
+    let effect = compute_effects(&db, &parent.project_id, &before_snapshot, &after_snapshot)
+        .map_err(ApiError::from)?;
+    Ok(Json(json!({
+        "parent_task_id": result.parent_task_id,
+        "created": result.created,
+        "done": result.done,
+        "title_to_id": result.title_to_id,
+        "effect": effect,
+        "project_state": project_state(&db, &parent.project_id).map_err(ApiError::from)?,
+    })))
+}
+
+pub async fn ahead_handler(
+    State(db): State<AppState>,
+    Query(query): Query<AheadQuery>,
+) -> Result<impl IntoResponse, ApiError> {
+    let lookahead = get_lookahead(&db, &query.project, query.depth.unwrap_or(2)).map_err(ApiError::from)?;
+    Ok(Json(serde_json::to_value(lookahead).map_err(|e| ApiError::internal(e.to_string()))?))
+}
+
+pub async fn what_if_handler(
+    State(db): State<AppState>,
+    Json(body): Json<WhatIfRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    match body.mutation_type.as_str() {
+        "cancel" => {
+            let task_id = body
+                .task_id
+                .ok_or_else(|| ApiError::bad_request("task_id is required for cancel"))?;
+            let task = get_task(&db, &task_id).map_err(ApiError::from)?;
+            let before_snapshot =
+                snapshot_task_statuses(&db, &task.project_id).map_err(ApiError::from)?;
+            {
+                let mut conn = db.lock().map_err(ApiError::from)?;
+                let tx = conn
+                    .transaction()
+                    .map_err(|e| ApiError::from(anyhow::Error::from(e)))?;
+                tx.execute(
+                    "UPDATE tasks SET status = 'cancelled', updated_at = datetime('now') WHERE id = ?1 AND status NOT IN ('done', 'done_partial')",
+                    params![task_id],
+                )
+                .map_err(|e| ApiError::from(anyhow::Error::from(e)))?;
+                tx.rollback()
+                    .map_err(|e| ApiError::from(anyhow::Error::from(e)))?;
+            }
+            let mut after_snapshot = before_snapshot.clone();
+            if let Some(status) = after_snapshot.get_mut(&task.id) {
+                if !matches!(status, TaskStatus::Done | TaskStatus::DonePartial) {
+                    *status = TaskStatus::Cancelled;
+                }
+            }
+            let effect = compute_effects(&db, &task.project_id, &before_snapshot, &after_snapshot)
+                .map_err(ApiError::from)?;
+            Ok(Json(json!({
+                "action": "cancel",
+                "effect": effect,
+                "project_state": project_state(&db, &task.project_id).map_err(ApiError::from)?,
+            })))
+        }
+        "insert" => {
+            let project_id = body
+                .project
+                .ok_or_else(|| ApiError::bad_request("project is required for insert"))?;
+            let after_task = body
+                .after_task
+                .ok_or_else(|| ApiError::bad_request("after_task is required for insert"))?;
+            let title = body
+                .title
+                .ok_or_else(|| ApiError::bad_request("title is required for insert"))?;
+            let before_snapshot = snapshot_task_statuses(&db, &project_id).map_err(ApiError::from)?;
+            {
+                let mut conn = db.lock().map_err(ApiError::from)?;
+                let tx = conn
+                    .transaction()
+                    .map_err(|e| ApiError::from(anyhow::Error::from(e)))?;
+                tx.execute(
+                    "INSERT INTO tasks (id, project_id, title, status, kind) VALUES ('t-whatif-insert', ?1, ?2, 'pending', 'generic')",
+                    params![project_id, title],
+                )
+                .map_err(|e| ApiError::from(anyhow::Error::from(e)))?;
+                tx.execute(
+                    "INSERT INTO dependencies(from_task, to_task, kind, condition, metadata) VALUES (?1, 't-whatif-insert', 'feeds_into', 'all', NULL)",
+                    params![after_task],
+                )
+                .map_err(|e| ApiError::from(anyhow::Error::from(e)))?;
+                if let Some(before_task) = body.before_task {
+                    tx.execute(
+                        "DELETE FROM dependencies WHERE from_task = ?1 AND to_task = ?2",
+                        params![after_task, before_task],
+                    )
+                    .map_err(|e| ApiError::from(anyhow::Error::from(e)))?;
+                    tx.execute(
+                        "INSERT INTO dependencies(from_task, to_task, kind, condition, metadata) VALUES ('t-whatif-insert', ?1, 'feeds_into', 'all', NULL)",
+                        params![before_task],
+                    )
+                    .map_err(|e| ApiError::from(anyhow::Error::from(e)))?;
+                }
+                tx.rollback()
+                    .map_err(|e| ApiError::from(anyhow::Error::from(e)))?;
+            }
+            let mut after_snapshot = before_snapshot.clone();
+            after_snapshot.insert("t-whatif-insert".to_string(), TaskStatus::Pending);
+            let effect = compute_effects(&db, &project_id, &before_snapshot, &after_snapshot)
+                .map_err(ApiError::from)?;
+            Ok(Json(json!({
+                "action": "insert",
+                "effect": effect,
+                "project_state": project_state(&db, &project_id).map_err(ApiError::from)?,
+            })))
+        }
+        _ => Err(ApiError::bad_request(
+            "mutation_type must be one of: cancel, insert",
+        )),
+    }
 }
 
 pub fn parse_event_stream_query(query: &EventStreamQuery) -> Result<(Option<String>, Option<EventType>), ApiError> {

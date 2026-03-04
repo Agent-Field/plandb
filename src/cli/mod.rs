@@ -39,8 +39,16 @@ fn default_db_path() -> String {
 pub enum Commands {
     Project(project::ProjectCommand),
     Task(task::TaskCommand),
+    WhatIf(task::WhatIfCommand),
     Artifact(artifact::ArtifactCommand),
     Events(events::EventsCommand),
+    #[command(about = "Lookahead buffer for running tasks")]
+    Ahead {
+        #[arg(long, default_value_t = 2)]
+        depth: usize,
+        #[arg(long)]
+        project: Option<String>,
+    },
     #[command(about = "Set/show default project")]
     Use {
         project_id: Option<String>,
@@ -63,14 +71,25 @@ pub enum Commands {
         #[arg(long, short, default_value = "8484")]
         port: u16,
     },
+    #[command(about = "Generate integration prompt for your platform")]
+    Prompt {
+        #[arg(long, value_parser = ["mcp", "cli", "http"], help = "Platform: mcp, cli, http")]
+        r#for: Option<String>,
+        #[arg(long, help = "List available platforms")]
+        list: bool,
+    },
 }
 
 pub fn run(db: &Database, cli: Cli) -> Result<()> {
     match cli.command {
         Commands::Project(command) => project::run(db, command, cli.json, cli.compact),
         Commands::Task(command) => task::run(db, command, cli.json, cli.compact),
+        Commands::WhatIf(command) => task::run_what_if(db, command, cli.json, cli.compact),
         Commands::Artifact(command) => artifact::run(db, command, cli.json),
         Commands::Events(command) => events::run(db, command, cli.json),
+        Commands::Ahead { depth, project } => {
+            task::ahead_cmd(db, project, depth, cli.json, cli.compact)
+        }
         Commands::Use { project_id, clear } => {
             if clear {
                 crate::db::delete_meta(db, "current_project")?;
@@ -107,7 +126,9 @@ pub fn run(db: &Database, cli: Cli) -> Result<()> {
             detail,
             full,
         } => project::status_cmd(db, project.as_deref(), detail, full, cli.json, cli.compact),
-        Commands::Mcp | Commands::Serve { .. } => unreachable!("handled in main"),
+        Commands::Mcp | Commands::Serve { .. } | Commands::Prompt { .. } => {
+            unreachable!("handled in main")
+        }
     }
 }
 

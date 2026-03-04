@@ -556,6 +556,70 @@ assert_contains "help shows serve" "serve" "$HELP"
 echo ""
 
 # ─────────────────────────────────────────────
+echo "19. JIT ADAPTIVE PLANNING PRIMITIVES"
+echo "─────────────────────────────────────────"
+
+JIT_PROJECT=$($PLANQ --db "$DB" --json project create "jit-project")
+JIT_PROJECT_ID=$(jq_field "$JIT_PROJECT" "id")
+
+JIT_A=$($PLANQ --db "$DB" --json task create --project "$JIT_PROJECT_ID" --title "JIT A")
+JIT_A_ID=$(jq_field "$JIT_A" "id")
+JIT_B=$($PLANQ --db "$DB" --json task create --project "$JIT_PROJECT_ID" --title "JIT B" --dep "$JIT_A_ID")
+JIT_B_ID=$(jq_field "$JIT_B" "id")
+JIT_C=$($PLANQ --db "$DB" --json task create --project "$JIT_PROJECT_ID" --title "JIT C" --dep "$JIT_B_ID")
+JIT_C_ID=$(jq_field "$JIT_C" "id")
+
+WHATIF_CANCEL=$($PLANQ --db "$DB" --json what-if cancel "$JIT_B_ID" 2>&1 || true)
+assert_contains "what-if cancel includes effect field" '"effect"' "$WHATIF_CANCEL"
+assert_contains "what-if cancel includes project_state" '"project_state"' "$WHATIF_CANCEL"
+
+WHATIF_INSERT=$($PLANQ --db "$DB" --json what-if insert --after "$JIT_A_ID" --before "$JIT_B_ID" --title "JIT Mid" 2>&1 || true)
+assert_contains "what-if insert includes effect field" '"effect"' "$WHATIF_INSERT"
+assert_contains "what-if insert includes project_state" '"project_state"' "$WHATIF_INSERT"
+
+INSERT_OUT=$($PLANQ --db "$DB" --json task insert --project "$JIT_PROJECT_ID" --after "$JIT_A_ID" --before "$JIT_B_ID" --title "Inserted Between" --description "bridge step" 2>&1 || true)
+INSERT_ID=$(jq_field "$INSERT_OUT" "id" || true)
+assert_not_empty "task insert returns created id" "$INSERT_ID"
+assert_contains "task insert response has effect" '"effect"' "$INSERT_OUT"
+assert_contains "task insert response has project_state" '"project_state"' "$INSERT_OUT"
+
+$PLANQ --db "$DB" --json task claim "$JIT_A_ID" --agent jit-agent >/dev/null
+$PLANQ --db "$DB" --json task start "$JIT_A_ID" >/dev/null
+LOOKAHEAD=$($PLANQ --db "$DB" --json ahead --project "$JIT_PROJECT_ID" --depth 2 2>&1 || true)
+assert_contains "ahead includes current" '"current"' "$LOOKAHEAD"
+assert_contains "ahead includes upcoming" '"upcoming"' "$LOOKAHEAD"
+assert_contains "ahead includes blocked_by" '"blocked_by"' "$LOOKAHEAD"
+
+AMEND_OUT=$($PLANQ --db "$DB" --json task amend "$JIT_B_ID" --prepend "NOTE: learned context" 2>&1 || true)
+assert_contains "task amend response has updated task" '"id"' "$AMEND_OUT"
+JIT_B_AFTER_AMEND=$($PLANQ --db "$DB" --json task get "$JIT_B_ID")
+assert_contains "task amend prepends text" "NOTE: learned context" "$(jq_field "$JIT_B_AFTER_AMEND" "description")"
+
+PIVOT_PARENT=$($PLANQ --db "$DB" --json task create --project "$JIT_PROJECT_ID" --title "Pivot Parent")
+PIVOT_PARENT_ID=$(jq_field "$PIVOT_PARENT" "id")
+PIVOT_DONE=$($PLANQ --db "$DB" --json task create --project "$JIT_PROJECT_ID" --title "Pivot Done Child" --parent "$PIVOT_PARENT_ID")
+PIVOT_DONE_ID=$(jq_field "$PIVOT_DONE" "id")
+$PLANQ --db "$DB" --json task claim "$PIVOT_DONE_ID" --agent jit-agent >/dev/null
+$PLANQ --db "$DB" --json task start "$PIVOT_DONE_ID" >/dev/null
+$PLANQ --db "$DB" --json task done "$PIVOT_DONE_ID" >/dev/null
+PIVOT_PENDING=$($PLANQ --db "$DB" --json task create --project "$JIT_PROJECT_ID" --title "Pivot Pending Child" --parent "$PIVOT_PARENT_ID")
+PIVOT_PENDING_ID=$(jq_field "$PIVOT_PENDING" "id")
+PIVOT_OUT=$($PLANQ --db "$DB" --json task pivot "$PIVOT_PARENT_ID" --keep-done --subtasks '[{"title":"Pivot New A"},{"title":"Pivot New B","deps_on":["Pivot New A"]}]' 2>&1 || true)
+assert_contains "task pivot response has kept list" '"kept"' "$PIVOT_OUT"
+assert_contains "task pivot response has cancelled list" '"cancelled"' "$PIVOT_OUT"
+assert_contains "task pivot response has created list" '"created"' "$PIVOT_OUT"
+assert_contains "task pivot response has effect" '"effect"' "$PIVOT_OUT"
+
+SPLIT_PARENT=$($PLANQ --db "$DB" --json task create --project "$JIT_PROJECT_ID" --title "Split Parent")
+SPLIT_PARENT_ID=$(jq_field "$SPLIT_PARENT" "id")
+SPLIT_OUT=$($PLANQ --db "$DB" --json task split "$SPLIT_PARENT_ID" --into '[{"title":"Split A","done":true,"result":"already done"},{"title":"Split B","deps_on":["Split A"]}]' 2>&1 || true)
+assert_contains "task split response has created list" '"created"' "$SPLIT_OUT"
+assert_contains "task split response has done list" '"done"' "$SPLIT_OUT"
+assert_contains "task split response has effect" '"effect"' "$SPLIT_OUT"
+
+echo ""
+
+# ─────────────────────────────────────────────
 # SUMMARY
 echo "=========================================="
 echo "  RESULTS"

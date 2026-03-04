@@ -1,10 +1,12 @@
+use crate::db::dependencies::{add_dependency, remove_dependency};
 use crate::db::{
     dt_to_sql, json_to_sql, now_utc_naive, parse_dt, parse_json, Database, PlanqError,
 };
-use crate::models::{Task, TaskKind, TaskStatus};
+use crate::models::{generate_id, RetryBackoff, Task, TaskKind, TaskStatus};
 use anyhow::Result;
 use rusqlite::{params, OptionalExtension};
 use serde_json::{Map, Value};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 const TASK_COLUMNS: &str = r#"
 id, project_id, parent_task_id, is_composite,
@@ -250,6 +252,64 @@ pub struct HandoffEntry {
     pub from_title: String,
     pub result: Option<Value>,
     pub agent_id: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ProjectState {
+    pub total: usize,
+    pub done: usize,
+    pub ready: usize,
+    pub running: usize,
+    pub pending: usize,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct LookaheadTask {
+    pub id: String,
+    pub title: String,
+    pub hops: usize,
+    pub blocked_by: Vec<String>,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct LookaheadResult {
+    pub current: Vec<Task>,
+    pub upcoming: Vec<LookaheadTask>,
+    pub updatable: Vec<String>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct NewSubtask {
+    pub title: String,
+    pub description: Option<String>,
+    pub kind: Option<TaskKind>,
+    pub priority: Option<i32>,
+    pub deps_on: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct PivotResult {
+    pub kept: Vec<String>,
+    pub cancelled: Vec<String>,
+    pub created: Vec<String>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct SplitPart {
+    pub title: String,
+    pub done: Option<bool>,
+    pub result: Option<String>,
+    pub deps_on: Option<Vec<String>>,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SplitResult {
+    pub parent_task_id: String,
+    pub created: Vec<String>,
+    pub done: Vec<String>,
+    pub title_to_id: HashMap<String, String>,
 }
 
 pub(crate) fn row_to_task(row: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {
@@ -762,6 +822,538 @@ pub fn promote_ready_tasks(db: &Database) -> Result<usize> {
     let conn = db.lock()?;
     let now = dt_to_sql(now_utc_naive());
     Ok(conn.execute(PROMOTE_READY, params![now])?)
+}
+
+pub fn project_state(db: &Database, project_id: &str) -> Result<ProjectState> {
+    let tasks = list_tasks(
+        db,
+        TaskListFilters {
+            project_id: Some(project_id.to_string()),
+            ..Default::default()
+        },
+    )?;
+    let total = tasks.len();
+    let done = tasks
+        .iter()
+        .filter(|t| matches!(t.status, TaskStatus::Done | TaskStatus::DonePartial))
+        .count();
+    let ready = tasks
+        .iter()
+        .filter(|t| t.status == TaskStatus::Ready)
+        .count();
+    let running = tasks
+        .iter()
+        .filter(|t| matches!(t.status, TaskStatus::Running | TaskStatus::Claimed))
+        .count();
+    let pending = tasks
+        .iter()
+        .filter(|t| t.status == TaskStatus::Pending)
+        .count();
+    Ok(ProjectState {
+        total,
+        done,
+        ready,
+        running,
+        pending,
+    })
+}
+
+pub fn insert_task_between(
+    db: &Database,
+    project_id: &str,
+    after_task: &str,
+    before_task: Option<&str>,
+    title: &str,
+    description: Option<String>,
+) -> Result<Task> {
+    let after = get_task(db, after_task)?;
+    if after.project_id != project_id {
+        return Err(
+            PlanqError::Conflict("after task belongs to a different project".to_string()).into(),
+        );
+    }
+
+    if let Some(before_task_id) = before_task {
+        let before = get_task(db, before_task_id)?;
+        if before.project_id != project_id {
+            return Err(PlanqError::Conflict(
+                "before task belongs to a different project".to_string(),
+            )
+            .into());
+        }
+    }
+
+    let now = now_utc_naive();
+    let task = Task {
+        id: generate_id("task"),
+        project_id: project_id.to_string(),
+        parent_task_id: None,
+        is_composite: false,
+        title: title.to_string(),
+        description,
+        status: TaskStatus::Pending,
+        kind: TaskKind::Generic,
+        priority: 0,
+        agent_id: None,
+        claimed_at: None,
+        started_at: None,
+        completed_at: None,
+        result: None,
+        error: None,
+        progress: None,
+        progress_note: None,
+        max_retries: 0,
+        retry_count: 0,
+        retry_backoff: RetryBackoff::Exponential,
+        retry_delay_ms: 1000,
+        timeout_seconds: None,
+        heartbeat_interval: 30,
+        last_heartbeat: None,
+        requires_approval: false,
+        approval_status: None,
+        approved_by: None,
+        approval_comment: None,
+        metadata: None,
+        created_at: now,
+        updated_at: now,
+    };
+
+    let created = create_task(db, &task, &[])?;
+
+    add_dependency(
+        db,
+        after_task,
+        &created.id,
+        crate::models::DependencyKind::FeedsInto,
+        crate::models::DependencyCondition::All,
+        None,
+    )?;
+
+    if let Some(before_task_id) = before_task {
+        let _ = remove_dependency(db, after_task, before_task_id)?;
+        add_dependency(
+            db,
+            &created.id,
+            before_task_id,
+            crate::models::DependencyKind::FeedsInto,
+            crate::models::DependencyCondition::All,
+            None,
+        )?;
+
+        let before = get_task(db, before_task_id)?;
+        if before.status == TaskStatus::Ready
+            && !matches!(after.status, TaskStatus::Done | TaskStatus::DonePartial)
+        {
+            let conn = db.lock()?;
+            conn.execute(
+                "UPDATE tasks SET status = 'pending', updated_at = datetime('now') WHERE id = ?1 AND status = 'ready'",
+                params![before_task_id],
+            )?;
+        }
+    }
+
+    let _ = promote_ready_tasks(db)?;
+    get_task(db, &created.id)
+}
+
+pub fn amend_task_description(db: &Database, task_id: &str, text: &str) -> Result<Task> {
+    let task = get_task(db, task_id)?;
+    if !matches!(task.status, TaskStatus::Pending | TaskStatus::Ready) {
+        return Err(PlanqError::InvalidTransition(format!(
+            "task {task_id} must be pending or ready to amend"
+        ))
+        .into());
+    }
+
+    let amended = match task.description {
+        Some(description) if !description.is_empty() => format!("{text}\n---\n{description}"),
+        _ => text.to_string(),
+    };
+
+    let conn = db.lock()?;
+    conn.execute(
+        "UPDATE tasks SET description = ?2, updated_at = ?3 WHERE id = ?1",
+        params![task_id, amended, dt_to_sql(now_utc_naive())],
+    )?;
+    drop(conn);
+
+    get_task(db, task_id)
+}
+
+pub fn get_lookahead(db: &Database, project_id: &str, depth: usize) -> Result<LookaheadResult> {
+    let tasks = list_tasks(
+        db,
+        TaskListFilters {
+            project_id: Some(project_id.to_string()),
+            ..Default::default()
+        },
+    )?;
+
+    let task_by_id: HashMap<String, Task> = tasks.into_iter().map(|t| (t.id.clone(), t)).collect();
+    let mut downstream: HashMap<String, Vec<String>> = HashMap::new();
+    let mut upstream: HashMap<String, Vec<String>> = HashMap::new();
+
+    for task_id in task_by_id.keys() {
+        downstream.insert(task_id.clone(), Vec::new());
+        upstream.insert(task_id.clone(), Vec::new());
+    }
+
+    let conn = db.lock()?;
+    let mut stmt = conn.prepare(
+        r#"
+        SELECT d.from_task, d.to_task
+        FROM dependencies d
+        JOIN tasks ft ON ft.id = d.from_task
+        JOIN tasks tt ON tt.id = d.to_task
+        WHERE ft.project_id = ?1 AND tt.project_id = ?1
+        "#,
+    )?;
+    let mut rows = stmt.query(params![project_id])?;
+    while let Some(row) = rows.next()? {
+        let from_task: String = row.get(0)?;
+        let to_task: String = row.get(1)?;
+        if let Some(children) = downstream.get_mut(&from_task) {
+            children.push(to_task.clone());
+        }
+        if let Some(parents) = upstream.get_mut(&to_task) {
+            parents.push(from_task.clone());
+        }
+    }
+    let mut current: Vec<Task> = task_by_id
+        .values()
+        .filter(|task| matches!(task.status, TaskStatus::Running | TaskStatus::Claimed))
+        .cloned()
+        .collect();
+    current.sort_by(|a, b| a.id.cmp(&b.id));
+
+    let mut queue: VecDeque<(String, usize)> = current
+        .iter()
+        .map(|task| (task.id.clone(), 0usize))
+        .collect();
+    let mut best_hops: HashMap<String, usize> = HashMap::new();
+
+    while let Some((task_id, hops)) = queue.pop_front() {
+        if hops >= depth {
+            continue;
+        }
+        if let Some(children) = downstream.get(&task_id) {
+            for child in children {
+                let next_hops = hops + 1;
+                let update = best_hops
+                    .get(child)
+                    .map(|current_hops| next_hops < *current_hops)
+                    .unwrap_or(true);
+                if update {
+                    best_hops.insert(child.clone(), next_hops);
+                    queue.push_back((child.clone(), next_hops));
+                }
+            }
+        }
+    }
+
+    let current_ids: HashSet<String> = current.iter().map(|task| task.id.clone()).collect();
+    let mut upcoming = Vec::new();
+    for (task_id, hops) in &best_hops {
+        if *hops == 0 || current_ids.contains(task_id) {
+            continue;
+        }
+        if let Some(task) = task_by_id.get(task_id) {
+            let blocked_by = upstream
+                .get(task_id)
+                .cloned()
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|upstream_id| {
+                    task_by_id
+                        .get(upstream_id)
+                        .map(|upstream_task| {
+                            !matches!(
+                                upstream_task.status,
+                                TaskStatus::Done | TaskStatus::DonePartial
+                            )
+                        })
+                        .unwrap_or(false)
+                })
+                .collect::<Vec<_>>();
+
+            upcoming.push(LookaheadTask {
+                id: task.id.clone(),
+                title: task.title.clone(),
+                hops: *hops,
+                blocked_by,
+                description: task.description.clone(),
+            });
+        }
+    }
+
+    upcoming.sort_by(|a, b| a.hops.cmp(&b.hops).then_with(|| a.id.cmp(&b.id)));
+    let updatable = upcoming
+        .iter()
+        .map(|task| task.id.clone())
+        .collect::<Vec<_>>();
+
+    Ok(LookaheadResult {
+        current,
+        upcoming,
+        updatable,
+    })
+}
+
+pub fn pivot_subtree(
+    db: &Database,
+    parent_id: &str,
+    keep_done: bool,
+    new_subtasks: Vec<NewSubtask>,
+) -> Result<PivotResult> {
+    let parent = get_task(db, parent_id)?;
+
+    let children = list_tasks(
+        db,
+        TaskListFilters {
+            project_id: Some(parent.project_id.clone()),
+            parent_task_id: Some(parent_id.to_string()),
+            ..Default::default()
+        },
+    )?;
+
+    if children
+        .iter()
+        .any(|child| matches!(child.status, TaskStatus::Running))
+    {
+        return Err(PlanqError::InvalidTransition(
+            "cannot pivot while a child is running; pause or complete it first".to_string(),
+        )
+        .into());
+    }
+
+    let mut kept = Vec::new();
+    let mut cancelled = Vec::new();
+    let now = dt_to_sql(now_utc_naive());
+
+    {
+        let conn = db.lock()?;
+        for child in &children {
+            if matches!(child.status, TaskStatus::Done | TaskStatus::DonePartial) {
+                if keep_done {
+                    kept.push(child.id.clone());
+                }
+                continue;
+            }
+
+            if matches!(
+                child.status,
+                TaskStatus::Pending | TaskStatus::Ready | TaskStatus::Claimed
+            ) {
+                conn.execute(
+                    "UPDATE tasks SET status = 'cancelled', updated_at = ?2 WHERE id = ?1",
+                    params![child.id, now],
+                )?;
+                cancelled.push(child.id.clone());
+            }
+        }
+        conn.execute(
+            "UPDATE tasks SET is_composite = 1, updated_at = datetime('now') WHERE id = ?1",
+            params![parent_id],
+        )?;
+    }
+
+    let now = now_utc_naive();
+    let mut title_to_id: HashMap<String, String> = HashMap::new();
+    let mut created = Vec::new();
+    for subtask in &new_subtasks {
+        let has_deps = subtask
+            .deps_on
+            .as_ref()
+            .map(|deps| !deps.is_empty())
+            .unwrap_or(false);
+        let task = Task {
+            id: generate_id("task"),
+            project_id: parent.project_id.clone(),
+            parent_task_id: Some(parent_id.to_string()),
+            is_composite: false,
+            title: subtask.title.clone(),
+            description: subtask.description.clone(),
+            status: if has_deps {
+                TaskStatus::Pending
+            } else {
+                TaskStatus::Ready
+            },
+            kind: subtask.kind.clone().unwrap_or(TaskKind::Generic),
+            priority: subtask.priority.unwrap_or(0),
+            agent_id: None,
+            claimed_at: None,
+            started_at: None,
+            completed_at: None,
+            result: None,
+            error: None,
+            progress: None,
+            progress_note: None,
+            max_retries: 0,
+            retry_count: 0,
+            retry_backoff: RetryBackoff::Exponential,
+            retry_delay_ms: 1000,
+            timeout_seconds: None,
+            heartbeat_interval: 30,
+            last_heartbeat: None,
+            requires_approval: false,
+            approval_status: None,
+            approved_by: None,
+            approval_comment: None,
+            metadata: None,
+            created_at: now,
+            updated_at: now,
+        };
+        let created_task = create_task(db, &task, &[])?;
+        title_to_id.insert(subtask.title.clone(), created_task.id.clone());
+        created.push(created_task.id);
+    }
+
+    for subtask in &new_subtasks {
+        if let Some(deps_on) = &subtask.deps_on {
+            let to_id = title_to_id
+                .get(&subtask.title)
+                .ok_or_else(|| anyhow::anyhow!("missing subtask id for title {}", subtask.title))?;
+            for dep_title in deps_on {
+                let from_id = title_to_id.get(dep_title).ok_or_else(|| {
+                    anyhow::anyhow!("deps_on references unknown subtask title: {}", dep_title)
+                })?;
+                add_dependency(
+                    db,
+                    from_id,
+                    to_id,
+                    crate::models::DependencyKind::FeedsInto,
+                    crate::models::DependencyCondition::All,
+                    None,
+                )?;
+            }
+        }
+    }
+
+    let _ = promote_ready_tasks(db)?;
+
+    Ok(PivotResult {
+        kept,
+        cancelled,
+        created,
+    })
+}
+
+pub fn split_task(db: &Database, task_id: &str, parts: Vec<SplitPart>) -> Result<SplitResult> {
+    if parts.is_empty() {
+        return Err(anyhow::anyhow!("split requires at least one part"));
+    }
+
+    let parent = get_task(db, task_id)?;
+    {
+        let conn = db.lock()?;
+        conn.execute(
+            "UPDATE tasks SET is_composite = 1, status = 'pending', agent_id = NULL, updated_at = datetime('now') WHERE id = ?1",
+            params![task_id],
+        )?;
+    }
+
+    let mut seen_titles = HashSet::new();
+    for part in &parts {
+        if !seen_titles.insert(part.title.clone()) {
+            return Err(anyhow::anyhow!("duplicate split title: {}", part.title));
+        }
+    }
+
+    let now = now_utc_naive();
+    let mut title_to_id = HashMap::new();
+    let mut created = Vec::new();
+    let mut done_ids = Vec::new();
+
+    for part in &parts {
+        let has_deps = part
+            .deps_on
+            .as_ref()
+            .map(|deps| !deps.is_empty())
+            .unwrap_or(false);
+        let mut task = Task {
+            id: generate_id("task"),
+            project_id: parent.project_id.clone(),
+            parent_task_id: Some(task_id.to_string()),
+            is_composite: false,
+            title: part.title.clone(),
+            description: part.description.clone(),
+            status: if has_deps {
+                TaskStatus::Pending
+            } else {
+                TaskStatus::Ready
+            },
+            kind: TaskKind::Generic,
+            priority: 0,
+            agent_id: None,
+            claimed_at: None,
+            started_at: None,
+            completed_at: None,
+            result: None,
+            error: None,
+            progress: None,
+            progress_note: None,
+            max_retries: 0,
+            retry_count: 0,
+            retry_backoff: RetryBackoff::Exponential,
+            retry_delay_ms: 1000,
+            timeout_seconds: None,
+            heartbeat_interval: 30,
+            last_heartbeat: None,
+            requires_approval: false,
+            approval_status: None,
+            approved_by: None,
+            approval_comment: None,
+            metadata: None,
+            created_at: now,
+            updated_at: now,
+        };
+
+        if part.done.unwrap_or(false) {
+            task.status = TaskStatus::Done;
+            task.completed_at = Some(now);
+            task.result = part
+                .result
+                .as_ref()
+                .map(|value| serde_json::Value::String(value.clone()));
+        }
+
+        let created_task = create_task(db, &task, &[])?;
+        if part.done.unwrap_or(false) {
+            done_ids.push(created_task.id.clone());
+        }
+        title_to_id.insert(part.title.clone(), created_task.id.clone());
+        created.push(created_task.id);
+    }
+
+    for part in &parts {
+        if let Some(deps_on) = &part.deps_on {
+            let to_id = title_to_id
+                .get(&part.title)
+                .ok_or_else(|| anyhow::anyhow!("missing split part id for title {}", part.title))?;
+            for dep_title in deps_on {
+                let from_id = title_to_id.get(dep_title).ok_or_else(|| {
+                    anyhow::anyhow!("deps_on references unknown part: {}", dep_title)
+                })?;
+                add_dependency(
+                    db,
+                    from_id,
+                    to_id,
+                    crate::models::DependencyKind::FeedsInto,
+                    crate::models::DependencyCondition::All,
+                    None,
+                )?;
+            }
+        }
+    }
+
+    let _ = promote_ready_tasks(db)?;
+
+    Ok(SplitResult {
+        parent_task_id: task_id.to_string(),
+        created,
+        done: done_ids,
+        title_to_id,
+    })
 }
 
 pub(crate) fn count_tasks_by_status(db: &Database, status: TaskStatus) -> Result<i64> {
