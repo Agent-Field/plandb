@@ -8,12 +8,9 @@ use std::thread;
 use std::time::Duration;
 
 #[derive(Args, Debug)]
-#[command(
-    about = "List or watch project events in real-time",
-    long_about = "List or watch project events.\n\n\
+#[command(about = "List or watch project events.\n\n\
               Events are emitted on every task state change (created, claimed, started, done, failed, etc.).\n\
-              Useful for monitoring, building harnesses, and debugging agent coordination."
-)]
+              Useful for monitoring, building harnesses, and debugging agent coordination.")]
 pub struct EventsCommand {
     #[command(subcommand)]
     command: EventsSubcommand,

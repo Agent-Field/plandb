@@ -14,8 +14,7 @@ use std::str::FromStr;
 #[command(
     name = "planq",
     version,
-    about = "Task graph primitive for AI agent orchestration",
-    long_about = "Task graph primitive for AI agent orchestration.\n\n\
+    about = "Task graph primitive for AI agent orchestration.\n\n\
         Manages a dependency-aware task graph in SQLite. Three interfaces: CLI, MCP server, HTTP API.\n\
         Agents decompose work into tasks with dependencies, then execute via a claim-and-complete loop.\n\n\
         WORKFLOW:\n\
@@ -34,8 +33,13 @@ use std::str::FromStr;
         MULTI-AGENT:\n\
         \x20 Each agent runs: planq go --agent <NAME> → work → planq done <ID> --next --agent <NAME>\n\
         \x20 The graph ensures no two agents claim the same task. Dependencies are enforced.\n\n\
+        CONCEPTS:\n\
+        \x20 Task states: pending → ready (deps done) → claimed → running → done/failed\n\
+        \x20 Dep types:   feeds_into (default, passes result downstream), blocks, suggests\n\
+        \x20 Task kinds:  generic, code, research, review, test, shell\n\
+        \x20 IDs:         short 8-char (e.g. t-a1b2c3d4). Fuzzy-matched on typos.\n\n\
         OUTPUT MODES:\n\
-        \x20 Default human-readable output. Add --json for structured JSON. Add -c/--compact for token-efficient output.",
+        \x20 Default human-readable. --json for structured JSON. -c/--compact for token-efficient output.",
     after_help = "EXAMPLES:\n\
         \x20 planq project create \"auth-system\"                         Create project\n\
         \x20 planq task create --title \"Design schema\" --kind research  Add a task\n\
@@ -85,8 +89,7 @@ pub enum Commands {
     #[command(about = "List or watch project events in real-time")]
     Events(events::EventsCommand),
     #[command(
-        about = "Show upcoming tasks after current running tasks complete",
-        long_about = "Show upcoming tasks after current running tasks complete.\n\n\
+        about = "Show upcoming tasks after current running tasks complete.\n\n\
                   Returns the lookahead buffer: currently running tasks and the next N layers\n\
                   of tasks that will become ready as current tasks complete.\n\
                   Useful for agents to anticipate what's coming and prepare."
@@ -102,8 +105,7 @@ pub enum Commands {
         project: Option<String>,
     },
     #[command(
-        about = "Set or show the default project (avoids --project on every command)",
-        long_about = "Set or show the default project.\n\n\
+        about = "Set or show the default project (avoids --project on every command).\n\n\
                   Once set, all commands that accept --project will use this default.\n\
                   Run without arguments to show current default. Use --clear to unset."
     )]
@@ -114,8 +116,7 @@ pub enum Commands {
         clear: bool,
     },
     #[command(
-        about = "Show project progress: done/total, ready tasks, running agents",
-        long_about = "Show project progress: done/total, ready tasks, running agents.\n\n\
+        about = "Show project progress: done/total, ready tasks, running agents.\n\n\
                   Three detail levels:\n\
                   \x20 planq status             One-line summary with counts\n\
                   \x20 planq status --detail     Per-task breakdown with status icons\n\
@@ -137,8 +138,7 @@ pub enum Commands {
         port: u16,
     },
     #[command(
-        about = "Generate integration prompt/config for your agent platform",
-        long_about = "Generate integration prompt/config for your agent platform.\n\n\
+        about = "Generate integration prompt/config for your agent platform.\n\n\
                   Outputs ready-to-paste configuration for:\n\
                   \x20 mcp   — MCP config JSON for Claude Code, Cursor, Windsurf\n\
                   \x20 cli   — System prompt snippet for Codex, Aider, CLI agents\n\

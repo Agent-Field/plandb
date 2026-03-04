@@ -7,12 +7,9 @@ use clap::{Args, Subcommand};
 use std::fs;
 
 #[derive(Args, Debug)]
-#[command(
-    about = "Attach, read, and list artifacts (files, outputs) on tasks",
-    long_about = "Attach, read, and list artifacts on tasks.\n\n\
+#[command(about = "Attach, read, and list artifacts on tasks.\n\n\
               Artifacts are named outputs attached to tasks — code files, configs, reports, etc.\n\
-              Downstream tasks can read artifacts from their dependencies via the handoff protocol."
-)]
+              Downstream tasks can read artifacts from their dependencies via the handoff protocol.")]
 pub struct ArtifactCommand {
     #[command(subcommand)]
     command: ArtifactSubcommand,

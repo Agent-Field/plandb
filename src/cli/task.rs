@@ -24,9 +24,7 @@ use std::collections::HashMap;
 use std::fs;
 
 #[derive(Args, Debug)]
-#[command(
-    about = "Manage tasks (create, claim, complete, adapt)",
-    long_about = "Manage tasks within a project.\n\n\
+#[command(about = "Manage tasks within a project.\n\n\
               LIFECYCLE: create → [ready] → go/claim → [running] → done/fail\n\
               Dependencies control when tasks become ready. Only tasks with all deps done can be claimed.\n\n\
               CORE LOOP (2 commands):\n\
@@ -38,8 +36,7 @@ use std::fs;
               \x20 planq task pivot     Replace a subtree with new tasks\n\
               \x20 planq task split     Break one task into multiple sub-tasks\n\
               \x20 planq task decompose Break a task into subtasks from a YAML file\n\
-              \x20 planq task replan    Cancel pending subtasks and create new ones from YAML"
-)]
+              \x20 planq task replan    Cancel pending subtasks and create new ones from YAML")]
 pub struct TaskCommand {
     #[command(subcommand)]
     command: TaskSubcommand,
@@ -114,16 +111,13 @@ enum TaskSubcommand {
 }
 
 #[derive(Args, Debug)]
-#[command(
-    about = "Preview effects of mutations without applying them",
-    long_about = "Preview effects of mutations without applying them.\n\n\
+#[command(about = "Preview effects of mutations without applying them.\n\n\
               Simulates a change and shows what would happen to the task graph:\n\
               which tasks get delayed, which become ready, how the critical path changes.\n\
               Nothing is modified — safe to run anytime.\n\n\
               EXAMPLES:\n\
               \x20 planq what-if cancel t-a1b2c3\n\
-              \x20 planq what-if insert --after t-a1 --before t-b2 --title \"Add auth\""
-)]
+              \x20 planq what-if insert --after t-a1 --before t-b2 --title \"Add auth\"")]
 pub struct WhatIfCommand {
     #[command(subcommand)]
     command: WhatIfSubcommand,
