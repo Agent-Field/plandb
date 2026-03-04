@@ -9,7 +9,7 @@ use crate::db::{
     get_lookahead, get_task, insert_task_between, list_dependencies, list_notes, list_task_files,
     list_tasks, pause_task, pivot_subtree, project_state, promote_ready_tasks, remove_dependency,
     snapshot_task_statuses, split_task, start_task, update_heartbeat, update_progress, update_task,
-    Database, NewSubtask, PlanqError, SplitPart, TaskListFilters,
+    Database, NewSubtask, PlandbError, SplitPart, TaskListFilters,
 };
 use crate::models::{
     generate_id, DependencyCondition, DependencyKind, RetryBackoff, Task, TaskKind, TaskStatus,
@@ -28,15 +28,15 @@ use std::fs;
               LIFECYCLE: create → [ready] → go/claim → [running] → done/fail\n\
               Dependencies control when tasks become ready. Only tasks with all deps done can be claimed.\n\n\
               CORE LOOP (2 commands):\n\
-              \x20 planq go --agent NAME        Claim + start next ready task\n\
-              \x20 planq done ID --next --agent  Complete current + claim next\n\n\
+              \x20 plandb go --agent NAME        Claim + start next ready task\n\
+              \x20 plandb done ID --next --agent  Complete current + claim next\n\n\
               PLAN ADAPTATION (mid-flight changes):\n\
-              \x20 planq task insert    Add a step between existing tasks\n\
-              \x20 planq task amend     Prepend context to a future task's description\n\
-              \x20 planq task pivot     Replace a subtree with new tasks\n\
-              \x20 planq task split     Break one task into multiple sub-tasks\n\
-              \x20 planq task decompose Break a task into subtasks from a YAML file\n\
-              \x20 planq task replan    Cancel pending subtasks and create new ones from YAML")]
+              \x20 plandb task insert    Add a step between existing tasks\n\
+              \x20 plandb task amend     Prepend context to a future task's description\n\
+              \x20 plandb task pivot     Replace a subtree with new tasks\n\
+              \x20 plandb task split     Break one task into multiple sub-tasks\n\
+              \x20 plandb task decompose Break a task into subtasks from a YAML file\n\
+              \x20 plandb task replan    Cancel pending subtasks and create new ones from YAML")]
 pub struct TaskCommand {
     #[command(subcommand)]
     command: TaskSubcommand,
@@ -116,8 +116,8 @@ enum TaskSubcommand {
               which tasks get delayed, which become ready, how the critical path changes.\n\
               Nothing is modified — safe to run anytime.\n\n\
               EXAMPLES:\n\
-              \x20 planq what-if cancel t-a1b2c3\n\
-              \x20 planq what-if insert --after t-a1 --before t-b2 --title \"Add auth\"")]
+              \x20 plandb what-if cancel t-a1b2c3\n\
+              \x20 plandb what-if insert --after t-a1 --before t-b2 --title \"Add auth\"")]
 pub struct WhatIfCommand {
     #[command(subcommand)]
     command: WhatIfSubcommand,
@@ -145,7 +145,7 @@ enum WhatIfSubcommand {
 
 #[derive(Args, Debug)]
 pub struct CreateTaskArgs {
-    #[arg(long, help = "Project ID (uses default if set via 'planq use')")]
+    #[arg(long, help = "Project ID (uses default if set via 'plandb use')")]
     pub project: Option<String>,
     #[arg(long, help = "Task title (concise, descriptive)")]
     pub title: String,
@@ -1248,7 +1248,7 @@ pub fn done_cmd(db: &Database, args: DoneArgs, json: bool, compact: bool) -> Res
                 .count();
             if feeds_count > 0 {
                 eprintln!(
-                    "hint: this task feeds into {feeds_count} downstream task(s). Consider: planq done {} --result '{{\"key\": \"value\"}}'",
+                    "hint: this task feeds into {feeds_count} downstream task(s). Consider: plandb done {} --result '{{\"key\": \"value\"}}'",
                     task.id
                 );
             }
@@ -1285,72 +1285,72 @@ fn enrich_transition_error(
     action: &str,
     err: anyhow::Error,
 ) -> anyhow::Error {
-    let Some(PlanqError::InvalidTransition(_)) = err.downcast_ref::<PlanqError>() else {
+    let Some(PlandbError::InvalidTransition(_)) = err.downcast_ref::<PlandbError>() else {
         return err;
     };
 
     let Ok(task) = get_task(db, task_id) else {
         return anyhow!(
-            "cannot {action} task {task_id}: task not found. Try `planq show {task_id}` to verify the id"
+            "cannot {action} task {task_id}: task not found. Try `plandb show {task_id}` to verify the id"
         );
     };
 
     let suggestion = match (action, &task.status) {
         ("start", TaskStatus::Ready) => {
             format!(
-                "`planq task claim {} --agent <agent>` then `planq task start {}`",
+                "`plandb task claim {} --agent <agent>` then `plandb task start {}`",
                 task.id, task.id
             )
         }
         ("start", TaskStatus::Pending) => {
             format!(
-                "task is blocked by dependencies; inspect with `planq show {}`",
+                "task is blocked by dependencies; inspect with `plandb show {}`",
                 task.id
             )
         }
         ("start", TaskStatus::Running) => {
             format!(
-                "task is already running; continue work or run `planq done {}`",
+                "task is already running; continue work or run `plandb done {}`",
                 task.id
             )
         }
         ("complete", TaskStatus::Claimed) => {
             format!(
-                "run `planq task start {}` first, then `planq done {}`",
+                "run `plandb task start {}` first, then `plandb done {}`",
                 task.id, task.id
             )
         }
         ("complete", TaskStatus::Ready) => {
             format!(
-                "run `planq task claim {} --agent <agent>` and `planq task start {}` first",
+                "run `plandb task claim {} --agent <agent>` and `plandb task start {}` first",
                 task.id, task.id
             )
         }
         ("complete", TaskStatus::Pending) => {
             format!(
-                "task is blocked by dependencies; inspect with `planq show {}`",
+                "task is blocked by dependencies; inspect with `plandb show {}`",
                 task.id
             )
         }
         ("complete", TaskStatus::Done | TaskStatus::DonePartial) => {
             format!(
-                "task is already completed; inspect with `planq show {}`",
+                "task is already completed; inspect with `plandb show {}`",
                 task.id
             )
         }
         ("fail", TaskStatus::Claimed) => {
             format!(
-                "run `planq task start {}` first, then `planq task fail {} --error <msg>`",
+                "run `plandb task start {}` first, then `plandb task fail {} --error <msg>`",
                 task.id, task.id
             )
         }
         ("fail", TaskStatus::Ready) => {
             format!(
-                "run `planq task claim {} --agent <agent>` and `planq task start {}` first",
+                "run `plandb task claim {} --agent <agent>` and `plandb task start {}` first",
                 task.id, task.id
             )
         }
-        _ => format!("inspect task state with `planq show {}`", task.id),
+        _ => format!("inspect task state with `plandb show {}`", task.id),
     };
 
     anyhow!(

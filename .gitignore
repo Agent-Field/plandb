@@ -3,7 +3,7 @@
 *.db-wal
 *.db-shm
 .DS_Store
-experiments/*/planq.db
+experiments/*/plandb.db
 experiments/*/.venv/
 experiments/*/__pycache__/
 **/__pycache__/

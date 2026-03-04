@@ -41,7 +41,7 @@ pub use tasks::{
 };
 
 #[derive(Debug, Error)]
-pub enum PlanqError {
+pub enum PlandbError {
     #[error("not found: {0}")]
     NotFound(String),
     #[error("invalid transition: {0}")]

@@ -1,8 +1,8 @@
 #!/bin/sh
 set -e
 
-REPO="Agent-Field/planq"
-BINARY="planq"
+REPO="Agent-Field/plandb"
+BINARY="plandb"
 
 # Detect OS
 OS=$(uname -s)
@@ -20,7 +20,7 @@ case "$ARCH" in
   *)               echo "Error: unsupported architecture '$ARCH'"; exit 1 ;;
 esac
 
-ASSET="planq-${OS}-${ARCH}"
+ASSET="plandb-${OS}-${ARCH}"
 
 # Get latest release tag
 LATEST=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/')
@@ -34,7 +34,7 @@ URL="https://github.com/${REPO}/releases/download/${LATEST}/${ASSET}"
 CHECKSUMS_URL="https://github.com/${REPO}/releases/download/${LATEST}/checksums.txt"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 
-echo "Installing planq ${LATEST} (${OS}/${ARCH})..."
+echo "Installing plandb ${LATEST} (${OS}/${ARCH})..."
 
 # Download binary to temp first
 TMPFILE=$(mktemp)
@@ -75,5 +75,5 @@ else
   sudo chmod +x "${INSTALL_DIR}/${BINARY}"
 fi
 
-echo "planq ${LATEST} installed to ${INSTALL_DIR}/${BINARY}"
+echo "plandb ${LATEST} installed to ${INSTALL_DIR}/${BINARY}"
 "${INSTALL_DIR}/${BINARY}" --version 2>/dev/null || true

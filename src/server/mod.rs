@@ -27,7 +27,7 @@ pub async fn run_server(db_path: &str, port: u16) -> Result<()> {
         .with_state(db);
 
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await?;
-    println!("Planq server listening on http://0.0.0.0:{port}");
+    println!("Plandb server listening on http://0.0.0.0:{port}");
     axum::serve(listener, app).await?;
     Ok(())
 }

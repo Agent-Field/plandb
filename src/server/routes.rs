@@ -137,11 +137,11 @@ impl IntoResponse for ApiError {
 
 impl From<anyhow::Error> for ApiError {
     fn from(value: anyhow::Error) -> Self {
-        if let Some(planq) = value.downcast_ref::<PlanqError>() {
-            return match planq {
-                PlanqError::NotFound(msg) => ApiError::not_found(msg.clone()),
-                PlanqError::Conflict(msg) => ApiError::conflict(msg.clone()),
-                PlanqError::InvalidTransition(msg) => ApiError::conflict(msg.clone()),
+        if let Some(plandb) = value.downcast_ref::<PlandbError>() {
+            return match plandb {
+                PlandbError::NotFound(msg) => ApiError::not_found(msg.clone()),
+                PlandbError::Conflict(msg) => ApiError::conflict(msg.clone()),
+                PlandbError::InvalidTransition(msg) => ApiError::conflict(msg.clone()),
             };
         }
 

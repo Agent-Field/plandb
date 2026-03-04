@@ -52,7 +52,7 @@ fn handle_request(db: &crate::db::Database, req: JsonRpcRequest) -> JsonRpcRespo
             json!({
                 "protocolVersion": "2024-11-05",
                 "capabilities": { "tools": {} },
-                "serverInfo": { "name": "planq", "version": "0.1.0" }
+                "serverInfo": { "name": "plandb", "version": "0.1.0" }
             }),
         ),
         "tools/list" => JsonRpcResponse::success(req.id, json!({ "tools": tool_schemas() })),

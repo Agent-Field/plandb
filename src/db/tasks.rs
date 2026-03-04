@@ -1,6 +1,6 @@
 use crate::db::dependencies::{add_dependency, remove_dependency};
 use crate::db::{
-    dt_to_sql, json_to_sql, now_utc_naive, parse_dt, parse_json, Database, PlanqError,
+    dt_to_sql, json_to_sql, now_utc_naive, parse_dt, parse_json, Database, PlandbError,
 };
 use crate::models::{generate_id, RetryBackoff, Task, TaskKind, TaskStatus};
 use anyhow::Result;
@@ -441,7 +441,7 @@ pub fn get_task(db: &Database, task_id: &str) -> Result<Task> {
     let conn = db.lock()?;
     let mut stmt = conn.prepare(SELECT_TASK_BY_ID)?;
     let task = stmt.query_row(params![task_id], row_to_task).optional()?;
-    task.ok_or_else(|| PlanqError::NotFound(format!("task {task_id}")).into())
+    task.ok_or_else(|| PlandbError::NotFound(format!("task {task_id}")).into())
 }
 
 pub fn fuzzy_find_task(db: &Database, input: &str, project_id: Option<&str>) -> Result<Task> {
@@ -449,8 +449,8 @@ pub fn fuzzy_find_task(db: &Database, input: &str, project_id: Option<&str>) -> 
         Ok(task) => return Ok(task),
         Err(err) => {
             if !matches!(
-                err.downcast_ref::<PlanqError>(),
-                Some(PlanqError::NotFound(_))
+                err.downcast_ref::<PlandbError>(),
+                Some(PlandbError::NotFound(_))
             ) {
                 return Err(err);
             }
@@ -507,7 +507,7 @@ pub fn fuzzy_find_task(db: &Database, input: &str, project_id: Option<&str>) -> 
         }
     }
 
-    Err(PlanqError::NotFound(format!("task {input}")).into())
+    Err(PlandbError::NotFound(format!("task {input}")).into())
 }
 
 pub fn list_tasks(db: &Database, filters: TaskListFilters) -> Result<Vec<Task>> {
@@ -583,7 +583,7 @@ pub fn start_task(db: &Database, task_id: &str) -> Result<Task> {
     let now = dt_to_sql(now_utc_naive());
     let changed = conn.execute(START_TASK, params![task_id, now])?;
     if changed == 0 {
-        return Err(PlanqError::InvalidTransition(format!(
+        return Err(PlandbError::InvalidTransition(format!(
             "task {task_id} must be claimed to start"
         ))
         .into());
@@ -624,7 +624,7 @@ pub fn complete_task(
             ),
             Err(_) => format!("task {task_id} not found"),
         };
-        return Err(PlanqError::InvalidTransition(status_msg).into());
+        return Err(PlandbError::InvalidTransition(status_msg).into());
     }
     drop(conn);
     let task = get_task(db, task_id)?;
@@ -647,7 +647,7 @@ pub fn fail_task(db: &Database, task_id: &str, error: &str) -> Result<Task> {
     let now = dt_to_sql(now_utc_naive());
     let changed = conn.execute(FAIL_TASK, params![task_id, error, now])?;
     if changed == 0 {
-        return Err(PlanqError::InvalidTransition(format!(
+        return Err(PlandbError::InvalidTransition(format!(
             "task {task_id} must be running to fail"
         ))
         .into());
@@ -731,7 +731,7 @@ pub fn update_task(
     let existing = get_task(db, task_id)?;
     match existing.status {
         TaskStatus::Done | TaskStatus::DonePartial | TaskStatus::Cancelled => {
-            return Err(PlanqError::InvalidTransition(format!(
+            return Err(PlandbError::InvalidTransition(format!(
                 "task {task_id} is {} and cannot be updated",
                 existing.status
             ))
@@ -793,7 +793,7 @@ pub fn pause_task(
 ) -> Result<Task> {
     let current = get_task(db, task_id)?;
     if !matches!(current.status, TaskStatus::Running | TaskStatus::Claimed) {
-        return Err(PlanqError::InvalidTransition(format!(
+        return Err(PlandbError::InvalidTransition(format!(
             "task {task_id} must be running or claimed to pause"
         ))
         .into());
@@ -815,7 +815,7 @@ pub fn pause_task(
         params![task_id, progress, note, metadata_json, now],
     )?;
     if changed == 0 {
-        return Err(PlanqError::InvalidTransition(format!(
+        return Err(PlandbError::InvalidTransition(format!(
             "task {task_id} must be running or claimed to pause"
         ))
         .into());
@@ -941,14 +941,14 @@ pub fn insert_task_between(
     let after = get_task(db, after_task)?;
     if after.project_id != project_id {
         return Err(
-            PlanqError::Conflict("after task belongs to a different project".to_string()).into(),
+            PlandbError::Conflict("after task belongs to a different project".to_string()).into(),
         );
     }
 
     if let Some(before_task_id) = before_task {
         let before = get_task(db, before_task_id)?;
         if before.project_id != project_id {
-            return Err(PlanqError::Conflict(
+            return Err(PlandbError::Conflict(
                 "before task belongs to a different project".to_string(),
             )
             .into());
@@ -1031,7 +1031,7 @@ pub fn insert_task_between(
 pub fn amend_task_description(db: &Database, task_id: &str, text: &str) -> Result<Task> {
     let task = get_task(db, task_id)?;
     if !matches!(task.status, TaskStatus::Pending | TaskStatus::Ready) {
-        return Err(PlanqError::InvalidTransition(format!(
+        return Err(PlandbError::InvalidTransition(format!(
             "task {task_id} must be pending or ready to amend"
         ))
         .into());
@@ -1192,7 +1192,7 @@ pub fn pivot_subtree(
         .iter()
         .any(|child| matches!(child.status, TaskStatus::Running))
     {
-        return Err(PlanqError::InvalidTransition(
+        return Err(PlandbError::InvalidTransition(
             "cannot pivot while a child is running; pause or complete it first".to_string(),
         )
         .into());

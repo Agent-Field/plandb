@@ -1,5 +1,5 @@
 use crate::db::{
-    dt_to_sql, json_to_sql, now_utc_naive, parse_dt, parse_json, Database, PlanqError,
+    dt_to_sql, json_to_sql, now_utc_naive, parse_dt, parse_json, Database, PlandbError,
 };
 use crate::models::{generate_id, Project, ProjectStatus};
 use anyhow::Result;
@@ -128,7 +128,7 @@ pub fn get_project(db: &Database, project_id: &str) -> Result<Project> {
     let project = match project {
         Ok(p) => p,
         Err(rusqlite::Error::QueryReturnedNoRows) => {
-            return Err(PlanqError::NotFound(format!("project {project_id}")).into())
+            return Err(PlandbError::NotFound(format!("project {project_id}")).into())
         }
         Err(e) => return Err(e.into()),
     };
@@ -140,8 +140,8 @@ pub fn fuzzy_find_project(db: &Database, input: &str) -> Result<Project> {
         Ok(project) => return Ok(project),
         Err(err) => {
             if !matches!(
-                err.downcast_ref::<PlanqError>(),
-                Some(PlanqError::NotFound(_))
+                err.downcast_ref::<PlandbError>(),
+                Some(PlandbError::NotFound(_))
             ) {
                 return Err(err);
             }
@@ -198,7 +198,7 @@ pub fn fuzzy_find_project(db: &Database, input: &str) -> Result<Project> {
         }
     }
 
-    Err(PlanqError::NotFound(format!("project {input}")).into())
+    Err(PlandbError::NotFound(format!("project {input}")).into())
 }
 
 pub fn list_projects(db: &Database) -> Result<Vec<Project>> {
@@ -224,7 +224,7 @@ pub fn update_project_status(
         params![project_id, status, dt_to_sql(now)],
     )?;
     if changed == 0 {
-        return Err(PlanqError::NotFound(format!("project {project_id}")).into());
+        return Err(PlandbError::NotFound(format!("project {project_id}")).into());
     }
     drop(conn);
     get_project(db, project_id)

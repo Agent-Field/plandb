@@ -15,27 +15,27 @@ pub use task::{CreateTaskArgs, DoneArgs, GetTaskArgs, GoArgs, ListTasksArgs};
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "planq",
+    name = "plandb",
     version,
     infer_subcommands = true,
     about = "Task graph primitive for AI agent orchestration.\n\n\
         Manages a dependency-aware task graph in SQLite. Three interfaces: CLI, MCP server, HTTP API.\n\
         Agents decompose work into tasks with dependencies, then execute via a claim-and-complete loop.\n\n\
         WORKFLOW:\n\
-        \x20 1. planq project create \"my-project\"                    Create a project\n\
-        \x20 2. planq task create --title \"Design API\" --dep t-xxx   Add tasks with dependencies\n\
-        \x20 3. planq go --agent agent-1                             Claim next ready task\n\
-        \x20 4. planq done <TASK_ID> --next --agent agent-1          Complete + claim next\n\
-        \x20 5. planq status                                         Check progress\n\n\
+        \x20 1. plandb project create \"my-project\"                    Create a project\n\
+        \x20 2. plandb task create --title \"Design API\" --dep t-xxx   Add tasks with dependencies\n\
+        \x20 3. plandb go --agent agent-1                             Claim next ready task\n\
+        \x20 4. plandb done <TASK_ID> --next --agent agent-1          Complete + claim next\n\
+        \x20 5. plandb status                                         Check progress\n\n\
         PLAN ADAPTATION:\n\
-        \x20 planq ahead              See upcoming tasks in the lookahead buffer\n\
-        \x20 planq what-if cancel     Preview effects of cancelling a task\n\
-        \x20 planq task insert        Add a step between existing tasks\n\
-        \x20 planq task amend         Annotate a future task with new context\n\
-        \x20 planq task pivot         Replace a subtree with new tasks\n\
-        \x20 planq task split         Decompose a task mid-execution\n\n\
+        \x20 plandb ahead              See upcoming tasks in the lookahead buffer\n\
+        \x20 plandb what-if cancel     Preview effects of cancelling a task\n\
+        \x20 plandb task insert        Add a step between existing tasks\n\
+        \x20 plandb task amend         Annotate a future task with new context\n\
+        \x20 plandb task pivot         Replace a subtree with new tasks\n\
+        \x20 plandb task split         Decompose a task mid-execution\n\n\
         MULTI-AGENT:\n\
-        \x20 Each agent runs: planq go --agent <NAME> → work → planq done <ID> --next --agent <NAME>\n\
+        \x20 Each agent runs: plandb go --agent <NAME> → work → plandb done <ID> --next --agent <NAME>\n\
         \x20 The graph ensures no two agents claim the same task. Dependencies are enforced.\n\n\
         CONCEPTS:\n\
         \x20 Task states: pending → ready (deps done) → claimed → running → done/failed\n\
@@ -45,17 +45,17 @@ pub use task::{CreateTaskArgs, DoneArgs, GetTaskArgs, GoArgs, ListTasksArgs};
         OUTPUT MODES:\n\
         \x20 Default human-readable. --json for structured JSON. -c/--compact for token-efficient output.",
     after_help = "EXAMPLES:\n\
-        \x20 planq project create \"auth-system\"                         Create project\n\
-        \x20 planq task create --title \"Design schema\" --kind research  Add a task\n\
-        \x20 planq task create --title \"Implement\" --dep t-a1b2c3       Add dependent task\n\
-        \x20 planq go --agent claude-1                                   Claim + start next ready\n\
-        \x20 planq done t-d4e5f6 --result '{\"api\":\"done\"}' --next --agent claude-1\n\
-        \x20 planq task insert --after t-a1 --before t-b2 --title \"Add validation\"\n\
-        \x20 planq what-if cancel t-a1b2c3                               Preview cancel effects\n\
-        \x20 planq status --detail                                       Per-task breakdown\n\
-        \x20 planq --json -c status                                      Compact JSON for LLMs\n\n\
+        \x20 plandb project create \"auth-system\"                         Create project\n\
+        \x20 plandb task create --title \"Design schema\" --kind research  Add a task\n\
+        \x20 plandb task create --title \"Implement\" --dep t-a1b2c3       Add dependent task\n\
+        \x20 plandb go --agent claude-1                                   Claim + start next ready\n\
+        \x20 plandb done t-d4e5f6 --result '{\"api\":\"done\"}' --next --agent claude-1\n\
+        \x20 plandb task insert --after t-a1 --before t-b2 --title \"Add validation\"\n\
+        \x20 plandb what-if cancel t-a1b2c3                               Preview cancel effects\n\
+        \x20 plandb status --detail                                       Per-task breakdown\n\
+        \x20 plandb --json -c status                                      Compact JSON for LLMs\n\n\
         ENVIRONMENT:\n\
-        \x20 PLANQ_DB     Path to SQLite database (default: .planq.db)"
+        \x20 PLANDB_DB     Path to SQLite database (default: .plandb.db)"
 )]
 pub struct Cli {
     #[arg(long, default_value_t = default_db_path(), global = true, help = "Path to SQLite database file")]
@@ -77,7 +77,7 @@ pub struct Cli {
 }
 
 fn default_db_path() -> String {
-    std::env::var("PLANQ_DB").unwrap_or_else(|_| ".planq.db".to_string())
+    std::env::var("PLANDB_DB").unwrap_or_else(|_| ".plandb.db".to_string())
 }
 
 #[derive(Subcommand, Debug)]
@@ -122,9 +122,9 @@ pub enum Commands {
     #[command(
         about = "Show project progress: done/total, ready tasks, running agents.\n\n\
                   Three detail levels:\n\
-                  \x20 planq status             One-line summary with counts\n\
-                  \x20 planq status --detail     Per-task breakdown with status icons\n\
-                  \x20 planq status --full       All tasks + dependency edges"
+                  \x20 plandb status             One-line summary with counts\n\
+                  \x20 plandb status --detail     Per-task breakdown with status icons\n\
+                  \x20 plandb status --full       All tasks + dependency edges"
     )]
     Status {
         #[arg(long, help = "Project ID (uses default if not set)")]
@@ -134,15 +134,15 @@ pub enum Commands {
         #[arg(long, help = "Show all tasks and dependencies")]
         full: bool,
     },
-    #[command(about = "Claim + start next ready task (shortcut for 'planq task go')")]
+    #[command(about = "Claim + start next ready task (shortcut for 'plandb task go')")]
     Go(GoArgs),
-    #[command(about = "Complete a task, optionally claim next (shortcut for 'planq task done')")]
+    #[command(about = "Complete a task, optionally claim next (shortcut for 'plandb task done')")]
     Done(DoneArgs),
-    #[command(about = "List tasks with optional filters (shortcut for 'planq task list')")]
+    #[command(about = "List tasks with optional filters (shortcut for 'plandb task list')")]
     List(ListTasksArgs),
-    #[command(about = "Create a new task (shortcut for 'planq task create')")]
+    #[command(about = "Create a new task (shortcut for 'plandb task create')")]
     Add(CreateTaskArgs),
-    #[command(about = "Show full details of a task (shortcut for 'planq task get')")]
+    #[command(about = "Show full details of a task (shortcut for 'plandb task get')")]
     Show(GetTaskArgs),
     #[command(hide = true, about = "Alias for 'done'")]
     Complete(DoneArgs),
@@ -275,7 +275,7 @@ pub fn resolve_project_id(db: &Database, explicit: Option<&str>) -> Result<Strin
         return Ok(project_id);
     }
     Err(anyhow!(
-        "No project specified. Use --project or run 'planq use <project_id>'."
+        "No project specified. Use --project or run 'plandb use <project_id>'."
     ))
 }
 

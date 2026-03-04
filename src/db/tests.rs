@@ -6,7 +6,7 @@ use std::thread;
 
 fn test_db_path() -> String {
     let mut path = std::env::temp_dir();
-    path.push(format!("planq-test-{}.db", generate_id("tmp")));
+    path.push(format!("plandb-test-{}.db", generate_id("tmp")));
     path.to_string_lossy().to_string()
 }
 

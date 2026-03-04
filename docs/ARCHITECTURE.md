@@ -1,12 +1,12 @@
-# planq Architecture
+# plandb Architecture
 
 > SQLite for Agents — a zero-config, embedded task graph primitive for AI agent orchestration.
 
-## Why planq Exists
+## Why plandb Exists
 
 Every AI agent framework today solves orchestration by adding infrastructure: message queues, workflow engines, state machines-as-a-service, vector databases. More services to deploy, more endpoints to configure, more things to break at 3am.
 
-planq takes the opposite approach. The same way SQLite eliminated the need to run a database server for most applications, planq eliminates the need to run an orchestration server for most agent workloads. It's a single binary that creates a `.planq.db` file. That file *is* the entire coordination layer — the task graph, the dependency engine, the work queue, the handoff protocol, and the audit log.
+plandb takes the opposite approach. The same way SQLite eliminated the need to run a database server for most applications, plandb eliminates the need to run an orchestration server for most agent workloads. It's a single binary that creates a `.plandb.db` file. That file *is* the entire coordination layer — the task graph, the dependency engine, the work queue, the handoff protocol, and the audit log.
 
 No daemon. No config. No network. Just a file.
 
@@ -20,11 +20,11 @@ When an AI agent works, it does exactly three things:
 2. **Does** the work
 3. **Reports** what happened
 
-Every orchestration framework models this differently — some use state machines, some use message passing, some use function calls. planq models it as a **directed acyclic graph of tasks with typed dependency edges**, and makes that graph the single source of truth for all coordination.
+Every orchestration framework models this differently — some use state machines, some use message passing, some use function calls. plandb models it as a **directed acyclic graph of tasks with typed dependency edges**, and makes that graph the single source of truth for all coordination.
 
 ```mermaid
 graph TD
-    subgraph "The planq Model"
+    subgraph "The plandb Model"
         A[Task A<br/>status: done<br/>result: schema.sql] -->|feeds_into| B[Task B<br/>status: running<br/>agent: claude-1]
         A -->|feeds_into| C[Task C<br/>status: ready<br/>waiting for claim]
         B -->|blocks| D[Task D<br/>status: pending<br/>blocked]
@@ -88,9 +88,9 @@ graph TB
 
 ### Three Interfaces, One Truth
 
-planq exposes the same task graph through three interfaces — **CLI**, **MCP** (Model Context Protocol), and **HTTP** — all backed by the same SQLite file. An agent can create tasks via CLI, another can claim them via MCP, and a dashboard can monitor via HTTP SSE. They all see the same state because they all read from the same `.planq.db`.
+plandb exposes the same task graph through three interfaces — **CLI**, **MCP** (Model Context Protocol), and **HTTP** — all backed by the same SQLite file. An agent can create tasks via CLI, another can claim them via MCP, and a dashboard can monitor via HTTP SSE. They all see the same state because they all read from the same `.plandb.db`.
 
-This is a deliberate architectural choice. Most orchestration systems treat the API server as the source of truth and the database as an implementation detail. In planq, the **file is the truth**. The interfaces are just lenses into it. You can copy the file to another machine, open it with `sqlite3`, query it directly, back it up with `cp`. No export/import, no API migration, no schema versioning ceremony.
+This is a deliberate architectural choice. Most orchestration systems treat the API server as the source of truth and the database as an implementation detail. In plandb, the **file is the truth**. The interfaces are just lenses into it. You can copy the file to another machine, open it with `sqlite3`, query it directly, back it up with `cp`. No export/import, no API migration, no schema versioning ceremony.
 
 ---
 
@@ -116,7 +116,7 @@ stateDiagram-v2
 
 ### Why These States
 
-**`pending` vs `ready`**: This is the core of planq's dependency engine. A task stays `pending` until *all* its blocking dependencies (`blocks`, `feeds_into`) are in `done` or `done_partial` state. The `task_readiness` SQL VIEW computes this atomically, and `promote_ready_tasks()` does a single bulk UPDATE. This means you never poll for readiness — completion of one task automatically unlocks the next.
+**`pending` vs `ready`**: This is the core of plandb's dependency engine. A task stays `pending` until *all* its blocking dependencies (`blocks`, `feeds_into`) are in `done` or `done_partial` state. The `task_readiness` SQL VIEW computes this atomically, and `promote_ready_tasks()` does a single bulk UPDATE. This means you never poll for readiness — completion of one task automatically unlocks the next.
 
 **`claimed` vs `running`**: In multi-agent scenarios, claiming a task is a separate concern from starting work on it. The claim is an atomic SQL UPDATE with `WHERE status = 'ready'` — SQLite guarantees only one agent wins. This is optimistic locking without a lock table.
 
@@ -137,7 +137,7 @@ graph LR
 
 ### How Readiness Is Computed
 
-planq uses a SQL VIEW — `task_readiness` — to determine which tasks should be promoted from `pending` to `ready`:
+plandb uses a SQL VIEW — `task_readiness` — to determine which tasks should be promoted from `pending` to `ready`:
 
 ```sql
 CREATE VIEW task_readiness AS
@@ -180,24 +180,24 @@ We evaluated using SQLite triggers (auto-promote on every UPDATE to `done`). The
 
 ## The Handoff Protocol
 
-This is planq's answer to "how do agents pass data to each other?"
+This is plandb's answer to "how do agents pass data to each other?"
 
 ```mermaid
 sequenceDiagram
     participant A as Agent A
-    participant P as planq
+    participant P as plandb
     participant B as Agent B
 
-    A->>P: planq go --agent agent-a
+    A->>P: plandb go --agent agent-a
     P-->>A: {task: "Design API", handoff: []}
 
     Note over A: Does research work...
 
-    A->>P: planq done t-abc --result '{"schema": "..."}'
+    A->>P: plandb done t-abc --result '{"schema": "..."}'
     P->>P: promote_ready_tasks()
     Note over P: Task "Implement API" now ready<br/>(feeds_into dependency satisfied)
 
-    B->>P: planq go --agent agent-b
+    B->>P: plandb go --agent agent-b
     P-->>B: {task: "Implement API",<br/>handoff: [{from: "Design API",<br/>result: {"schema": "..."},<br/>agent: "agent-a"}]}
 
     Note over B: Has Agent A's schema<br/>without knowing Agent A exists
@@ -207,7 +207,7 @@ When Agent B calls `go`, the `go_payload()` function automatically includes the 
 
 ### Why JSON Results Instead of Files?
 
-Files are paths. Paths are machine-specific. A result like `{"schema": "users(id INT, name TEXT)"}` is portable, inspectable, and small enough to include in the handoff context. For large artifacts (binary files, datasets), planq has a separate `artifacts` table — but the handoff protocol carries structured results, not file pointers.
+Files are paths. Paths are machine-specific. A result like `{"schema": "users(id INT, name TEXT)"}` is portable, inspectable, and small enough to include in the handoff context. For large artifacts (binary files, datasets), plandb has a separate `artifacts` table — but the handoff protocol carries structured results, not file pointers.
 
 ---
 
@@ -254,7 +254,7 @@ SQLite serializes writes at the statement level. Two agents executing this simul
 
 ### Heartbeat and Recovery
 
-Each agent periodically calls `planq task heartbeat <id>` to prove it's alive. A background sweeper checks for tasks whose `last_heartbeat` exceeds the `heartbeat_interval`:
+Each agent periodically calls `plandb task heartbeat <id>` to prove it's alive. A background sweeper checks for tasks whose `last_heartbeat` exceeds the `heartbeat_interval`:
 
 - If retries remain: reset to `ready` (another agent can claim it)
 - If retries exhausted: mark `failed`
@@ -266,7 +266,7 @@ This handles the crash scenario — an agent dies mid-task, and the work is auto
 
 ## Plan Adaptation (Mid-Flight Changes)
 
-Real-world agent work is messy. The initial plan is always wrong. planq provides six primitives for changing the plan while tasks are in flight:
+Real-world agent work is messy. The initial plan is always wrong. plandb provides six primitives for changing the plan while tasks are in flight:
 
 ```mermaid
 graph TD
@@ -298,7 +298,7 @@ They map to the six things that go wrong during agent execution:
 Before making destructive changes, agents can preview effects:
 
 ```
-planq what-if cancel t-abc
+plandb what-if cancel t-abc
 ```
 
 This returns which tasks would be cancelled, which would be stranded (no remaining dependencies), and whether any running work would be affected — without actually changing anything. It uses a snapshot-and-simulate approach: snapshot current task statuses, apply the mutation in-memory, diff the results.
@@ -307,7 +307,7 @@ This returns which tasks would be cancelled, which would be stranded (no remaini
 
 ## The Porcelain/Plumbing Split
 
-Inspired by git's architecture, planq separates high-level agent-facing commands (porcelain) from low-level precise-control commands (plumbing):
+Inspired by git's architecture, plandb separates high-level agent-facing commands (porcelain) from low-level precise-control commands (plumbing):
 
 ```mermaid
 graph TB
@@ -349,9 +349,9 @@ graph TB
 
 ### Why This Matters for AI Agents
 
-AI agents don't read documentation. They read `--help` output and try commands. In testing, a Gemini Flash agent tried `planq list`, `planq ls`, `planq tasks`, `planq show`, `planq add`, `planq update`, `planq start`, `planq plan`, `planq track`, and `planq version` — all before finding `planq task create`.
+AI agents don't read documentation. They read `--help` output and try commands. In testing, a Gemini Flash agent tried `plandb list`, `plandb ls`, `plandb tasks`, `plandb show`, `plandb add`, `plandb update`, `plandb start`, `plandb plan`, `plandb track`, and `plandb version` — all before finding `plandb task create`.
 
-planq now accepts all of these. The hidden aliases and `infer_subcommands` mean that agents can use whatever vocabulary feels natural — `planq fin`, `planq comp`, `planq ta` — and planq routes to the right handler. The agent doesn't know these are aliases. It just works.
+plandb now accepts all of these. The hidden aliases and `infer_subcommands` mean that agents can use whatever vocabulary feels natural — `plandb fin`, `plandb comp`, `plandb ta` — and plandb routes to the right handler. The agent doesn't know these are aliases. It just works.
 
 ---
 
@@ -364,7 +364,7 @@ sequenceDiagram
     participant Events as Event Emitter
     participant SSE as SSE Endpoint
 
-    Agent->>Core: planq done t-abc --result '{...}'
+    Agent->>Core: plandb done t-abc --result '{...}'
     Core->>Core: UPDATE tasks SET status='done'
     Core->>Events: insert_event(TaskCompleted, {has_result: true})
     Core->>Core: promote_ready_tasks()
@@ -440,18 +440,18 @@ erDiagram
 
 | Concern | SQLite | Postgres |
 |---|---|---|
-| Setup | `planq project create "x"` — done | Install, configure, create user, create db, connection string |
-| Portability | Copy `.planq.db` to any machine | pg_dump, transfer, pg_restore |
+| Setup | `plandb project create "x"` — done | Install, configure, create user, create db, connection string |
+| Portability | Copy `.plandb.db` to any machine | pg_dump, transfer, pg_restore |
 | Concurrency | Serialized writes (fine for <100 agents) | Full MVCC (needed for 1000+ agents) |
 | Deployment | Single binary, no runtime | Requires running service |
-| Inspection | `sqlite3 .planq.db` | psql + connection params |
-| Backup | `cp .planq.db .planq.db.bak` | pg_dump or continuous archiving |
+| Inspection | `sqlite3 .plandb.db` | psql + connection params |
+| Backup | `cp .plandb.db .plandb.db.bak` | pg_dump or continuous archiving |
 
-planq's target is **1 to ~50 agents working on a shared plan**. At this scale, SQLite's serialized writer model is not a bottleneck — write transactions are sub-millisecond. The readability and portability advantages dominate.
+plandb's target is **1 to ~50 agents working on a shared plan**. At this scale, SQLite's serialized writer model is not a bottleneck — write transactions are sub-millisecond. The readability and portability advantages dominate.
 
 ### WAL Mode
 
-planq enables Write-Ahead Logging (`PRAGMA journal_mode = WAL`), which allows concurrent readers during writes. Multiple agents can read task state while one agent is completing a task. The write serialization only affects concurrent writes, which the atomic claim mechanism already handles.
+plandb enables Write-Ahead Logging (`PRAGMA journal_mode = WAL`), which allows concurrent readers during writes. Multiple agents can read task state while one agent is completing a task. The write serialization only affects concurrent writes, which the atomic claim mechanism already handles.
 
 ---
 
@@ -459,21 +459,21 @@ planq enables Write-Ahead Logging (`PRAGMA journal_mode = WAL`), which allows co
 
 ### IDs: Short, Fuzzy-Matched
 
-Task IDs are 8-character prefixes of ULIDs (e.g., `t-a1b2c3d4`). Short enough for agents to type, unique enough to avoid collisions in any realistic project. planq uses Levenshtein distance matching for typos — `t-a1b2c3d5` will find `t-a1b2c3d4` if it's the closest match.
+Task IDs are 8-character prefixes of ULIDs (e.g., `t-a1b2c3d4`). Short enough for agents to type, unique enough to avoid collisions in any realistic project. plandb uses Levenshtein distance matching for typos — `t-a1b2c3d5` will find `t-a1b2c3d4` if it's the closest match.
 
 ### JSON Result, Not Typed Schema
 
-Task results are untyped JSON (`result JSON` in the schema). This is intentional — planq doesn't know what agents produce. A research task might return `{"findings": [...]}`, a code task might return `{"files_modified": [...]}`. Imposing a schema would force agents to serialize their diverse outputs into a common format, adding friction without value. The `feeds_into` handoff protocol passes whatever JSON was stored.
+Task results are untyped JSON (`result JSON` in the schema). This is intentional — plandb doesn't know what agents produce. A research task might return `{"findings": [...]}`, a code task might return `{"files_modified": [...]}`. Imposing a schema would force agents to serialize their diverse outputs into a common format, adding friction without value. The `feeds_into` handoff protocol passes whatever JSON was stored.
 
 ### No Workflow Language
 
-planq has no DSL, no YAML workflow definitions, no visual graph builder. The task graph is constructed imperatively through commands: `planq task create`, `planq task add-dep`. This is because AI agents don't write YAML — they call commands. The graph emerges from the agent's decisions, not from a pre-defined template.
+plandb has no DSL, no YAML workflow definitions, no visual graph builder. The task graph is constructed imperatively through commands: `plandb task create`, `plandb task add-dep`. This is because AI agents don't write YAML — they call commands. The graph emerges from the agent's decisions, not from a pre-defined template.
 
 The exception is `decompose` and `replan`, which accept YAML for bulk subtask creation. This is a convenience for the "I have a plan, create all the tasks" use case, not a workflow definition language.
 
 ### Agent-Agnostic
 
-planq has no concept of agent capabilities, routing rules, or agent selection. Any agent can claim any ready task. This is intentional — routing logic belongs in the agent framework, not in the coordination primitive. planq answers "what needs to be done?" and "who's doing what?", not "who should do what?".
+plandb has no concept of agent capabilities, routing rules, or agent selection. Any agent can claim any ready task. This is intentional — routing logic belongs in the agent framework, not in the coordination primitive. plandb answers "what needs to be done?" and "who's doing what?", not "who should do what?".
 
 ---
 
@@ -494,12 +494,12 @@ The `task_readiness` VIEW is the most expensive operation, as it joins `tasks ×
 
 ## What Makes This Different
 
-**From workflow engines** (Temporal, Airflow, Prefect): planq is not a service. There's no scheduler process, no worker fleet, no dashboard server. The "scheduler" is a SQL VIEW. The "workers" are agents that call `planq go`. The "dashboard" is `planq status`.
+**From workflow engines** (Temporal, Airflow, Prefect): plandb is not a service. There's no scheduler process, no worker fleet, no dashboard server. The "scheduler" is a SQL VIEW. The "workers" are agents that call `plandb go`. The "dashboard" is `plandb status`.
 
-**From message queues** (RabbitMQ, SQS, Redis Streams): planq is not fire-and-forget. Tasks have dependencies, results, and state. A completed task unlocks downstream tasks automatically. You can inspect the entire graph at any point — not just the current queue depth.
+**From message queues** (RabbitMQ, SQS, Redis Streams): plandb is not fire-and-forget. Tasks have dependencies, results, and state. A completed task unlocks downstream tasks automatically. You can inspect the entire graph at any point — not just the current queue depth.
 
-**From agent frameworks** (LangGraph, CrewAI, AutoGen): planq is not an agent framework. It doesn't run agents, doesn't manage prompts, doesn't chain LLM calls. It's the coordination layer that any framework can use. An agent built with LangGraph and an agent built with raw API calls can both coordinate through the same `.planq.db` file.
+**From agent frameworks** (LangGraph, CrewAI, AutoGen): plandb is not an agent framework. It doesn't run agents, doesn't manage prompts, doesn't chain LLM calls. It's the coordination layer that any framework can use. An agent built with LangGraph and an agent built with raw API calls can both coordinate through the same `.plandb.db` file.
 
-**From databases** (SQLite itself, Redis, MongoDB): planq is not a general-purpose database. It's a domain-specific database for one thing: task coordination. The schema, the state machine, the dependency engine, and the claim mechanism are all built-in. You don't write SQL — you call `planq go`.
+**From databases** (SQLite itself, Redis, MongoDB): plandb is not a general-purpose database. It's a domain-specific database for one thing: task coordination. The schema, the state machine, the dependency engine, and the claim mechanism are all built-in. You don't write SQL — you call `plandb go`.
 
-The closest analogy is **SQLite itself**. SQLite didn't compete with Oracle — it created a new category (embedded database) by making the radical simplification that most applications don't need a server. planq makes the same bet for agent orchestration: most agent workloads don't need a service. They need a file.
+The closest analogy is **SQLite itself**. SQLite didn't compete with Oracle — it created a new category (embedded database) by making the radical simplification that most applications don't need a server. plandb makes the same bet for agent orchestration: most agent workloads don't need a service. They need a file.

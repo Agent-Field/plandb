@@ -2,10 +2,10 @@ use crate::db::Database;
 use anyhow::Result;
 use rusqlite::{params, OptionalExtension};
 
-const SELECT_META: &str = "SELECT value FROM planq_meta WHERE key = ?1;";
+const SELECT_META: &str = "SELECT value FROM plandb_meta WHERE key = ?1;";
 const UPSERT_META: &str =
-    "INSERT INTO planq_meta(key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value;";
-const DELETE_META: &str = "DELETE FROM planq_meta WHERE key = ?1;";
+    "INSERT INTO plandb_meta(key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value;";
+const DELETE_META: &str = "DELETE FROM plandb_meta WHERE key = ?1;";
 
 pub fn get_meta(db: &Database, key: &str) -> Result<Option<String>> {
     let conn = db.lock()?;

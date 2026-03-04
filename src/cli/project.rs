@@ -11,7 +11,7 @@ use std::collections::{HashMap, HashSet};
 #[derive(Args, Debug)]
 #[command(about = "Manage projects.\n\n\
               A project is a container for a task graph. Create one first, then add tasks.\n\
-              The first project created is automatically set as the default (see 'planq use').")]
+              The first project created is automatically set as the default (see 'plandb use').")]
 pub struct ProjectCommand {
     #[command(subcommand)]
     command: ProjectSubcommand,

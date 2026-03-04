@@ -255,7 +255,7 @@ struct TaskDecomposeArgs {
 pub fn tool_schemas() -> Vec<Value> {
     vec![
         json!({
-            "name": "planq_project_create",
+            "name": "plandb_project_create",
             "description": "Create project",
             "inputSchema": {
                 "type": "object",
@@ -267,7 +267,7 @@ pub fn tool_schemas() -> Vec<Value> {
             }
         }),
         json!({
-            "name": "planq_task_create",
+            "name": "plandb_task_create",
             "description": "Create task with optional deps",
             "inputSchema": {
                 "type": "object",
@@ -301,7 +301,7 @@ pub fn tool_schemas() -> Vec<Value> {
             }
         }),
         json!({
-            "name": "planq_task_create_batch",
+            "name": "plandb_task_create_batch",
             "description": "Create task batch",
             "inputSchema": {
                 "type": "object",
@@ -340,7 +340,7 @@ pub fn tool_schemas() -> Vec<Value> {
             }
         }),
         json!({
-            "name": "planq_task_get_context",
+            "name": "plandb_task_get_context",
             "description": "Get task context: project, artifacts, deps",
             "inputSchema": {
                 "type": "object",
@@ -351,7 +351,7 @@ pub fn tool_schemas() -> Vec<Value> {
             }
         }),
         json!({
-            "name": "planq_task_claim",
+            "name": "plandb_task_claim",
             "description": "Claim ready task",
             "inputSchema": {
                 "type": "object",
@@ -363,7 +363,7 @@ pub fn tool_schemas() -> Vec<Value> {
             }
         }),
         json!({
-            "name": "planq_task_start",
+            "name": "plandb_task_start",
             "description": "Mark task running",
             "inputSchema": {
                 "type": "object",
@@ -374,7 +374,7 @@ pub fn tool_schemas() -> Vec<Value> {
             }
         }),
         json!({
-            "name": "planq_task_done",
+            "name": "plandb_task_done",
             "description": "Mark task done",
             "inputSchema": {
                 "type": "object",
@@ -392,7 +392,7 @@ pub fn tool_schemas() -> Vec<Value> {
             }
         }),
         json!({
-            "name": "planq_go",
+            "name": "plandb_go",
             "description": "Get next task, claim+start it, return context",
             "inputSchema": {
                 "type": "object",
@@ -404,7 +404,7 @@ pub fn tool_schemas() -> Vec<Value> {
             }
         }),
         json!({
-            "name": "planq_task_fail",
+            "name": "plandb_task_fail",
             "description": "Mark task failed",
             "inputSchema": {
                 "type": "object",
@@ -416,7 +416,7 @@ pub fn tool_schemas() -> Vec<Value> {
             }
         }),
         json!({
-            "name": "planq_task_list",
+            "name": "plandb_task_list",
             "description": "List tasks",
             "inputSchema": {
                 "type": "object",
@@ -431,7 +431,7 @@ pub fn tool_schemas() -> Vec<Value> {
             }
         }),
         json!({
-            "name": "planq_task_next",
+            "name": "plandb_task_next",
             "description": "Get next ready task",
             "inputSchema": {
                 "type": "object",
@@ -445,7 +445,7 @@ pub fn tool_schemas() -> Vec<Value> {
             }
         }),
         json!({
-            "name": "planq_project_status",
+            "name": "plandb_project_status",
             "description": "Get project status",
             "inputSchema": {
                 "type": "object",
@@ -456,7 +456,7 @@ pub fn tool_schemas() -> Vec<Value> {
             }
         }),
         json!({
-            "name": "planq_project_dag",
+            "name": "plandb_project_dag",
             "description": "Get project task graph overview",
             "inputSchema": {
                 "type": "object",
@@ -467,7 +467,7 @@ pub fn tool_schemas() -> Vec<Value> {
             }
         }),
         json!({
-            "name": "planq_artifact_write",
+            "name": "plandb_artifact_write",
             "description": "Write artifact",
             "inputSchema": {
                 "type": "object",
@@ -483,7 +483,7 @@ pub fn tool_schemas() -> Vec<Value> {
             }
         }),
         json!({
-            "name": "planq_artifact_read",
+            "name": "plandb_artifact_read",
             "description": "Read artifact",
             "inputSchema": {
                 "type": "object",
@@ -495,7 +495,7 @@ pub fn tool_schemas() -> Vec<Value> {
             }
         }),
         json!({
-            "name": "planq_dependency_add",
+            "name": "plandb_dependency_add",
             "description": "Add dependency",
             "inputSchema": {
                 "type": "object",
@@ -508,7 +508,7 @@ pub fn tool_schemas() -> Vec<Value> {
             }
         }),
         json!({
-            "name": "planq_dependency_remove",
+            "name": "plandb_dependency_remove",
             "description": "Remove dependency",
             "inputSchema": {
                 "type": "object",
@@ -520,7 +520,7 @@ pub fn tool_schemas() -> Vec<Value> {
             }
         }),
         json!({
-            "name": "planq_task_update",
+            "name": "plandb_task_update",
             "description": "Update task fields",
             "inputSchema": {
                 "type": "object",
@@ -536,7 +536,7 @@ pub fn tool_schemas() -> Vec<Value> {
             }
         }),
         json!({
-            "name": "planq_project_overview",
+            "name": "plandb_project_overview",
             "description": "Project overview: tasks, deps, counts, ready IDs",
             "inputSchema": {
                 "type": "object",
@@ -547,7 +547,7 @@ pub fn tool_schemas() -> Vec<Value> {
             }
         }),
         json!({
-            "name": "planq_task_decompose",
+            "name": "plandb_task_decompose",
             "description": "Decompose task into subtasks",
             "inputSchema": {
                 "type": "object",
@@ -574,7 +574,7 @@ pub fn tool_schemas() -> Vec<Value> {
             }
         }),
         json!({
-            "name": "planq_task_note",
+            "name": "plandb_task_note",
             "description": "Add note to task",
             "inputSchema": {
                 "type": "object",
@@ -587,7 +587,7 @@ pub fn tool_schemas() -> Vec<Value> {
             }
         }),
         json!({
-            "name": "planq_task_notes",
+            "name": "plandb_task_notes",
             "description": "List notes for task",
             "inputSchema": {
                 "type": "object",
@@ -598,7 +598,7 @@ pub fn tool_schemas() -> Vec<Value> {
             }
         }),
         json!({
-            "name": "planq_status",
+            "name": "plandb_status",
             "description": "Project status with summary/detail/full levels",
             "inputSchema": {
                 "type": "object",
@@ -610,7 +610,7 @@ pub fn tool_schemas() -> Vec<Value> {
             }
         }),
         json!({
-            "name": "planq_task_pause",
+            "name": "plandb_task_pause",
             "description": "Pause running/claimed task and return it to ready",
             "inputSchema": {
                 "type": "object",
@@ -623,7 +623,7 @@ pub fn tool_schemas() -> Vec<Value> {
             }
         }),
         json!({
-            "name": "planq_task_replan",
+            "name": "plandb_task_replan",
             "description": "Cancel remaining subtasks and create replacement subtasks",
             "inputSchema": {
                 "type": "object",
@@ -650,7 +650,7 @@ pub fn tool_schemas() -> Vec<Value> {
             }
         }),
         json!({
-            "name": "planq_what_if",
+            "name": "plandb_what_if",
             "description": "Dry-run mutation and return effect analysis",
             "inputSchema": {
                 "type": "object",
@@ -666,7 +666,7 @@ pub fn tool_schemas() -> Vec<Value> {
             }
         }),
         json!({
-            "name": "planq_task_insert",
+            "name": "plandb_task_insert",
             "description": "Insert task between existing tasks",
             "inputSchema": {
                 "type": "object",
@@ -681,7 +681,7 @@ pub fn tool_schemas() -> Vec<Value> {
             }
         }),
         json!({
-            "name": "planq_ahead",
+            "name": "plandb_ahead",
             "description": "Get running-task lookahead buffer",
             "inputSchema": {
                 "type": "object",
@@ -693,7 +693,7 @@ pub fn tool_schemas() -> Vec<Value> {
             }
         }),
         json!({
-            "name": "planq_task_amend",
+            "name": "plandb_task_amend",
             "description": "Prepend context to a future task",
             "inputSchema": {
                 "type": "object",
@@ -705,7 +705,7 @@ pub fn tool_schemas() -> Vec<Value> {
             }
         }),
         json!({
-            "name": "planq_task_pivot",
+            "name": "plandb_task_pivot",
             "description": "Replace a parent task subtree",
             "inputSchema": {
                 "type": "object",
@@ -718,7 +718,7 @@ pub fn tool_schemas() -> Vec<Value> {
             }
         }),
         json!({
-            "name": "planq_task_split",
+            "name": "plandb_task_split",
             "description": "Split task into executable parts",
             "inputSchema": {
                 "type": "object",
@@ -739,37 +739,37 @@ pub fn parse_tool_call(params: Option<Value>) -> Result<(String, Value)> {
 
 pub fn call_tool(db: &Database, tool_name: &str, args: Value) -> ToolHandlerResult {
     match tool_name {
-        "planq_project_create" => planq_project_create(db, args),
-        "planq_task_create" => planq_task_create(db, args),
-        "planq_task_create_batch" => planq_task_create_batch(db, args),
-        "planq_task_get_context" => planq_task_get_context(db, args),
-        "planq_task_claim" => planq_task_claim(db, args),
-        "planq_task_start" => planq_task_start(db, args),
-        "planq_task_done" => planq_task_done(db, args),
-        "planq_go" => planq_go(db, args),
-        "planq_task_fail" => planq_task_fail(db, args),
-        "planq_task_list" => planq_task_list(db, args),
-        "planq_task_next" => planq_task_next(db, args),
-        "planq_project_status" => planq_project_status(db, args),
-        "planq_project_dag" => planq_project_dag(db, args),
-        "planq_artifact_write" => planq_artifact_write(db, args),
-        "planq_artifact_read" => planq_artifact_read(db, args),
-        "planq_dependency_add" => planq_dependency_add(db, args),
-        "planq_dependency_remove" => planq_dependency_remove(db, args),
-        "planq_task_update" => planq_task_update_tool(db, args),
-        "planq_project_overview" => planq_project_overview(db, args),
-        "planq_task_decompose" => planq_task_decompose(db, args),
-        "planq_task_note" => planq_task_note(db, args),
-        "planq_task_notes" => planq_task_notes(db, args),
-        "planq_status" => planq_status(db, args),
-        "planq_task_pause" => planq_task_pause(db, args),
-        "planq_task_replan" => planq_task_replan(db, args),
-        "planq_what_if" => planq_what_if(db, args),
-        "planq_task_insert" => planq_task_insert(db, args),
-        "planq_ahead" => planq_ahead(db, args),
-        "planq_task_amend" => planq_task_amend(db, args),
-        "planq_task_pivot" => planq_task_pivot(db, args),
-        "planq_task_split" => planq_task_split(db, args),
+        "plandb_project_create" => plandb_project_create(db, args),
+        "plandb_task_create" => plandb_task_create(db, args),
+        "plandb_task_create_batch" => plandb_task_create_batch(db, args),
+        "plandb_task_get_context" => plandb_task_get_context(db, args),
+        "plandb_task_claim" => plandb_task_claim(db, args),
+        "plandb_task_start" => plandb_task_start(db, args),
+        "plandb_task_done" => plandb_task_done(db, args),
+        "plandb_go" => plandb_go(db, args),
+        "plandb_task_fail" => plandb_task_fail(db, args),
+        "plandb_task_list" => plandb_task_list(db, args),
+        "plandb_task_next" => plandb_task_next(db, args),
+        "plandb_project_status" => plandb_project_status(db, args),
+        "plandb_project_dag" => plandb_project_dag(db, args),
+        "plandb_artifact_write" => plandb_artifact_write(db, args),
+        "plandb_artifact_read" => plandb_artifact_read(db, args),
+        "plandb_dependency_add" => plandb_dependency_add(db, args),
+        "plandb_dependency_remove" => plandb_dependency_remove(db, args),
+        "plandb_task_update" => plandb_task_update_tool(db, args),
+        "plandb_project_overview" => plandb_project_overview(db, args),
+        "plandb_task_decompose" => plandb_task_decompose(db, args),
+        "plandb_task_note" => plandb_task_note(db, args),
+        "plandb_task_notes" => plandb_task_notes(db, args),
+        "plandb_status" => plandb_status(db, args),
+        "plandb_task_pause" => plandb_task_pause(db, args),
+        "plandb_task_replan" => plandb_task_replan(db, args),
+        "plandb_what_if" => plandb_what_if(db, args),
+        "plandb_task_insert" => plandb_task_insert(db, args),
+        "plandb_ahead" => plandb_ahead(db, args),
+        "plandb_task_amend" => plandb_task_amend(db, args),
+        "plandb_task_pivot" => plandb_task_pivot(db, args),
+        "plandb_task_split" => plandb_task_split(db, args),
         _ => Err(anyhow!("unknown tool: {tool_name}")),
     }
 }
@@ -866,13 +866,13 @@ fn make_task(project_id: &str, title: &str, description: Option<String>) -> Task
     }
 }
 
-fn planq_project_create(db: &Database, args: Value) -> ToolHandlerResult {
+fn plandb_project_create(db: &Database, args: Value) -> ToolHandlerResult {
     let args: ProjectCreateArgs = serde_json::from_value(args)?;
     let project = create_project(db, &args.name, args.description, None)?;
     Ok(serde_json::to_value(project)?)
 }
 
-fn planq_task_create(db: &Database, args: Value) -> ToolHandlerResult {
+fn plandb_task_create(db: &Database, args: Value) -> ToolHandlerResult {
     let args: TaskCreateArgs = serde_json::from_value(args)?;
     let mut task = make_task(&args.project_id, &args.title, args.description);
     task.kind = parse_task_kind(args.kind)?;
@@ -913,7 +913,7 @@ fn planq_task_create(db: &Database, args: Value) -> ToolHandlerResult {
     }))
 }
 
-fn planq_task_create_batch(db: &Database, args: Value) -> ToolHandlerResult {
+fn plandb_task_create_batch(db: &Database, args: Value) -> ToolHandlerResult {
     let args: TaskCreateBatchArgs = serde_json::from_value(args)?;
     let mut created_ids = Vec::with_capacity(args.tasks.len());
     let mut created_with_deps = Vec::with_capacity(args.tasks.len());
@@ -951,7 +951,7 @@ fn planq_task_create_batch(db: &Database, args: Value) -> ToolHandlerResult {
     Ok(json!({ "task_ids": created_ids }))
 }
 
-fn planq_task_get_context(db: &Database, args: Value) -> ToolHandlerResult {
+fn plandb_task_get_context(db: &Database, args: Value) -> ToolHandlerResult {
     let args: TaskIdArgs = serde_json::from_value(args)?;
     let task = get_task(db, &args.task_id)?;
     let project = get_project(db, &task.project_id)?;
@@ -1009,20 +1009,20 @@ fn planq_task_get_context(db: &Database, args: Value) -> ToolHandlerResult {
     }))
 }
 
-fn planq_task_claim(db: &Database, args: Value) -> ToolHandlerResult {
+fn plandb_task_claim(db: &Database, args: Value) -> ToolHandlerResult {
     let args: TaskClaimArgs = serde_json::from_value(args)?;
     let task = claim_task(db, &args.task_id, &args.agent_id)?
         .ok_or_else(|| anyhow!("task {} is not ready or already claimed", args.task_id))?;
     Ok(minimal_task_json(&task))
 }
 
-fn planq_task_start(db: &Database, args: Value) -> ToolHandlerResult {
+fn plandb_task_start(db: &Database, args: Value) -> ToolHandlerResult {
     let args: TaskIdArgs = serde_json::from_value(args)?;
     let task = start_task(db, &args.task_id)?;
     Ok(minimal_task_json(&task))
 }
 
-fn planq_task_done(db: &Database, args: Value) -> ToolHandlerResult {
+fn plandb_task_done(db: &Database, args: Value) -> ToolHandlerResult {
     let args: TaskDoneArgs = serde_json::from_value(args)?;
     let task = complete_task(db, &args.task_id, args.result)?;
     if let Some(files) = args.files {
@@ -1133,18 +1133,18 @@ fn go_response(db: &Database, project_id: Option<String>, agent_id: String) -> T
     }))
 }
 
-fn planq_go(db: &Database, args: Value) -> ToolHandlerResult {
+fn plandb_go(db: &Database, args: Value) -> ToolHandlerResult {
     let args: TaskGoArgs = serde_json::from_value(args)?;
     go_response(db, args.project_id, args.agent_id)
 }
 
-fn planq_task_fail(db: &Database, args: Value) -> ToolHandlerResult {
+fn plandb_task_fail(db: &Database, args: Value) -> ToolHandlerResult {
     let args: TaskFailArgs = serde_json::from_value(args)?;
     let task = fail_task(db, &args.task_id, &args.error)?;
     Ok(minimal_task_json(&task))
 }
 
-fn planq_task_list(db: &Database, args: Value) -> ToolHandlerResult {
+fn plandb_task_list(db: &Database, args: Value) -> ToolHandlerResult {
     let args: TaskListArgs = serde_json::from_value(args)?;
     let mut tasks = list_tasks(
         db,
@@ -1176,7 +1176,7 @@ fn planq_task_list(db: &Database, args: Value) -> ToolHandlerResult {
     Ok(json!(compact))
 }
 
-fn planq_task_next(db: &Database, args: Value) -> ToolHandlerResult {
+fn plandb_task_next(db: &Database, args: Value) -> ToolHandlerResult {
     let args: TaskNextArgs = serde_json::from_value(args)?;
     let should_start = args.start.unwrap_or(false);
     let should_claim = args.claim.unwrap_or(false) || should_start;
@@ -1226,7 +1226,7 @@ fn planq_task_next(db: &Database, args: Value) -> ToolHandlerResult {
     }
 }
 
-fn planq_project_status(db: &Database, args: Value) -> ToolHandlerResult {
+fn plandb_project_status(db: &Database, args: Value) -> ToolHandlerResult {
     let args: ProjectIdArgs = serde_json::from_value(args)?;
     let project = get_project(db, &args.project_id)?;
     let tasks = list_tasks(
@@ -1275,7 +1275,7 @@ fn planq_project_status(db: &Database, args: Value) -> ToolHandlerResult {
     }))
 }
 
-fn planq_project_dag(db: &Database, args: Value) -> ToolHandlerResult {
+fn plandb_project_dag(db: &Database, args: Value) -> ToolHandlerResult {
     let args: ProjectIdArgs = serde_json::from_value(args)?;
     let tasks = list_tasks(
         db,
@@ -1324,7 +1324,7 @@ fn planq_project_dag(db: &Database, args: Value) -> ToolHandlerResult {
     }))
 }
 
-fn planq_artifact_write(db: &Database, args: Value) -> ToolHandlerResult {
+fn plandb_artifact_write(db: &Database, args: Value) -> ToolHandlerResult {
     let args: ArtifactWriteArgs = serde_json::from_value(args)?;
     let now = Utc::now().naive_utc();
     let size_bytes = args.content.as_ref().map(|c| c.len() as i64);
@@ -1344,7 +1344,7 @@ fn planq_artifact_write(db: &Database, args: Value) -> ToolHandlerResult {
     Ok(serde_json::to_value(created)?)
 }
 
-fn planq_artifact_read(db: &Database, args: Value) -> ToolHandlerResult {
+fn plandb_artifact_read(db: &Database, args: Value) -> ToolHandlerResult {
     let args: ArtifactReadArgs = serde_json::from_value(args)?;
     let artifacts = list_artifacts(db, &args.task_id)?;
     let artifact = artifacts
@@ -1362,7 +1362,7 @@ fn planq_artifact_read(db: &Database, args: Value) -> ToolHandlerResult {
     Ok(serde_json::to_value(artifact)?)
 }
 
-fn planq_dependency_add(db: &Database, args: Value) -> ToolHandlerResult {
+fn plandb_dependency_add(db: &Database, args: Value) -> ToolHandlerResult {
     let args: DependencyAddArgs = serde_json::from_value(args)?;
     let kind = match args.kind.as_deref() {
         Some(k) => parse_dep_kind(k)?,
@@ -1394,14 +1394,14 @@ fn planq_dependency_add(db: &Database, args: Value) -> ToolHandlerResult {
     Ok(serde_json::to_value(dep)?)
 }
 
-fn planq_dependency_remove(db: &Database, args: Value) -> ToolHandlerResult {
+fn plandb_dependency_remove(db: &Database, args: Value) -> ToolHandlerResult {
     let args: DependencyRemoveArgs = serde_json::from_value(args)?;
     let removed = remove_dependency(db, &args.from_task, &args.to_task)?;
     promote_ready_tasks(db)?;
     Ok(json!({ "removed": removed }))
 }
 
-fn planq_task_update_tool(db: &Database, args: Value) -> ToolHandlerResult {
+fn plandb_task_update_tool(db: &Database, args: Value) -> ToolHandlerResult {
     let args: TaskUpdateArgs = serde_json::from_value(args)?;
     let kind = match args.kind {
         Some(ref k) => Some(parse_task_kind(Some(k.clone()))?),
@@ -1419,7 +1419,7 @@ fn planq_task_update_tool(db: &Database, args: Value) -> ToolHandlerResult {
     Ok(serde_json::to_value(task)?)
 }
 
-fn planq_project_overview(db: &Database, args: Value) -> ToolHandlerResult {
+fn plandb_project_overview(db: &Database, args: Value) -> ToolHandlerResult {
     let args: ProjectIdArgs = serde_json::from_value(args)?;
     let project = get_project(db, &args.project_id)?;
     let tasks = list_tasks(
@@ -1503,7 +1503,7 @@ fn planq_project_overview(db: &Database, args: Value) -> ToolHandlerResult {
     }))
 }
 
-fn planq_task_decompose(db: &Database, args: Value) -> ToolHandlerResult {
+fn plandb_task_decompose(db: &Database, args: Value) -> ToolHandlerResult {
     let args: TaskDecomposeArgs = serde_json::from_value(args)?;
     let parent = get_task(db, &args.task_id)?;
 
@@ -1588,25 +1588,25 @@ fn planq_task_decompose(db: &Database, args: Value) -> ToolHandlerResult {
     }))
 }
 
-fn planq_task_note(db: &Database, args: Value) -> ToolHandlerResult {
+fn plandb_task_note(db: &Database, args: Value) -> ToolHandlerResult {
     let args: TaskNoteArgs = serde_json::from_value(args)?;
     let note = add_note(db, &args.task_id, args.agent_id, &args.content)?;
     Ok(serde_json::to_value(note)?)
 }
 
-fn planq_task_notes(db: &Database, args: Value) -> ToolHandlerResult {
+fn plandb_task_notes(db: &Database, args: Value) -> ToolHandlerResult {
     let args: TaskNotesArgs = serde_json::from_value(args)?;
     let notes = list_notes(db, &args.task_id)?;
     Ok(serde_json::to_value(notes)?)
 }
 
-fn planq_task_pause(db: &Database, args: Value) -> ToolHandlerResult {
+fn plandb_task_pause(db: &Database, args: Value) -> ToolHandlerResult {
     let args: TaskPauseArgs = serde_json::from_value(args)?;
     let task = pause_task(db, &args.task_id, args.progress, args.note)?;
     Ok(serde_json::to_value(task)?)
 }
 
-fn planq_what_if(db: &Database, args: Value) -> ToolHandlerResult {
+fn plandb_what_if(db: &Database, args: Value) -> ToolHandlerResult {
     let args: WhatIfArgs = serde_json::from_value(args)?;
     match args.mutation_type.as_str() {
         "cancel" => {
@@ -1685,7 +1685,7 @@ fn planq_what_if(db: &Database, args: Value) -> ToolHandlerResult {
     }
 }
 
-fn planq_task_insert(db: &Database, args: Value) -> ToolHandlerResult {
+fn plandb_task_insert(db: &Database, args: Value) -> ToolHandlerResult {
     let args: TaskInsertArgs = serde_json::from_value(args)?;
     let before_snapshot = snapshot_task_statuses(db, &args.project)?;
     let task = insert_task_between(
@@ -1707,19 +1707,19 @@ fn planq_task_insert(db: &Database, args: Value) -> ToolHandlerResult {
     }))
 }
 
-fn planq_ahead(db: &Database, args: Value) -> ToolHandlerResult {
+fn plandb_ahead(db: &Database, args: Value) -> ToolHandlerResult {
     let args: AheadArgs = serde_json::from_value(args)?;
     let result = get_lookahead(db, &args.project, args.depth.unwrap_or(2))?;
     Ok(serde_json::to_value(result)?)
 }
 
-fn planq_task_amend(db: &Database, args: Value) -> ToolHandlerResult {
+fn plandb_task_amend(db: &Database, args: Value) -> ToolHandlerResult {
     let args: TaskAmendArgs = serde_json::from_value(args)?;
     let task = amend_task_description(db, &args.task_id, &args.prepend)?;
     Ok(serde_json::to_value(task)?)
 }
 
-fn planq_task_pivot(db: &Database, args: Value) -> ToolHandlerResult {
+fn plandb_task_pivot(db: &Database, args: Value) -> ToolHandlerResult {
     let args: TaskPivotArgs = serde_json::from_value(args)?;
     let parent = get_task(db, &args.parent_id)?;
     let before_snapshot = snapshot_task_statuses(db, &parent.project_id)?;
@@ -1740,7 +1740,7 @@ fn planq_task_pivot(db: &Database, args: Value) -> ToolHandlerResult {
     }))
 }
 
-fn planq_task_split(db: &Database, args: Value) -> ToolHandlerResult {
+fn plandb_task_split(db: &Database, args: Value) -> ToolHandlerResult {
     let args: TaskSplitArgs = serde_json::from_value(args)?;
     let parent = get_task(db, &args.task_id)?;
     let before_snapshot = snapshot_task_statuses(db, &parent.project_id)?;
@@ -1757,11 +1757,11 @@ fn planq_task_split(db: &Database, args: Value) -> ToolHandlerResult {
     }))
 }
 
-fn planq_status(db: &Database, args: Value) -> ToolHandlerResult {
+fn plandb_status(db: &Database, args: Value) -> ToolHandlerResult {
     let args: StatusArgs = serde_json::from_value(args)?;
     let detail_level = args.detail_level.unwrap_or_else(|| "summary".to_string());
     match detail_level.as_str() {
-        "summary" => planq_project_status(db, json!({"project_id": args.project_id})),
+        "summary" => plandb_project_status(db, json!({"project_id": args.project_id})),
         "detail" => {
             let tasks = list_tasks(
                 db,
@@ -1772,14 +1772,14 @@ fn planq_status(db: &Database, args: Value) -> ToolHandlerResult {
             )?;
             Ok(serde_json::to_value(tasks)?)
         }
-        "full" => planq_project_overview(db, json!({"project_id": args.project_id})),
+        "full" => plandb_project_overview(db, json!({"project_id": args.project_id})),
         _ => Err(anyhow!(
             "detail_level must be one of: summary, detail, full"
         )),
     }
 }
 
-fn planq_task_replan(db: &Database, args: Value) -> ToolHandlerResult {
+fn plandb_task_replan(db: &Database, args: Value) -> ToolHandlerResult {
     let args: TaskReplanArgs = serde_json::from_value(args)?;
     let _parent = get_task(db, &args.task_id)?;
     {
@@ -1789,7 +1789,7 @@ fn planq_task_replan(db: &Database, args: Value) -> ToolHandlerResult {
             rusqlite::params![args.task_id],
         )?;
     }
-    planq_task_decompose(
+    plandb_task_decompose(
         db,
         json!({
             "task_id": args.task_id,

@@ -1,10 +1,10 @@
 [package]
-name = "planq"
+name = "plandb"
 version = "0.1.0"
 edition = "2021"
 description = "Task graph primitive for AI agent orchestration"
 license = "Apache-2.0"
-repository = "https://github.com/Agent-Field/planq"
+repository = "https://github.com/Agent-Field/plandb"
 
 [dependencies]
 # CLI

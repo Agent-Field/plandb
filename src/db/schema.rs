@@ -100,8 +100,8 @@ CREATE TABLE IF NOT EXISTS task_tags (
 );
 "#;
 
-const CREATE_PLANQ_META: &str = r#"
-CREATE TABLE IF NOT EXISTS planq_meta (
+const CREATE_PLANDB_META: &str = r#"
+CREATE TABLE IF NOT EXISTS plandb_meta (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
@@ -178,7 +178,7 @@ pub fn init_db(path: &str) -> Result<Database> {
     conn.execute_batch(CREATE_ARTIFACTS)?;
     conn.execute_batch(CREATE_EVENTS)?;
     conn.execute_batch(CREATE_TASK_TAGS)?;
-    conn.execute_batch(CREATE_PLANQ_META)?;
+    conn.execute_batch(CREATE_PLANDB_META)?;
     conn.execute_batch(CREATE_TASK_NOTES)?;
     conn.execute_batch(CREATE_TASK_FILES)?;
     conn.execute_batch(INDEX_TASKS_PROJECT_STATUS)?;
