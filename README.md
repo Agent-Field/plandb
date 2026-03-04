@@ -1,6 +1,6 @@
 # Planq
 
-The task graph primitive for AI coding agents.
+The task graph primitive for AI agents.
 
 ![License](https://img.shields.io/badge/license-Apache%202.0-green)
 ![Rust](https://img.shields.io/badge/rust-stable-orange)
@@ -12,9 +12,11 @@ The task graph primitive for AI coding agents.
 
 ## The Problem
 
-AI coding agents (Claude Code, Codex, Cursor, Aider) work on tasks sequentially. When a task is complex, the natural move is to break it into subtasks and run agents in parallel. But how do you coordinate them?
+Any complex task — shipping a feature, running a research pipeline, orchestrating a multi-step workflow — requires breaking work into pieces with dependencies. AI agents (Claude Code, Codex, Cursor, Aider, or custom LLM pipelines) hit the same wall: how do you coordinate subtasks across sessions, agents, and time?
 
-**The common workaround**: Create GitHub Issues for each subtask, define dependencies manually, dispatch agents to each issue, manage PRs, merge conflicts, repeat. GitHub becomes a state management proxy for something it was never designed for.
+This isn't just about coding. A deep research agent decomposing a literature review into parallel searches, a data pipeline agent coordinating ETL stages, a content agent managing a multi-post campaign — all need the same thing: a shared, persistent task graph with dependency enforcement.
+
+**The common workaround**: GitHub Issues, Notion boards, or ad-hoc JSON files as state management proxies. These were designed for humans, not agents.
 
 This works, but:
 - **Agents become stateless** — each agent session starts fresh, can't see what other agents did
@@ -190,6 +192,18 @@ Every mutation response tells the agent exactly what changed in the graph. No gu
 - **Pause/resume**: partial completion with progress tracking
 - **Sticky project**: `planq use <id>` sets default, fewer flags per command
 - **Progressive status**: one-liner, `--detail`, or `--full`
+
+## Beyond Code
+
+Planq coordinates any work that has dependencies — not just software engineering. Examples:
+
+- **Research pipelines**: decompose a literature review into parallel searches, synthesize when all complete
+- **Data workflows**: ETL stages with fan-out/fan-in dependency patterns
+- **Content production**: research → outline → draft → review → publish, with parallel tracks for different channels
+- **Infrastructure**: provision resources in dependency order, validate each before proceeding
+- **Multi-model chains**: route subtasks to specialized models, aggregate results
+
+If your workflow has tasks that depend on other tasks, Planq manages the graph.
 
 ## Philosophy
 
