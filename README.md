@@ -85,7 +85,15 @@ planq task pivot t-parent --keep-done --file new-plan.yaml  # replace a subtree
 planq task split t-big --into '[...]'                       # decompose mid-execution
 ```
 
-## Setup
+## Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Agent-Field/planq/main/install.sh | sh
+```
+
+Or download a binary directly from [Releases](https://github.com/Agent-Field/planq/releases).
+
+**From source:**
 
 ```bash
 cargo install --path .

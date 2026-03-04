@@ -1,15 +1,61 @@
-name: Release
+name: CI
 
 on:
   push:
-    tags:
-      - "v*"
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: write
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build
+        run: cargo build
+
+      - name: Unit tests
+        run: cargo test
+
+      - name: Functional tests
+        run: bash tests/functional_test.sh
+
+  version:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.calc.outputs.version }}
+      tag: ${{ steps.calc.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Calculate next version
+        id: calc
+        run: |
+          LATEST=$(git tag -l 'v*' --sort=-v:refname | head -1)
+          if [ -z "$LATEST" ]; then
+            TAG="v0.1.0"
+          else
+            PATCH=$(echo "$LATEST" | sed 's/v[0-9]*\.[0-9]*\.//')
+            MAJOR_MINOR=$(echo "$LATEST" | sed 's/\.[0-9]*$//')
+            TAG="${MAJOR_MINOR}.$((PATCH + 1))"
+          fi
+          echo "version=${TAG#v}" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Next release: $TAG"
+
   build:
+    needs: version
     strategy:
       matrix:
         include:
@@ -25,6 +71,9 @@ jobs:
           - target: aarch64-apple-darwin
             os: macos-latest
             name: planq-darwin-aarch64
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            name: planq-windows-x86_64.exe
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -45,10 +94,16 @@ jobs:
       - name: Build
         run: cargo build --release --target ${{ matrix.target }}
 
-      - name: Package
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
         run: |
           cp target/${{ matrix.target }}/release/planq ${{ matrix.name }}
           chmod +x ${{ matrix.name }}
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: cp target/${{ matrix.target }}/release/planq.exe ${{ matrix.name }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -57,7 +112,7 @@ jobs:
           path: ${{ matrix.name }}
 
   release:
-    needs: build
+    needs: [version, build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -70,26 +125,12 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.version.outputs.tag }}
+          name: Planq ${{ needs.version.outputs.tag }}
           generate_release_notes: true
           files: |
             artifacts/planq-linux-x86_64/planq-linux-x86_64
             artifacts/planq-linux-aarch64/planq-linux-aarch64
             artifacts/planq-darwin-x86_64/planq-darwin-x86_64
             artifacts/planq-darwin-aarch64/planq-darwin-aarch64
-
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Build
-        run: cargo build
-
-      - name: Unit tests
-        run: cargo test
-
-      - name: Functional tests
-        run: bash tests/functional_test.sh
+            artifacts/planq-windows-x86_64.exe/planq-windows-x86_64.exe

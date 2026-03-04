@@ -2,9 +2,9 @@
 name = "planq"
 version = "0.1.0"
 edition = "2021"
-description = "Task DAG primitive for AI agent orchestration"
-license = "MIT"
-repository = "https://github.com/agentfield/planq"
+description = "Task graph primitive for AI agent orchestration"
+license = "Apache-2.0"
+repository = "https://github.com/Agent-Field/planq"
 
 [dependencies]
 # CLI
