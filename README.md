@@ -1,99 +1,69 @@
-# Plandb
+<h1 align="center">plandb</h1>
 
-The task graph primitive for AI agents.
+<p align="center">
+<strong>SQLite for agent task management.</strong><br>
+A single binary (~2.6 MB) that manages task dependency graphs for AI agents. Local-first. Zero config.
+</p>
 
-![License](https://img.shields.io/badge/license-Apache%202.0-green)
-![Rust](https://img.shields.io/badge/rust-stable-orange)
-![Binary Size](https://img.shields.io/badge/binary-~2.6MB-informational)
+<p align="center">
+  <a href="https://github.com/Agent-Field/plandb/actions/workflows/release.yml"><img src="https://github.com/Agent-Field/plandb/actions/workflows/release.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License"></a>
+  <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/rust-stable-orange" alt="Rust"></a>
+  <a href="https://github.com/Agent-Field/plandb/releases"><img src="https://img.shields.io/badge/binary-~2.6MB-informational" alt="Binary Size"></a>
+</p>
 
-`ai-agents` `task-management` `task-graph` `mcp` `rust` `sqlite` `orchestration` `ai-native` `jit-planning`
+<p align="center">
+  <a href="#quick-start">Quick Start</a> · <a href="#install">Install</a> · <a href="#mcp-setup">MCP Setup</a> · <a href="#why-plandb">Why Plandb?</a> · <a href="#comparison">Comparison</a> · <a href="#all-features">Features</a> · <a href="#contributing">Contributing</a>
+</p>
 
 ---
 
-## The Problem
+## Quick Start
 
-Any complex task — shipping a feature, running a research pipeline, orchestrating a multi-step workflow — requires breaking work into pieces with dependencies. AI agents (Claude Code, Codex, Cursor, Aider, or custom LLM pipelines) hit the same wall: how do you coordinate subtasks across sessions, agents, and time?
-
-This isn't just about coding. A deep research agent decomposing a literature review into parallel searches, a data pipeline agent coordinating ETL stages, a content agent managing a multi-post campaign — all need the same thing: a shared, persistent task graph with dependency enforcement.
-
-**The common workaround**: GitHub Issues, Notion boards, or ad-hoc JSON files as state management proxies. These were designed for humans, not agents.
-
-This works, but:
-- **Agents become stateless** — each agent session starts fresh, can't see what other agents did
-- **Dependencies are implicit** — nothing enforces "don't start B until A is done"
-- **Plans can't change** — halfway through, the agent discovers the approach is wrong. Reorganizing 12 GitHub issues and their dependencies takes 3,000+ tokens
-- **Token overhead** — issue descriptions, API responses, and PR metadata are optimized for humans, not 8K context windows
-- **Single point of coupling** — offline? Rate-limited? Everything stops
-
-## What Plandb Does
-
-Plandb is one binary (~2.6MB) that manages a task dependency graph in SQLite. Three interfaces: CLI, MCP server, HTTP API. Local-first. No daemon. No external services.
+Create a project and add tasks with dependencies:
 
 ```bash
 plandb init "build-auth-system"
-# → created p-a1b2c3 (build-auth-system)
-#   next: plandb add --title "First task"
-#   tip:  start with 1-2 tasks. add more as you learn things.
+# created p-a1b2c3 (build-auth-system)
+# next: plandb add --title "First task"
+# tip:  start with 1-2 tasks. add more as you learn things.
 
 plandb add --title "Design JWT schema"
 plandb add --title "Implement middleware" --dep t-d4e5f6
 plandb add --title "Write tests" --dep t-g7h8i9
+```
 
+Claim a task — plandb delivers upstream context automatically:
+
+```bash
 plandb go --agent claude-1
 # → t-d4e5f6 "Implement middleware" [1/3 · 1 ready · 1 blocked]
-#   upstream:
-#     t-a1b2c3 → "JWT schema: RS256, 15min access, 7d refresh"
+#
+# upstream:
+#   t-a1b2c3 → "JWT schema: RS256, 15min access, 7d refresh"
+#
+# downstream: t-g7h8i9 "Write tests" (receives YOUR result)
+```
 
+Complete it — see what you unlocked and claim the next task:
+
+```bash
 plandb done t-d4e5f6 --result "middleware on /api/* routes" --next --agent claude-1
 # ✓ t-d4e5f6 done → claimed t-g7h8i9 "Write tests" [2/3 · 1 ready]
 #   upstream: t-d4e5f6 → middleware on /api/* routes
 ```
 
-The entire agent work loop is two commands. Results flow through the graph — each task sees what its dependencies produced.
-
-## Why Not Just Let Each Agent Track Its Own Plan?
-
-Every AI coding agent already has internal task management (todos, checklists, scratchpads). So why does Plandb exist?
-
-| Problem | Internal plan | Plandb |
-|---------|--------------|-------|
-| **Multi-agent coordination** | Each agent has its own plan. They can't see each other's work, claim tasks, or avoid conflicts. | Shared task graph with atomic claim protocol. Agent 2 sees that Agent 1 already claimed the auth task. |
-| **Session continuity** | Agent dies, context is lost. New session starts from scratch. | Graph persists in SQLite. New agent picks up where the last one stopped, with handoff context. |
-| **Plan adaptation** | Changing a plan mid-execution means the agent rewrites its internal state. No way to preview consequences. | `plandb what-if cancel t-abc1` shows ripple effects before committing. `plandb task insert` rewires the graph atomically. |
-| **Dependency enforcement** | Agent decides order by vibes. Might start the test task before the implementation task. | Topological ordering. `plandb go` only returns tasks whose dependencies are complete. |
-| **Parallelization** | One agent, sequential execution. | Graph shows 3 tasks are ready simultaneously. Harness spawns 3 agents. |
-| **Observability** | "How far along is the agent?" — no answer until it finishes. | `plandb status` at any time: `5/12 done, 2 running, 1 ready, 4 pending`. |
-
-## What Makes It AI-Specific
-
-These aren't features you'd build for human project managers. They exist because LLMs have specific constraints:
-
-**Short IDs** — Task IDs are 8 characters (`t-a1b2c3`), not UUIDs. Every token matters when your context window is 8K-200K.
-
-**Compact output** — Default responses are terse. `--json` gives machine-parseable output; human-readable mode shows just what matters.
-
-**Compound commands** — `plandb go` claims the next ready task in one call. `plandb done --next` completes the current task and claims the next. What takes 4-5 API calls with GitHub Issues takes 1.
-
-**Dynamic context delivery** — `go` shows upstream results from completed dependencies so the agent has full context before starting. `done` shows which tasks were unlocked and nudges the agent to build downstream connections. The plan evolves naturally instead of staying static.
-
-**Fuzzy ID resolution** — Agent misspells a task ID? Plandb suggests the closest match instead of erroring. LLMs make typos. The tool should handle it.
-
-**`plandb --help` as documentation** — No need to paste a command reference into the system prompt. The agent runs `--help` and discovers commands itself.
-
-**Effect analysis on every mutation** — When an agent modifies the plan (insert a task, cancel a branch), the response includes what got delayed, what's now ready, and the new critical path. The agent never needs a separate "what happened?" call.
-
-**Handoff protocol** — When Agent 1 finishes a task, its result is automatically available as context for Agent 2's downstream task. Knowledge propagates through the graph.
-
-**JIT plan adaptation** — Plans change. Plandb handles it in 1-3 commands:
+See the dependency graph:
 
 ```bash
-plandb ahead                          # see what's coming (lookahead buffer)
-plandb what-if cancel t-abc1          # preview effects before acting
-plandb task insert --after A --before B --title "Add auth"   # add a missed step
-plandb task amend t-xyz --prepend "NOTE: use JWT, not sessions"  # annotate future tasks
-plandb task pivot t-parent --keep-done --file new-plan.yaml  # replace a subtree
-plandb task split t-big --into '[...]'                       # decompose mid-execution
+plandb status --detail
+# p-a1b2c3 build-auth-system: 2/3 done (66%)
+# ✓ t-a1b2c3 Design JWT schema
+#   └─✓ t-d4e5f6 Implement middleware
+#     └─◉ t-g7h8i9 Write tests @claude-1
 ```
+
+Two commands per task. Results flow through the graph — each task sees what its dependencies produced.
 
 ## Install
 
@@ -101,25 +71,23 @@ plandb task split t-big --into '[...]'                       # decompose mid-exe
 curl -fsSL https://raw.githubusercontent.com/Agent-Field/plandb/main/install.sh | sh
 ```
 
-Or download a binary directly from [Releases](https://github.com/Agent-Field/plandb/releases).
+<details>
+<summary>Other install methods</summary>
+
+**Direct download:**
+[GitHub Releases](https://github.com/Agent-Field/plandb/releases) — prebuilt binaries for Linux and macOS (x86_64 + ARM).
 
 **From source:**
-
 ```bash
+git clone https://github.com/Agent-Field/plandb.git && cd plandb
 cargo install --path .
 ```
 
-Pick your platform:
+</details>
 
-```bash
-plandb prompt --for mcp     # Claude Code, Cursor, Windsurf
-plandb prompt --for cli     # Codex, Aider
-plandb prompt --for http    # OpenRouter, custom agents
-```
+## MCP Setup
 
-Paste the output into your agent's config. That's the entire setup.
-
-### MCP Config (for reference)
+Works with Claude Code, Cursor, Windsurf, or any MCP client:
 
 ```json
 {
@@ -132,19 +100,53 @@ Paste the output into your agent's config. That's the entire setup.
 }
 ```
 
-Works in Claude Code, Cursor, Windsurf, or any MCP client.
-
-### HTTP Mode
+<details>
+<summary>CLI and HTTP setup</summary>
 
 ```bash
-plandb serve --port 8080
+plandb prompt --for mcp     # Claude Code, Cursor, Windsurf
+plandb prompt --for cli     # Codex, Aider — paste into system prompt
+plandb prompt --for http    # OpenRouter, custom agents
 ```
 
-Full REST API + SSE event stream. Use from any language, any agent framework.
+**HTTP mode:**
+```bash
+plandb serve --port 8080    # REST API + SSE event stream
+```
+</details>
 
-## How Agents Use It
+---
 
-### Single Agent
+## Why Plandb?
+
+AI agents (Claude Code, Codex, Cursor, Aider, custom LLM pipelines) hit the same coordination wall: how do you manage subtasks with dependencies across sessions, agents, and time?
+
+The common workaround — GitHub Issues, Notion boards, ad-hoc JSON files — was designed for humans, not agents:
+
+- **Agents become stateless** — each session starts fresh, can't see what other agents did
+- **Dependencies are implicit** — nothing enforces "don't start B until A is done"
+- **Plans can't change** — reorganizing 12 GitHub issues mid-execution costs 3,000+ tokens
+- **Token overhead** — API responses optimized for humans, not 8K context windows
+- **Single point of coupling** — offline or rate-limited? Everything stops
+
+Plandb is one binary (~2.6MB) that manages a task dependency graph in SQLite. Three interfaces: CLI, MCP server, HTTP API. No daemon. No external services.
+
+### Why not just let each agent track its own plan?
+
+Every AI coding agent already has internal task management. So why external state?
+
+| Problem | Internal plan | Plandb |
+|---------|--------------|-------|
+| **Multi-agent coordination** | Each agent has its own plan. Can't see each other's work. | Shared graph with atomic claim protocol. No double-claims. |
+| **Session continuity** | Agent dies, context is lost. | Graph persists. New agent picks up with handoff context. |
+| **Plan adaptation** | Rewriting internal state. No consequence preview. | `what-if cancel` shows ripple effects. `task insert` rewires atomically. |
+| **Dependency enforcement** | Agent decides order by vibes. | Topological ordering. `go` only returns tasks with all deps complete. |
+| **Parallelization** | One agent, sequential. | Graph shows 3 tasks ready → harness spawns 3 agents. |
+| **Observability** | No answer until it finishes. | `plandb status` anytime: `5/12 done, 2 running, 1 ready`. |
+
+## How It Works
+
+### The Agent Loop
 
 ```
 1. plandb init "my-project"
@@ -165,19 +167,40 @@ Harness spawns 3 agents, each runs:
   plandb done ID --next --agent agent-N    → completes, claims next ready task
 ```
 
-The graph ensures no two agents claim the same task. When Agent 1 finishes task A, tasks that depended on A become ready for other agents to claim.
+No two agents claim the same task. When Agent 1 finishes task A, tasks that depended on A become ready for other agents.
 
 ### Adapting the Plan Mid-Flight
 
 Agent is on task 5 of 12 and discovers the approach is wrong:
 
 ```bash
-plandb what-if cancel t-old          # preview: "would delay 3 tasks, orphan 0"
-plandb task insert --after t-d4 --before t-e5 --title "Add auth layer"
-# → response includes: effect.delayed, effect.ready_now, effect.critical_path, project_state
+plandb ahead                          # see what's coming (lookahead buffer)
+plandb what-if cancel t-abc1          # preview: "would delay 3 tasks, orphan 0"
+plandb task insert --after A --before B --title "Add auth"   # add a missed step
+plandb task amend t-xyz --prepend "NOTE: use JWT, not sessions"  # annotate
+plandb task pivot t-parent --keep-done --file new-plan.yaml  # replace a subtree
+plandb task split t-big --into '[...]'                       # decompose mid-execution
 ```
 
-Every mutation response tells the agent exactly what changed in the graph. No guessing.
+Every mutation response includes `effect.delayed`, `effect.ready_now`, and `project_state`. No guessing.
+
+## What Makes It AI-Specific
+
+These aren't features you'd build for human project managers:
+
+**Dynamic context delivery** — `go` shows upstream results from completed dependencies. `done` shows which tasks were unlocked and nudges the agent to build downstream connections. Plans evolve naturally.
+
+**Short IDs** — 8-character task IDs (`t-a1b2c3`), not UUIDs. Every token matters.
+
+**Compound commands** — `go` = claim + start. `done --next` = complete + claim next. What takes 4-5 API calls with GitHub Issues takes 1.
+
+**Fuzzy ID resolution** — Agent misspells an ID? Plandb suggests the closest match. LLMs make typos.
+
+**`--help` as documentation** — No system prompt needed. The agent runs `--help` and discovers commands itself.
+
+**Effect analysis** — Every mutation returns what got delayed, what's now ready, and the new critical path.
+
+**Handoff protocol** — Agent 1's result is automatically context for Agent 2's downstream task.
 
 ## Comparison
 
@@ -185,49 +208,61 @@ Every mutation response tells the agent exactly what changed in the graph. No gu
 |---|---|---|---|---|
 | Local-first | Yes | No | No | No |
 | MCP server | Yes | No | No | Partial |
-| CLI | Yes | Limited | Limited | Yes |
-| HTTP API | Yes | Yes | Yes | No |
+| CLI + HTTP API | Yes | Limited | Limited | Partial |
 | Dependency graph | Yes | No | No | Partial |
 | Token-optimized | Yes | No | No | Partial |
 | JIT plan adaptation | Yes | No | No | No |
 | Single binary | Yes | No | No | No |
-| Multi-agent claim protocol | Yes | No | No | No |
+| Multi-agent claim | Yes | No | No | No |
+| Dynamic context delivery | Yes | No | No | No |
 
 ## All Features
 
-- **Three interfaces**: CLI, MCP server (stdio JSON-RPC), HTTP API (REST + SSE)
-- **Dependency graph**: `feeds_into`, `blocks`, `validates`, `informs`
-- **Claim protocol**: atomic claim + heartbeat + timeout reclaim
-- **Compound commands**: `go`, `done --next`, `next --claim`, `init`
-- **Dynamic context delivery**: `go` surfaces upstream results, `done` shows unlocked tasks
-- **JIT planning**: `what-if`, `insert`, `ahead`, `amend`, `pivot`, `split`
-- **Effect analysis**: every mutation returns delayed/accelerated/ready_now/critical_path
-- **DAG tree view**: `status --detail` renders the dependency graph with unicode tree characters
-- **Short IDs**: 8-char task/project IDs
-- **Compact output**: terse defaults for context windows
-- **Handoff protocol**: results propagate to downstream tasks
-- **Fuzzy ID resolution**: typo recovery + closest-match suggestions
-- **File tracking**: attach files to tasks, detect conflicts between agents
-- **Inter-agent signals**: notes and event stream for coordination
-- **Pause/resume**: partial completion with progress tracking
-- **Sticky project**: `plandb use <id>` sets default, fewer flags per command
-- **Progressive status**: one-liner, `--detail` (DAG tree), or `--full`
+- **Three interfaces** — CLI, MCP server (stdio JSON-RPC), HTTP API (REST + SSE)
+- **Dependency graph** — `feeds_into`, `blocks`, `validates`, `informs`
+- **Claim protocol** — atomic claim + heartbeat + timeout reclaim
+- **Compound commands** — `go`, `done --next`, `next --claim`, `init`
+- **Dynamic context delivery** — `go` surfaces upstream results, `done` shows unlocked tasks
+- **JIT planning** — `what-if`, `insert`, `ahead`, `amend`, `pivot`, `split`
+- **Effect analysis** — every mutation returns delayed/accelerated/ready_now/critical_path
+- **DAG tree view** — `status --detail` renders the dependency graph with unicode tree characters
+- **Short IDs** — 8-char task/project IDs
+- **Compact output** — terse defaults, `--json` for machine parsing
+- **Handoff protocol** — results propagate through dependency edges
+- **Fuzzy ID resolution** — typo recovery + closest-match suggestions
+- **File tracking** — attach files to tasks, detect conflicts between agents
+- **Notes + events** — inter-agent signals and real-time event stream
+- **Pause/resume** — partial completion with progress tracking
+- **Sticky project** — `plandb use <id>` sets default, fewer flags per command
+- **Progressive status** — one-liner, `--detail` (DAG tree), or `--full`
 
 ## Beyond Code
 
-Plandb coordinates any work that has dependencies — not just software engineering. Examples:
+Plandb coordinates any work with dependencies — not just software:
 
-- **Research pipelines**: decompose a literature review into parallel searches, synthesize when all complete
-- **Data workflows**: ETL stages with fan-out/fan-in dependency patterns
-- **Content production**: research → outline → draft → review → publish, with parallel tracks for different channels
-- **Infrastructure**: provision resources in dependency order, validate each before proceeding
-- **Multi-model chains**: route subtasks to specialized models, aggregate results
-
-If your workflow has tasks that depend on other tasks, Plandb manages the graph.
+- **Research pipelines** — parallel literature searches, synthesize when all complete
+- **Data workflows** — ETL stages with fan-out/fan-in dependency patterns
+- **Content production** — research → outline → draft → review → publish
+- **Infrastructure** — provision resources in dependency order
+- **Multi-model chains** — route subtasks to specialized models, aggregate results
 
 ## Philosophy
 
 Plandb is a primitive, not a platform. It does one thing: coordinate dependent tasks across agents with minimal overhead. It doesn't schedule agents, doesn't pick models, doesn't manage git. It's the SQLite of agent task management — embed it, script it, build on it.
+
+## Contributing
+
+Contributions welcome! Plandb is written in Rust with zero runtime dependencies beyond SQLite (bundled).
+
+```bash
+git clone https://github.com/Agent-Field/plandb.git
+cd plandb
+cargo build
+cargo test
+bash tests/functional_test.sh    # 113 functional assertions
+```
+
+Check out the [open issues](https://github.com/Agent-Field/plandb/issues) or open a new one if you have ideas.
 
 ## License
 
