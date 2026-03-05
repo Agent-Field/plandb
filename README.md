@@ -30,18 +30,26 @@ This works, but:
 Plandb is one binary (~2.6MB) that manages a task dependency graph in SQLite. Three interfaces: CLI, MCP server, HTTP API. Local-first. No daemon. No external services.
 
 ```bash
-plandb project create "build-auth-system"
+plandb init "build-auth-system"
+# → created p-a1b2c3 (build-auth-system)
+#   next: plandb add --title "First task"
+#   tip:  start with 1-2 tasks. add more as you learn things.
 
-plandb task create --project p-a1b2c3 --title "Design JWT schema"
-plandb task create --project p-a1b2c3 --title "Implement middleware" --dep t-d4e5f6
-plandb task create --project p-a1b2c3 --title "Write tests" --dep t-g7h8i9
+plandb add --title "Design JWT schema"
+plandb add --title "Implement middleware" --dep t-d4e5f6
+plandb add --title "Write tests" --dep t-g7h8i9
 
-plandb go --agent claude-1          # claim next ready task
-# ... agent works ...
-plandb done --next                  # complete + claim next
+plandb go --agent claude-1
+# → t-d4e5f6 "Implement middleware" [1/3 · 1 ready · 1 blocked]
+#   upstream:
+#     t-a1b2c3 → "JWT schema: RS256, 15min access, 7d refresh"
+
+plandb done t-d4e5f6 --result "middleware on /api/* routes" --next --agent claude-1
+# ✓ t-d4e5f6 done → claimed t-g7h8i9 "Write tests" [2/3 · 1 ready]
+#   upstream: t-d4e5f6 → middleware on /api/* routes
 ```
 
-The entire agent work loop is two commands. The graph handles the rest.
+The entire agent work loop is two commands. Results flow through the graph — each task sees what its dependencies produced.
 
 ## Why Not Just Let Each Agent Track Its Own Plan?
 
@@ -62,9 +70,11 @@ These aren't features you'd build for human project managers. They exist because
 
 **Short IDs** — Task IDs are 8 characters (`t-a1b2c3`), not UUIDs. Every token matters when your context window is 8K-200K.
 
-**Compact output** — Default responses are terse. `plandb done` returns `{"id":"t-a1b2c3","status":"done","next":"t-d4e5f6"}`, not a 50-field JSON blob.
+**Compact output** — Default responses are terse. `--json` gives machine-parseable output; human-readable mode shows just what matters.
 
 **Compound commands** — `plandb go` claims the next ready task in one call. `plandb done --next` completes the current task and claims the next. What takes 4-5 API calls with GitHub Issues takes 1.
+
+**Dynamic context delivery** — `go` shows upstream results from completed dependencies so the agent has full context before starting. `done` shows which tasks were unlocked and nudges the agent to build downstream connections. The plan evolves naturally instead of staying static.
 
 **Fuzzy ID resolution** — Agent misspells a task ID? Plandb suggests the closest match instead of erroring. LLMs make typos. The tool should handle it.
 
@@ -137,11 +147,11 @@ Full REST API + SSE event stream. Use from any language, any agent framework.
 ### Single Agent
 
 ```
-1. plandb project create "my-project"
-2. plandb task create ... (define tasks + dependencies)
-3. plandb go --agent my-agent
+1. plandb init "my-project"
+2. plandb add --title "..." (define tasks + dependencies)
+3. plandb go --agent my-agent       → shows upstream context
 4. ... work on the task ...
-5. plandb done --next
+5. plandb done --result "..." --next → shows unlocked tasks, claims next
 6. goto 4
 ```
 
@@ -150,9 +160,9 @@ Full REST API + SSE event stream. Use from any language, any agent framework.
 ```
 Harness checks: plandb status → "3 tasks ready"
 Harness spawns 3 agents, each runs:
-  plandb go --agent agent-N     → gets a different ready task (atomic claim)
+  plandb go --agent agent-N                → gets a different ready task (atomic claim)
   ... work ...
-  plandb done --next            → completes, claims next ready task
+  plandb done ID --next --agent agent-N    → completes, claims next ready task
 ```
 
 The graph ensures no two agents claim the same task. When Agent 1 finishes task A, tasks that depended on A become ready for other agents to claim.
@@ -188,9 +198,11 @@ Every mutation response tells the agent exactly what changed in the graph. No gu
 - **Three interfaces**: CLI, MCP server (stdio JSON-RPC), HTTP API (REST + SSE)
 - **Dependency graph**: `feeds_into`, `blocks`, `validates`, `informs`
 - **Claim protocol**: atomic claim + heartbeat + timeout reclaim
-- **Compound commands**: `go`, `done --next`, `next --claim`
+- **Compound commands**: `go`, `done --next`, `next --claim`, `init`
+- **Dynamic context delivery**: `go` surfaces upstream results, `done` shows unlocked tasks
 - **JIT planning**: `what-if`, `insert`, `ahead`, `amend`, `pivot`, `split`
 - **Effect analysis**: every mutation returns delayed/accelerated/ready_now/critical_path
+- **DAG tree view**: `status --detail` renders the dependency graph with unicode tree characters
 - **Short IDs**: 8-char task/project IDs
 - **Compact output**: terse defaults for context windows
 - **Handoff protocol**: results propagate to downstream tasks
@@ -199,7 +211,7 @@ Every mutation response tells the agent exactly what changed in the graph. No gu
 - **Inter-agent signals**: notes and event stream for coordination
 - **Pause/resume**: partial completion with progress tracking
 - **Sticky project**: `plandb use <id>` sets default, fewer flags per command
-- **Progressive status**: one-liner, `--detail`, or `--full`
+- **Progressive status**: one-liner, `--detail` (DAG tree), or `--full`
 
 ## Beyond Code
 
