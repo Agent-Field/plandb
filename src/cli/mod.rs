@@ -77,7 +77,24 @@ pub struct Cli {
 }
 
 fn default_db_path() -> String {
-    std::env::var("PLANDB_DB").unwrap_or_else(|_| ".plandb.db".to_string())
+    // 1. Explicit env var takes priority
+    if let Ok(path) = std::env::var("PLANDB_DB") {
+        return path;
+    }
+    // 2. Walk up from CWD looking for .plandb.db
+    if let Ok(mut dir) = std::env::current_dir() {
+        loop {
+            let candidate = dir.join(".plandb.db");
+            if candidate.exists() {
+                return candidate.to_string_lossy().into_owned();
+            }
+            if !dir.pop() {
+                break;
+            }
+        }
+    }
+    // 3. Fall back to CWD (will be created by init, or error on other commands)
+    ".plandb.db".to_string()
 }
 
 #[derive(Subcommand, Debug)]
@@ -292,14 +309,32 @@ pub fn run(db: &Database, command: Commands, json: bool, compact: bool) -> Resul
 }
 
 pub fn resolve_project_id(db: &Database, explicit: Option<&str>) -> Result<String> {
+    // 1. Explicit --project flag
     if let Some(project_id) = explicit {
         return Ok(project_id.to_string());
     }
+    // 2. Stored current_project from meta table
     if let Some(project_id) = crate::db::get_meta(db, "current_project")? {
         return Ok(project_id);
     }
+    // 3. Auto-select if only one project exists
+    let projects = crate::db::list_projects(db)?;
+    if projects.len() == 1 {
+        return Ok(projects[0].id.clone());
+    }
+    // 4. Multiple projects: list them in error
+    if !projects.is_empty() {
+        let names: Vec<_> = projects
+            .iter()
+            .map(|p| format!("  {} ({})", p.id, p.name))
+            .collect();
+        return Err(anyhow!(
+            "Multiple projects found. Use --project <id> or 'plandb use <id>':\n{}",
+            names.join("\n")
+        ));
+    }
     Err(anyhow!(
-        "No project specified. Use --project or run 'plandb use <project_id>'."
+        "No projects found. Run 'plandb init <name>' to create one."
     ))
 }
 
