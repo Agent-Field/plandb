@@ -66,11 +66,13 @@ plandb split --into "A, B, C"                                # split into indepe
 plandb split --into "A > B > C"                              # split into dependency chain
 plandb status --detail                                       # see the full task graph
 plandb show <task-id>                                        # see task details + description
+plandb task add-dep --after t-upstream t-downstream          # add dependency AFTER creation (--after = must complete first)
 ```
 
 IMPORTANT constraints:
 - --kind ONLY accepts: generic, code, research, review, test, shell. No other values (not "docs", not "design", etc). Use "generic" if unsure.
-- --dep references must point to task IDs that already exist. Add tasks in dependency order.
+- --dep references must point to task IDs that already exist. Add tasks in dependency order (create upstream tasks first).
+- To add a dependency after both tasks exist: `plandb task add-dep --after t-upstream t-downstream` (NOT positional — use --after flag).
 - --description should be a single string (quote it). Newlines inside are fine.
 
 ## CRITICAL: How to create tasks

@@ -371,15 +371,22 @@ pub struct TaskIdArg {
 }
 
 #[derive(Args, Debug)]
+#[command(
+    about = "Add a dependency edge between two tasks.\n\n\
+              Usage: plandb task add-dep --after t-upstream t-downstream\n\
+              This means t-upstream must complete before t-downstream can start."
+)]
 struct AddDepArgs {
+    #[arg(help = "Downstream task (the one that waits)")]
     to_task: String,
     #[arg(
         long,
         alias = "from",
-        help = "Task that must complete before TO_TASK can start"
+        help = "Upstream task (must complete first). Example: --after t-design t-implement"
     )]
     after: String,
-    #[arg(long, default_value = "feeds_into", value_parser = parse_dependency_kind)]
+    #[arg(long, default_value = "feeds_into", value_parser = parse_dependency_kind,
+        help = "Dependency type: feeds_into (default), blocks, suggests")]
     kind: DependencyKind,
 }
 
