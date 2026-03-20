@@ -9,6 +9,7 @@ pub mod projects;
 pub mod schema;
 pub mod sweeper;
 pub mod tasks;
+pub mod templates;
 
 use anyhow::{anyhow, Result};
 use chrono::{NaiveDateTime, Utc};
@@ -31,6 +32,7 @@ pub use projects::{
 };
 pub use schema::init_db;
 pub use sweeper::{run_sweep, SweepResult};
+pub use templates::{export_graph, import_graph, GraphTemplate};
 pub use tasks::{
     amend_task_description, approve_task, batch_create_tasks, cancel_task, claim_next_task,
     claim_next_task_scoped, claim_task, complete_task, count_children, create_task,

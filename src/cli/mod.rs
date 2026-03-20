@@ -198,6 +198,22 @@ pub enum Commands {
         #[arg(help = "Task ID to check")]
         task_id: String,
     },
+    #[command(about = "Export project graph as a reusable template (YAML)")]
+    Export {
+        #[arg(long, help = "Project ID (uses default if not set)")]
+        project: Option<String>,
+        #[arg(long, help = "Template name")]
+        name: Option<String>,
+        #[arg(long, help = "Template description")]
+        description: Option<String>,
+    },
+    #[command(about = "Import a template to create tasks from a saved graph pattern")]
+    Import {
+        #[arg(help = "Path to template YAML file")]
+        file: String,
+        #[arg(long, help = "Project ID (uses default if not set)")]
+        project: Option<String>,
+    },
     #[command(hide = true, about = "Alias for 'status'")]
     Overview,
     #[command(hide = true, about = "Alias for 'task start'")]
@@ -440,6 +456,47 @@ pub fn run(db: &Database, command: Commands, json: bool, compact: bool) -> Resul
                 print_json(&task)?;
             } else {
                 println!("started {}", task.id);
+            }
+            Ok(())
+        }
+        Commands::Export {
+            project,
+            name,
+            description,
+        } => {
+            let project_id = resolve_project_id(db, project.as_deref())?;
+            let proj = crate::db::get_project(db, &project_id)?;
+            let template_name = name.unwrap_or_else(|| proj.name.clone());
+            let template = crate::db::export_graph(
+                db,
+                &project_id,
+                &template_name,
+                description.as_deref(),
+            )?;
+            // Always output as YAML regardless of --json flag (it's a file format)
+            println!("{}", serde_yaml::to_string(&template)?);
+            Ok(())
+        }
+        Commands::Import { file, project } => {
+            let project_id = resolve_project_id(db, project.as_deref())?;
+            let content = std::fs::read_to_string(&file)?;
+            let template: crate::db::GraphTemplate = serde_yaml::from_str(&content)?;
+            let ref_to_id = crate::db::import_graph(db, &project_id, &template)?;
+            if json {
+                print_json(&serde_json::json!({
+                    "imported": ref_to_id.len(),
+                    "ref_to_id": ref_to_id,
+                    "template_name": template.name,
+                }))?;
+            } else {
+                println!(
+                    "imported {} tasks from template \"{}\"",
+                    ref_to_id.len(),
+                    template.name
+                );
+                for (ref_id, task_id) in &ref_to_id {
+                    println!("  {} -> {}", ref_id, task_id);
+                }
             }
             Ok(())
         }
