@@ -11,7 +11,7 @@ use serde_json::{json, Value};
 use std::str::FromStr;
 
 // Re-export arg structs used by top-level aliases
-pub use task::{CreateTaskArgs, DoneArgs, GetTaskArgs, GoArgs, ListTasksArgs};
+pub use task::{CreateTaskArgs, DoneArgs, GetTaskArgs, GoArgs, ListTasksArgs, SplitTaskArgs};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -22,11 +22,16 @@ pub use task::{CreateTaskArgs, DoneArgs, GetTaskArgs, GoArgs, ListTasksArgs};
         Manages a dependency-aware task graph in SQLite. Three interfaces: CLI, MCP server, HTTP API.\n\
         Agents decompose work into tasks with dependencies, then execute via a claim-and-complete loop.\n\n\
         WORKFLOW:\n\
-        \x20 1. plandb project create \"my-project\"                    Create a project\n\
-        \x20 2. plandb task create --title \"Design API\" --dep t-xxx   Add tasks with dependencies\n\
-        \x20 3. plandb go --agent agent-1                             Claim next ready task\n\
-        \x20 4. plandb done <TASK_ID> --next --agent agent-1          Complete + claim next\n\
-        \x20 5. plandb status                                         Check progress\n\n\
+        \x20 1. plandb init \"my-project\"                              Create a project\n\
+        \x20 2. plandb add \"Design API\" --dep t-xxx                   Add tasks (title is positional)\n\
+        \x20 3. plandb go                                              Claim next ready task\n\
+        \x20 4. plandb done --next                                     Complete + claim next\n\
+        \x20 5. plandb status                                          Check progress\n\n\
+        DECOMPOSITION:\n\
+        \x20 plandb split --into \"A, B, C\"     Split current task into parts\n\
+        \x20 plandb split --into \"A > B > C\"   Split with dependency chain\n\
+        \x20 plandb use <task-id>              Zoom into composite task scope\n\
+        \x20 plandb use ..                     Zoom out one level\n\n\
         PLAN ADAPTATION:\n\
         \x20 plandb ahead              See upcoming tasks in the lookahead buffer\n\
         \x20 plandb what-if cancel     Preview effects of cancelling a task\n\
@@ -35,27 +40,32 @@ pub use task::{CreateTaskArgs, DoneArgs, GetTaskArgs, GoArgs, ListTasksArgs};
         \x20 plandb task pivot         Replace a subtree with new tasks\n\
         \x20 plandb task split         Decompose a task mid-execution\n\n\
         MULTI-AGENT:\n\
-        \x20 Each agent runs: plandb go --agent <NAME> → work → plandb done <ID> --next --agent <NAME>\n\
+        \x20 Each agent runs: plandb go --agent <NAME> → work → plandb done --next --agent <NAME>\n\
         \x20 The graph ensures no two agents claim the same task. Dependencies are enforced.\n\n\
         CONCEPTS:\n\
         \x20 Task states: pending → ready (deps done) → claimed → running → done/failed\n\
         \x20 Dep types:   feeds_into (default, passes result downstream), blocks, suggests\n\
         \x20 Task kinds:  generic, code, research, review, test, shell\n\
-        \x20 IDs:         short 8-char (e.g. t-a1b2c3d4). Fuzzy-matched on typos.\n\n\
+        \x20 IDs:         short (e.g. t-k3m9) or custom (--as api → t-api). Fuzzy-matched.\n\n\
         OUTPUT MODES:\n\
-        \x20 Default human-readable. --json for structured JSON. -c/--compact for token-efficient output.",
+        \x20 Default human-readable. --json for structured JSON. -c/--compact for token-efficient output.\n\n\
+        ENVIRONMENT:\n\
+        \x20 PLANDB_AGENT  Default agent ID (avoids --agent on every command)\n\
+        \x20 PLANDB_DB     Path to SQLite database (default: .plandb.db)",
     after_help = "EXAMPLES:\n\
-        \x20 plandb project create \"auth-system\"                         Create project\n\
-        \x20 plandb task create --title \"Design schema\" --kind research  Add a task\n\
-        \x20 plandb task create --title \"Implement\" --dep t-a1b2c3       Add dependent task\n\
-        \x20 plandb go --agent claude-1                                   Claim + start next ready\n\
-        \x20 plandb done t-d4e5f6 --result '{\"api\":\"done\"}' --next --agent claude-1\n\
+        \x20 plandb init \"auth-system\"                                   Create project\n\
+        \x20 plandb add \"Design schema\" --kind research                  Add a task\n\
+        \x20 plandb add \"Implement\" --dep t-a1b2c3 --as impl             Add dependent task with custom ID\n\
+        \x20 plandb go                                                    Claim + start next ready\n\
+        \x20 plandb done --result '{\"api\":\"done\"}' --next               Complete current + claim next\n\
+        \x20 plandb split --into \"A, B, C\"                               Split current task\n\
+        \x20 plandb split --into \"A > B > C\"                             Split with chain\n\
+        \x20 plandb use t-a1b2c3                                          Scope into composite task\n\
+        \x20 plandb use ..                                                Go up one level\n\
         \x20 plandb task insert --after t-a1 --before t-b2 --title \"Add validation\"\n\
         \x20 plandb what-if cancel t-a1b2c3                               Preview cancel effects\n\
         \x20 plandb status --detail                                       Per-task breakdown\n\
-        \x20 plandb --json -c status                                      Compact JSON for LLMs\n\n\
-        ENVIRONMENT:\n\
-        \x20 PLANDB_DB     Path to SQLite database (default: .plandb.db)"
+        \x20 plandb --json -c status                                      Compact JSON for LLMs"
 )]
 pub struct Cli {
     #[arg(long, default_value_t = default_db_path(), global = true, help = "Path to SQLite database file")]
@@ -126,14 +136,12 @@ pub enum Commands {
         project: Option<String>,
     },
     #[command(
-        about = "Set or show the default project (avoids --project on every command).\n\n\
-                  Once set, all commands that accept --project will use this default.\n\
-                  Run without arguments to show current default. Use --clear to unset."
+        about = "Set scope: project ('plandb use <project>'), composite task ('plandb use <task>'), or parent ('plandb use ..')"
     )]
     Use {
-        #[arg(help = "Project ID to set as default")]
-        project_id: Option<String>,
-        #[arg(long, help = "Clear the default project")]
+        #[arg(help = "Project ID, task ID, or '..' to go up")]
+        target: Option<String>,
+        #[arg(long, help = "Clear scope to project root")]
         clear: bool,
     },
     #[command(
@@ -161,6 +169,8 @@ pub enum Commands {
     Add(CreateTaskArgs),
     #[command(about = "Show full details of a task (shortcut for 'plandb task get')")]
     Show(GetTaskArgs),
+    #[command(about = "Split a task into sub-tasks (shortcut for 'plandb task split')")]
+    Split(SplitTaskArgs),
     #[command(hide = true, about = "Alias for 'done'")]
     Complete(DoneArgs),
     #[command(hide = true, about = "Alias for 'done'")]
@@ -216,33 +226,84 @@ pub fn run(db: &Database, command: Commands, json: bool, compact: bool) -> Resul
         Commands::Artifact(command) => artifact::run(db, command, json),
         Commands::Events(command) => events::run(db, command, json),
         Commands::Ahead { depth, project } => task::ahead_cmd(db, project, depth, json, compact),
-        Commands::Use { project_id, clear } => {
+        Commands::Use { target, clear } => {
             if clear {
                 crate::db::delete_meta(db, "current_project")?;
+                crate::db::delete_meta(db, "current_scope")?;
                 if json {
                     print_json(&json!({"cleared": true}))?;
                 } else {
-                    println!("cleared default project");
+                    println!("cleared scope");
                 }
                 return Ok(());
             }
 
-            if let Some(project_id) = project_id {
-                crate::db::get_project(db, &project_id)?;
-                crate::db::set_meta(db, "current_project", &project_id)?;
+            if let Some(target) = target {
+                if target == ".." {
+                    // Go up one level
+                    if let Some(scope) = crate::db::get_meta(db, "current_scope")? {
+                        let task = crate::db::get_task(db, &scope)?;
+                        if let Some(parent_id) = task.parent_task_id {
+                            crate::db::set_meta(db, "current_scope", &parent_id)?;
+                            if json {
+                                print_json(&json!({"scope": parent_id}))?;
+                            } else {
+                                println!("scope: {parent_id}");
+                            }
+                        } else {
+                            crate::db::delete_meta(db, "current_scope")?;
+                            if json {
+                                print_json(&json!({"scope": null}))?;
+                            } else {
+                                println!("scope: project root");
+                            }
+                        }
+                    } else if json {
+                        print_json(&json!({"scope": null}))?;
+                    } else {
+                        println!("already at project root");
+                    }
+                    return Ok(());
+                }
+
+                // Try as task ID first (for scoping into composite tasks)
+                if target.starts_with("t-") {
+                    if let Ok(task) = crate::db::get_task(db, &target) {
+                        crate::db::set_meta(db, "current_scope", &task.id)?;
+                        crate::db::set_meta(db, "current_project", &task.project_id)?;
+                        if json {
+                            print_json(&json!({"scope": task.id, "project": task.project_id}))?;
+                        } else {
+                            println!("scope: {} \"{}\"", task.id, task.title);
+                        }
+                        return Ok(());
+                    }
+                }
+
+                // Try as project ID (existing behavior)
+                crate::db::get_project(db, &target)?;
+                crate::db::set_meta(db, "current_project", &target)?;
+                crate::db::delete_meta(db, "current_scope")?;
                 if json {
-                    print_json(&json!({"current_project": project_id}))?;
+                    print_json(&json!({"current_project": target}))?;
                 } else {
-                    println!("default project: {project_id}");
+                    println!("default project: {target}");
                 }
             } else {
-                let current = crate::db::get_meta(db, "current_project")?;
+                let current_project = crate::db::get_meta(db, "current_project")?;
+                let current_scope = crate::db::get_meta(db, "current_scope")?;
                 if json {
-                    print_json(&json!({"current_project": current}))?;
-                } else if let Some(project_id) = current {
-                    println!("{project_id}");
+                    print_json(&json!({"current_project": current_project, "scope": current_scope}))?;
                 } else {
-                    println!("no default set");
+                    if let Some(ref p) = current_project {
+                        println!("project: {p}");
+                    }
+                    if let Some(ref s) = current_scope {
+                        println!("scope: {s}");
+                    }
+                    if current_project.is_none() && current_scope.is_none() {
+                        println!("no scope set");
+                    }
                 }
             }
             Ok(())
@@ -269,6 +330,7 @@ pub fn run(db: &Database, command: Commands, json: bool, compact: bool) -> Resul
             }
             Ok(())
         }
+        Commands::Split(args) => task::split_cmd(db, args, json),
         Commands::Complete(args) | Commands::Finish(args) | Commands::Update(args) => {
             task::done_cmd(db, args, json, compact)
         }
@@ -292,7 +354,7 @@ pub fn run(db: &Database, command: Commands, json: bool, compact: bool) -> Resul
                 println!("created {} ({})", project.id, project.name);
                 if !compact {
                     eprintln!();
-                    eprintln!("next: plandb add --title \"First task\"");
+                    eprintln!("next: plandb add \"First task\"");
                     eprintln!("tip:  start with 1-2 tasks. add more as you learn things.");
                 }
             }

@@ -52,8 +52,8 @@ fn next_entropy() -> u64 {
 fn random_suffix() -> String {
     const ALPHABET: &[u8; 36] = b"abcdefghijklmnopqrstuvwxyz0123456789";
     let mut value = next_entropy();
-    let mut out = String::with_capacity(6);
-    for _ in 0..6 {
+    let mut out = String::with_capacity(4);
+    for _ in 0..4 {
         let idx = (value % 36) as usize;
         out.push(ALPHABET[idx] as char);
         value /= 36;
@@ -63,4 +63,14 @@ fn random_suffix() -> String {
 
 pub fn generate_id(prefix: &str) -> String {
     format!("{}-{}", short_prefix(prefix), random_suffix())
+}
+
+pub fn generate_id_with_custom(prefix: &str, custom: Option<&str>) -> String {
+    match custom {
+        Some(name) => {
+            let p = short_prefix(prefix);
+            format!("{p}-{name}")
+        }
+        None => generate_id(prefix),
+    }
 }

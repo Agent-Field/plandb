@@ -6,10 +6,11 @@ use crate::db::{
     add_dependency, add_note, add_task_files, amend_task_description, approve_task,
     batch_create_tasks, cancel_task, check_file_conflicts, claim_next_task, claim_task,
     complete_task, compute_effects, create_task, fail_task, fuzzy_find_task, get_handoff_context,
-    get_lookahead, get_task, insert_task_between, list_dependencies, list_notes, list_task_files,
-    list_tasks, pause_task, pivot_subtree, project_state, promote_ready_tasks, remove_dependency,
-    snapshot_task_statuses, split_task, start_task, update_heartbeat, update_progress, update_task,
-    Database, NewSubtask, PlandbError, SplitPart, TaskListFilters,
+    get_lookahead, get_running_task_for_agent, get_task, insert_task_between, list_dependencies,
+    list_notes, list_task_files, list_tasks, pause_task, pivot_subtree, project_state,
+    promote_ready_tasks, remove_dependency, snapshot_task_statuses, split_task, start_task,
+    update_heartbeat, update_progress, update_task, Database, NewSubtask, PlandbError, SplitPart,
+    TaskListFilters,
 };
 use crate::models::{
     generate_id, DependencyCondition, DependencyKind, RetryBackoff, Task, TaskKind, TaskStatus,
@@ -22,6 +23,62 @@ use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
+
+/// Resolve agent ID: explicit value wins, then PLANDB_AGENT env var, then "default".
+fn resolve_agent(explicit: &str) -> String {
+    if explicit != "default" {
+        return explicit.to_string();
+    }
+    std::env::var("PLANDB_AGENT").unwrap_or_else(|_| "default".to_string())
+}
+
+/// Parse simple split syntax: comma-separated titles, `>` for chains, or JSON array.
+fn parse_simple_split(input: &str) -> Vec<SplitPart> {
+    // Check if it's JSON
+    if input.trim_start().starts_with('[') {
+        if let Ok(parts) = serde_json::from_str::<Vec<SplitPart>>(input) {
+            return parts;
+        }
+    }
+
+    // Check if it uses > for chaining (A > B > C = linear dependency chain)
+    if input.contains('>') {
+        let titles: Vec<String> = input
+            .split('>')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+        return titles
+            .iter()
+            .enumerate()
+            .map(|(i, title)| SplitPart {
+                title: title.clone(),
+                description: None,
+                done: None,
+                result: None,
+                deps_on: if i > 0 {
+                    Some(vec![titles[i - 1].clone()])
+                } else {
+                    None
+                },
+            })
+            .collect();
+    }
+
+    // Simple comma-separated titles (all independent)
+    input
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .map(|title| SplitPart {
+            title,
+            description: None,
+            done: None,
+            result: None,
+            deps_on: None,
+        })
+        .collect()
+}
 
 #[derive(Args, Debug)]
 #[command(about = "Manage tasks within a project.\n\n\
@@ -147,8 +204,10 @@ enum WhatIfSubcommand {
 pub struct CreateTaskArgs {
     #[arg(long, help = "Project ID (uses default if set via 'plandb use')")]
     pub project: Option<String>,
-    #[arg(long, help = "Task title (concise, descriptive)")]
+    #[arg(help = "Task title")]
     pub title: String,
+    #[arg(long = "as", help = "Custom short ID (e.g. --as api creates t-api)")]
+    pub custom_id: Option<String>,
     #[arg(long, value_name = "KIND", value_parser = parse_task_kind, help = "Task kind: generic, code, research, review, test, shell")]
     pub kind: Option<TaskKind>,
     #[arg(long, help = "Detailed description of what the task involves")]
@@ -254,8 +313,8 @@ struct ProgressArgs {
 
 #[derive(Args, Debug)]
 pub struct DoneArgs {
-    #[arg(help = "ID of the task to complete")]
-    pub task_id: String,
+    #[arg(help = "Task ID to complete (omit to complete your current running task)")]
+    pub task_id: Option<String>,
     #[arg(
         long,
         alias = "output",
@@ -269,10 +328,10 @@ pub struct DoneArgs {
     pub files: Option<String>,
     #[arg(
         long,
-        help = "After completing, claim + start next ready task (requires --agent)"
+        help = "After completing, claim + start next ready task"
     )]
     pub next: bool,
-    #[arg(long, help = "Agent ID for --next (required when --next is used)")]
+    #[arg(long, default_value = "default", help = "Agent ID (default: 'default' or PLANDB_AGENT env var)")]
     pub agent: Option<String>,
 }
 
@@ -396,14 +455,14 @@ struct PivotTaskArgs {
 }
 
 #[derive(Args, Debug)]
-struct SplitTaskArgs {
-    #[arg(help = "Task ID to split into sub-tasks")]
-    task_id: String,
+pub struct SplitTaskArgs {
+    #[arg(help = "Task ID to split (omit to split current running task)")]
+    pub task_id: Option<String>,
     #[arg(
         long,
-        help = "JSON array of parts: [{\"title\":\"...\",\"description\":\"...\"}]"
+        help = "Parts: comma-separated titles (\"A, B, C\"), chain with > (\"A > B > C\"), or JSON array"
     )]
-    into: String,
+    pub into: String,
 }
 
 #[derive(Args, Debug)]
@@ -453,7 +512,7 @@ struct NotesArgs {
 
 #[derive(Args, Debug)]
 pub struct GoArgs {
-    #[arg(long, help = "Agent identifier (e.g. claude-1, agent-backend)")]
+    #[arg(long, default_value = "default", help = "Agent identifier (default: 'default', or set PLANDB_AGENT env var)")]
     pub agent: String,
     #[arg(long, help = "Project ID (uses default if not set)")]
     pub project: Option<String>,
@@ -744,27 +803,7 @@ pub fn run(db: &Database, command: TaskCommand, global_json: bool, compact: bool
                 println!("pivoted {}", args.parent_id);
             }
         }
-        TaskSubcommand::Split(args) => {
-            let parts: Vec<SplitPart> = serde_json::from_str(&args.into)?;
-            let parent = get_task(db, &args.task_id)?;
-            let before_snapshot = snapshot_task_statuses(db, &parent.project_id)?;
-            let result = split_task(db, &args.task_id, parts)?;
-            let after_snapshot = snapshot_task_statuses(db, &parent.project_id)?;
-            let effect =
-                compute_effects(db, &parent.project_id, &before_snapshot, &after_snapshot)?;
-            if global_json {
-                print_json(&serde_json::json!({
-                    "parent_task_id": result.parent_task_id,
-                    "created": result.created,
-                    "done": result.done,
-                    "title_to_id": result.title_to_id,
-                    "effect": effect,
-                    "project_state": project_state(db, &parent.project_id)?,
-                }))?;
-            } else {
-                println!("split {}", args.task_id);
-            }
-        }
+        TaskSubcommand::Split(args) => split_cmd(db, args, global_json)?,
         TaskSubcommand::Decompose(args) => {
             let title_to_id = decompose_or_replan(db, &args.task_id, &args.file, false)?;
             if global_json {
@@ -959,8 +998,21 @@ pub fn create_task_cmd(
 ) -> Result<()> {
     let now = Utc::now().naive_utc();
     let project_id = resolve_project_id(db, args.project.as_deref())?;
+    let task_id = match args.custom_id {
+        Some(ref custom) => {
+            let name = custom.strip_prefix("t-").unwrap_or(custom);
+            if name.is_empty() || name.len() > 64 {
+                return Err(anyhow!("custom ID must be 1-64 characters"));
+            }
+            if !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+                return Err(anyhow!("custom ID must contain only alphanumeric, hyphen, or underscore characters"));
+            }
+            format!("t-{name}")
+        }
+        None => generate_id("task"),
+    };
     let task = Task {
-        id: generate_id("task"),
+        id: task_id,
         project_id,
         parent_task_id: args.parent,
         is_composite: false,
@@ -1209,7 +1261,8 @@ pub fn parse_files_arg(files: &str) -> Vec<String> {
 }
 
 pub fn go_cmd(db: &Database, args: &GoArgs, json: bool) -> Result<()> {
-    let response = go_payload(db, args.project.as_deref(), &args.agent)?;
+    let agent = resolve_agent(&args.agent);
+    let response = go_payload(db, args.project.as_deref(), &agent)?;
     if json {
         print_json(&response)?;
     } else if response["task"].is_null() {
@@ -1273,7 +1326,69 @@ pub fn go_cmd(db: &Database, args: &GoArgs, json: bool) -> Result<()> {
     Ok(())
 }
 
+pub fn split_cmd(db: &Database, args: SplitTaskArgs, json: bool) -> Result<()> {
+    let parts = parse_simple_split(&args.into);
+    if parts.is_empty() {
+        return Err(anyhow!("--into produced no parts"));
+    }
+    // Resolve task_id: explicit or infer from agent's running task
+    let split_task_id = match args.task_id {
+        Some(id) => id,
+        None => {
+            let agent = resolve_agent("default");
+            let running = get_running_task_for_agent(db, &agent)?;
+            match running {
+                Some(task) => task.id,
+                None => {
+                    return Err(anyhow!(
+                        "no running task found. Specify task ID explicitly."
+                    ))
+                }
+            }
+        }
+    };
+    let parent = get_task(db, &split_task_id)?;
+    let before_snapshot = snapshot_task_statuses(db, &parent.project_id)?;
+    let result = split_task(db, &split_task_id, parts)?;
+    let after_snapshot = snapshot_task_statuses(db, &parent.project_id)?;
+    let effect = compute_effects(db, &parent.project_id, &before_snapshot, &after_snapshot)?;
+    if json {
+        print_json(&serde_json::json!({
+            "parent_task_id": result.parent_task_id,
+            "created": result.created,
+            "done": result.done,
+            "title_to_id": result.title_to_id,
+            "effect": effect,
+            "project_state": project_state(db, &parent.project_id)?,
+        }))?;
+    } else {
+        println!("split {}", split_task_id);
+    }
+    Ok(())
+}
+
 pub fn done_cmd(db: &Database, args: DoneArgs, json: bool, compact: bool) -> Result<()> {
+    let agent_id = resolve_agent(
+        args.agent.as_deref().unwrap_or("default"),
+    );
+
+    // Resolve task_id: explicit or infer from running task
+    let task_id = match args.task_id {
+        Some(id) => id,
+        None => {
+            let running = get_running_task_for_agent(db, &agent_id)?;
+            match running {
+                Some(task) => task.id,
+                None => {
+                    return Err(anyhow!(
+                        "no running task found for agent '{}'. Specify task ID explicitly.",
+                        agent_id
+                    ))
+                }
+            }
+        }
+    };
+
     let result_provided = args.result.is_some();
     let result = match args.result {
         Some(text) => match serde_json::from_str(&text) {
@@ -1282,8 +1397,8 @@ pub fn done_cmd(db: &Database, args: DoneArgs, json: bool, compact: bool) -> Res
         },
         None => None,
     };
-    let task = complete_task(db, &args.task_id, result)
-        .map_err(|err| enrich_transition_error(db, &args.task_id, "complete", err))?;
+    let task = complete_task(db, &task_id, result)
+        .map_err(|err| enrich_transition_error(db, &task_id, "complete", err))?;
     if let Some(files) = args.files {
         let paths = parse_files_arg(&files);
         let _ = add_task_files(db, &task.id, &paths)?;
@@ -1304,10 +1419,7 @@ pub fn done_cmd(db: &Database, args: DoneArgs, json: bool, compact: bool) -> Res
     let state = project_state(db, &task.project_id)?;
 
     let next = if args.next {
-        let agent = args
-            .agent
-            .ok_or_else(|| anyhow!("--agent is required when using --next"))?;
-        Some(go_payload(db, Some(&task.project_id), &agent)?)
+        Some(go_payload(db, Some(&task.project_id), &agent_id)?)
     } else {
         None
     };

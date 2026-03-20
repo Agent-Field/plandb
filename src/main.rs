@@ -130,119 +130,85 @@ fn print_prompt_cli(db_path: &str) {
 
 ## Plandb — Task Graph for Agent Coordination
 
-You have `plandb` (binary in PATH, DB: {db_path}) for managing task dependency graphs.
-Use it to decompose complex work into tasks with dependencies, then execute them in
-dependency order. The graph enforces ordering — `plandb go` only returns tasks whose
-prerequisites are complete.
+You have `plandb` (binary in PATH, DB: {db_path}) for dependency-aware task graphs.
+The graph enforces ordering — `plandb go` only returns tasks whose dependencies are done.
 
-### When to Use Plandb
-- Any task with 3+ steps that have ordering constraints
-- Work that could be parallelized across agents
-- Plans that might need mid-flight adaptation
-
-### Setup (once per project)
+### Core Loop (2 commands, no IDs needed)
 ```bash
-plandb project create "my-project"
-# Automatically set as default — no --project needed on subsequent commands
+plandb go          # claim + start next ready task (delivers upstream context)
+plandb done --next # complete current task + claim next
+```
+
+`done` without a task ID completes your current running task.
+Agent identity defaults to "default". Set `PLANDB_AGENT=name` for multi-agent.
+
+### Setup
+```bash
+plandb init "my-project"
 ```
 
 ### Adding Tasks
 ```bash
-# Simple task (no dependencies — becomes immediately ready)
-plandb task create --title "Design API schema" --kind research
-
-# Task that depends on another (stays pending until dep completes)
-plandb task create --title "Implement endpoints" --dep t-a1b2c3d4
-
-# Multiple dependencies
-plandb task create --title "Integration tests" --dep t-a1b2c3d4 --dep t-e5f6g7h8
-
-# With description, priority, tags
-plandb task create --title "Auth middleware" --description "JWT-based, refresh tokens" \
-  --kind code --priority 10 --tag auth --tag backend --dep t-a1b2c3d4
-
-# Bulk create from YAML file
-plandb task create-batch --file tasks.yaml
+plandb add "Design API"                          # positional title
+plandb add "Implement" --dep t-abc               # with dependency
+plandb add "Implement" --as impl                 # custom ID → t-impl
+plandb add "Auth" --kind code --priority 10      # with metadata
+plandb add "Tests" --dep t-abc --dep t-def       # multiple deps
 ```
 
-### The Work Loop (2 commands)
+Dep types: `feeds_into` (default), `blocks`, `suggests`. Example: `--dep t-abc:blocks`
+
+### Decomposition (recursive)
 ```bash
-# Claim + start next ready task (preferred entry point)
-plandb go --agent my-agent
-# Returns: task details, handoff context from upstream tasks, file conflicts, progress
-
-# ... do the work ...
-
-# Complete + claim next in one command
-plandb done t-TASKID --result '{{\"summary\": \"implemented auth\"}}' --next --agent my-agent
-# --result passes data to downstream tasks via handoff protocol
-# --files "src/auth.rs,src/middleware.rs" enables conflict detection
+plandb split --into "Design, Implement, Test"          # split current task (comma = independent)
+plandb split --into "Design > Implement > Test"         # chain with > (linear deps)
+plandb split t-abc --into "Part A, Part B"              # split specific task
+plandb task decompose t-abc --file subtasks.yaml        # from YAML
+plandb task replan t-abc --file revised.yaml            # cancel + recreate subtasks
 ```
 
-### Checking Status
+Subtasks can be split further (any depth). Composite tasks auto-complete when all children finish.
+
+### Scope (zoom into subtrees)
 ```bash
-plandb status                   # One-line: "5/12 done (42%) | ready: t-xx,t-yy | running: t-zz@agent-1"
-plandb status --detail          # Per-task breakdown with status icons
-plandb status --full            # All tasks + dependency edges
-plandb --json -c status         # Compact JSON (token-efficient for LLM consumption)
-plandb project dag              # Tree view of the dependency graph
-plandb task overview -c --json  # Full task list + deps + summary in compact JSON
+plandb use t-abc     # scope into composite task
+plandb list          # shows only children of t-abc
+plandb go            # claims from this scope
+plandb use ..        # zoom out one level
+plandb use --clear   # back to project root
 ```
 
-### Plan Adaptation (change plans mid-flight)
+### Status
 ```bash
-# See what's coming next
-plandb ahead --depth 3
-
-# Preview effects before acting (read-only, safe)
-plandb what-if cancel t-abc123
-
-# Insert a missed step between two existing tasks (rewires dependencies)
-plandb task insert --after t-a1 --before t-b2 --title "Add input validation"
-
-# Annotate a future task with new context
-plandb task amend t-future123 --prepend "NOTE: use JWT, not sessions"
-
-# Replace an entire subtree with new plan
-plandb task pivot t-parent --keep-done --file new-plan.yaml
-
-# Split one task into multiple sub-tasks
-plandb task split t-big --into '[{{"title":"Part 1"}},{{"title":"Part 2"}}]'
-
-# Decompose into subtasks from YAML (with internal dependencies)
-plandb task decompose t-big --file subtasks.yaml
-
-# Cancel + replan: cancel pending subtasks and create fresh ones
-plandb task replan t-parent --file revised-plan.yaml
+plandb status              # progress summary
+plandb status --detail     # per-task breakdown
+plandb list --status ready # filter tasks
+plandb show t-abc          # task details
+plandb ahead               # what's next
+plandb --json -c status    # compact JSON for LLM context
 ```
 
-### Inter-Agent Communication
+### Plan Adaptation
 ```bash
-# Leave a note on a task (visible to all agents)
-plandb task note t-abc123 "Found edge case: handle null emails" --agent agent-1
-
-# Read notes left by other agents
-plandb task notes t-abc123
+plandb task insert --after t-a --before t-b --title "Add validation"
+plandb task amend t-abc --prepend "NOTE: use JWT"
+plandb task pivot t-parent --file new-plan.yaml
+plandb what-if cancel t-abc                        # preview effects (safe, read-only)
 ```
 
-### Key Concepts
-- **Task states**: pending → ready (when deps complete) → claimed → running → done/failed
-- **Dependency types**: `feeds_into` (default, result passed downstream), `blocks` (ordering only), `suggests` (soft)
-- **Task kinds**: `generic`, `code`, `research`, `review`, `test`, `shell`
-- **IDs**: short 8-char strings like `t-a1b2c3d4` — every token matters
-- **Fuzzy matching**: misspell a task ID and plandb suggests the closest match
-- **Default project**: `plandb use <id>` sets default, no --project needed per command
-- **Output modes**: human default, `--json` for structured, `-c`/`--compact` for token-efficient
-- **Handoff protocol**: when you complete a task with --result, that data is available to the agent working on downstream tasks via `plandb go`
-- **Effect analysis**: insert/pivot/split responses include which tasks got delayed/accelerated/unblocked
+### Multi-Agent
+```bash
+PLANDB_AGENT=worker-1 plandb go && PLANDB_AGENT=worker-1 plandb done --next
+PLANDB_AGENT=worker-2 plandb go && PLANDB_AGENT=worker-2 plandb done --next
+```
 
-### Multi-Agent Pattern
-When `plandb status` shows multiple ready tasks, a harness can spawn parallel agents:
-```
-Agent 1: plandb go --agent agent-1 → work → plandb done ID --next --agent agent-1
-Agent 2: plandb go --agent agent-2 → work → plandb done ID --next --agent agent-2
-```
-Atomic claim protocol prevents two agents from claiming the same task."#
+### Reference
+- **States**: pending → ready (deps done) → claimed → running → done/failed/cancelled
+- **Dep types**: `feeds_into` (data flows), `blocks` (ordering), `suggests` (soft)
+- **Kinds**: generic, code, research, review, test, shell
+- **IDs**: short (`t-k3m`), fuzzy-matched on typos, custom via `--as`
+- **Output**: `--json` for structured, `-c` for compact, default human-readable
+- **Handoff**: `--result` on `done` passes data to downstream tasks via `go`"#
     );
 }
 

@@ -208,6 +208,84 @@ ORDER BY created_at DESC
 LIMIT 50;
 "#;
 
+const SELECT_RUNNING_TASK_FOR_AGENT: &str = r#"
+SELECT
+id, project_id, parent_task_id, is_composite,
+title, description, status, kind, priority,
+agent_id, claimed_at, started_at, completed_at,
+result, error, progress, progress_note,
+max_retries, retry_count, retry_backoff, retry_delay_ms,
+timeout_seconds, heartbeat_interval, last_heartbeat,
+requires_approval, approval_status, approved_by, approval_comment,
+metadata, created_at, updated_at
+FROM tasks
+WHERE agent_id = ?1
+  AND status IN ('running', 'claimed')
+ORDER BY started_at DESC, claimed_at DESC
+LIMIT 1;
+"#;
+
+const CLAIM_NEXT_TASK_SCOPED: &str = r#"
+UPDATE tasks
+SET status = 'claimed', agent_id = ?1, claimed_at = ?3, last_heartbeat = ?3, updated_at = ?3
+WHERE id = (
+  SELECT id
+  FROM tasks
+  WHERE project_id = ?2 AND status = 'ready'
+    AND (?4 IS NULL OR parent_task_id = ?4)
+    AND is_composite = 0
+  ORDER BY priority DESC, created_at ASC
+  LIMIT 1
+)
+RETURNING
+id, project_id, parent_task_id, is_composite,
+title, description, status, kind, priority,
+agent_id, claimed_at, started_at, completed_at,
+result, error, progress, progress_note,
+max_retries, retry_count, retry_backoff, retry_delay_ms,
+timeout_seconds, heartbeat_interval, last_heartbeat,
+requires_approval, approval_status, approved_by, approval_comment,
+metadata, created_at, updated_at;
+"#;
+
+const COMPLETE_COMPOSITE_IF_CHILDREN_DONE: &str = r#"
+UPDATE tasks
+SET status = 'done', completed_at = ?2, updated_at = ?2
+WHERE id = ?1
+  AND is_composite = 1
+  AND status IN ('pending', 'ready')
+  AND NOT EXISTS (
+    SELECT 1 FROM tasks
+    WHERE parent_task_id = ?1
+      AND status NOT IN ('done', 'done_partial', 'cancelled')
+  );
+"#;
+
+const SELECT_SUBTREE: &str = r#"
+WITH RECURSIVE subtree(id, depth) AS (
+  SELECT id, 0 FROM tasks WHERE id = ?1
+  UNION ALL
+  SELECT t.id, s.depth + 1
+  FROM tasks t
+  JOIN subtree s ON t.parent_task_id = s.id
+)
+SELECT
+t.id, t.project_id, t.parent_task_id, t.is_composite,
+t.title, t.description, t.status, t.kind, t.priority,
+t.agent_id, t.claimed_at, t.started_at, t.completed_at,
+t.result, t.error, t.progress, t.progress_note,
+t.max_retries, t.retry_count, t.retry_backoff, t.retry_delay_ms,
+t.timeout_seconds, t.heartbeat_interval, t.last_heartbeat,
+t.requires_approval, t.approval_status, t.approved_by, t.approval_comment,
+t.metadata, t.created_at, t.updated_at
+FROM tasks t
+JOIN subtree s ON t.id = s.id
+WHERE s.depth > 0
+ORDER BY s.depth, t.priority DESC, t.created_at ASC;
+"#;
+
+const COUNT_CHILDREN: &str = "SELECT COUNT(*) FROM tasks WHERE parent_task_id = ?1;";
+
 fn levenshtein(a: &str, b: &str) -> usize {
     let n = b.chars().count();
     let mut prev: Vec<usize> = (0..=n).collect();
@@ -444,6 +522,14 @@ pub fn get_task(db: &Database, task_id: &str) -> Result<Task> {
     task.ok_or_else(|| PlandbError::NotFound(format!("task {task_id}")).into())
 }
 
+/// Find the currently running task for a given agent, if any.
+pub fn get_running_task_for_agent(db: &Database, agent_id: &str) -> Result<Option<Task>> {
+    let conn = db.lock()?;
+    let mut stmt = conn.prepare(SELECT_RUNNING_TASK_FOR_AGENT)?;
+    let task = stmt.query_row(params![agent_id], row_to_task).optional()?;
+    Ok(task)
+}
+
 pub fn fuzzy_find_task(db: &Database, input: &str, project_id: Option<&str>) -> Result<Task> {
     match get_task(db, input) {
         Ok(task) => return Ok(task),
@@ -639,6 +725,8 @@ pub fn complete_task(
             .map(|_| serde_json::json!({"has_result": true})),
         crate::db::now_utc_naive(),
     );
+    // Auto-complete composite parent if all children are done
+    let _ = try_complete_composite_parent(db, task_id);
     Ok(task)
 }
 
@@ -1435,4 +1523,91 @@ pub fn split_task(db: &Database, task_id: &str, parts: Vec<SplitPart>) -> Result
         done: done_ids,
         title_to_id,
     })
+}
+
+pub fn claim_next_task_scoped(
+    db: &Database,
+    project_id: &str,
+    agent_id: &str,
+    scope_task_id: Option<&str>,
+) -> Result<Option<Task>> {
+    let task = {
+        let conn = db.lock()?;
+        let now = dt_to_sql(now_utc_naive());
+        let mut stmt = conn.prepare(CLAIM_NEXT_TASK_SCOPED)?;
+        stmt.query_row(params![agent_id, project_id, now, scope_task_id], row_to_task)
+            .optional()?
+    };
+    if let Some(ref t) = task {
+        let _ = crate::db::insert_event(
+            db,
+            Some(&t.id),
+            Some(&t.project_id),
+            Some(agent_id),
+            crate::models::EventType::TaskClaimed,
+            None,
+            crate::db::now_utc_naive(),
+        );
+    }
+    Ok(task)
+}
+
+pub fn try_complete_composite_parent(db: &Database, child_task_id: &str) -> Result<Option<Task>> {
+    try_complete_composite_parent_bounded(db, child_task_id, 0)
+}
+
+const MAX_COMPOSITE_DEPTH: u32 = 64;
+
+fn try_complete_composite_parent_bounded(
+    db: &Database,
+    child_task_id: &str,
+    depth: u32,
+) -> Result<Option<Task>> {
+    if depth >= MAX_COMPOSITE_DEPTH {
+        return Ok(None);
+    }
+    let child = get_task(db, child_task_id)?;
+    let parent_id = match &child.parent_task_id {
+        Some(id) => id.clone(),
+        None => return Ok(None),
+    };
+    let conn = db.lock()?;
+    let now = dt_to_sql(now_utc_naive());
+    let changed = conn.execute(COMPLETE_COMPOSITE_IF_CHILDREN_DONE, params![&parent_id, now])?;
+    drop(conn);
+    if changed > 0 {
+        let parent = get_task(db, &parent_id)?;
+        let _ = crate::db::insert_event(
+            db,
+            Some(&parent.id),
+            Some(&parent.project_id),
+            None,
+            crate::models::EventType::TaskCompleted,
+            Some(serde_json::json!({"auto_completed": true, "trigger": child_task_id})),
+            crate::db::now_utc_naive(),
+        );
+        // Recursively check if this parent's parent should also complete
+        let _ = try_complete_composite_parent_bounded(db, &parent_id, depth + 1);
+        // Promote tasks that depended on this composite
+        let _ = promote_ready_tasks(db);
+        Ok(Some(parent))
+    } else {
+        Ok(None)
+    }
+}
+
+pub fn list_subtree(db: &Database, root_task_id: &str) -> Result<Vec<Task>> {
+    let conn = db.lock()?;
+    let mut stmt = conn.prepare(SELECT_SUBTREE)?;
+    let mut rows = stmt.query(params![root_task_id])?;
+    let mut tasks = Vec::new();
+    while let Some(row) = rows.next()? {
+        tasks.push(row_to_task(row)?);
+    }
+    Ok(tasks)
+}
+
+pub fn count_children(db: &Database, task_id: &str) -> Result<i64> {
+    let conn = db.lock()?;
+    Ok(conn.query_row(COUNT_CHILDREN, params![task_id], |row| row.get(0))?)
 }
