@@ -10,3 +10,4 @@ experiments/*/__pycache__/
 *.pyc
 docs/plans/
 .worktrees/
+docs-site-*/

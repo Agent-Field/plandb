@@ -20,7 +20,7 @@ When an AI agent works, it does exactly three things:
 2. **Does** the work
 3. **Reports** what happened
 
-Every orchestration framework models this differently — some use state machines, some use message passing, some use function calls. plandb models it as a **directed acyclic graph of tasks with typed dependency edges**, and makes that graph the single source of truth for all coordination.
+Every orchestration framework models this differently — some use state machines, some use message passing, some use function calls. plandb models it as a **compound graph** — a containment tree (tasks inside tasks) overlaid with a dependency DAG (edges between any tasks at any depth) — and makes that graph the single source of truth for all coordination.
 
 ```mermaid
 graph TD
@@ -175,6 +175,134 @@ We evaluated using SQLite triggers (auto-promote on every UPDATE to `done`). The
 1. **Batch efficiency**: Multiple tasks may complete in rapid succession. The VIEW evaluates all of them at once.
 2. **Predictable timing**: Callers control when promotion happens (always after `complete_task`), making the behavior easier to reason about.
 3. **No cascading trigger storms**: Deep dependency chains don't create recursive trigger execution.
+
+---
+
+## The Compound Graph Model
+
+The fundamental data structure in plandb is not a flat DAG — it's a **compound graph**: two orthogonal structures composed together.
+
+```mermaid
+graph TB
+    subgraph "Place Graph (Containment)"
+        direction TB
+        ROOT["Build App"]
+        BE["Backend"]
+        FE["Frontend"]
+        SCHEMA["t-schema"]
+        API["t-api"]
+        AUTH["t-auth"]
+        COMP["t-components"]
+        PAGES["t-pages"]
+        DEPLOY["t-deploy"]
+
+        ROOT --> BE
+        ROOT --> FE
+        ROOT --> DEPLOY
+        BE --> SCHEMA
+        BE --> API
+        BE --> AUTH
+        FE --> COMP
+        FE --> PAGES
+    end
+
+    subgraph "Link Graph (Dependencies)"
+        direction LR
+        S2["t-schema"] -->|feeds_into| A2["t-api"]
+        S2 -->|feeds_into| C2["t-components"]
+        A2 -->|feeds_into| P2["t-pages"]
+        AUTH2["t-auth"] -->|feeds_into| P2
+        P2 -->|feeds_into| D2["t-deploy"]
+        A2 -->|feeds_into| D2
+    end
+```
+
+### Why Two Structures?
+
+**Place graph** (containment): Tasks contain subtasks recursively, forming a forest — like a filesystem. `Backend` contains `t-schema`, `t-api`, `t-auth`. This is about **organization** — what's inside what.
+
+**Link graph** (dependencies): DAG edges between tasks at any depth, crossing containment boundaries freely — like a Makefile. `t-components` (inside Frontend) depends on `t-schema` (inside Backend). This is about **ordering** — what must finish first.
+
+These are **orthogonal**. This is the key insight that makes plandb more general than a hierarchical DAG:
+
+| Structure | Containment | Cross-level deps | What it models |
+|-----------|-------------|-------------------|----------------|
+| Flat DAG | No | N/A (flat) | Simple task ordering |
+| Hierarchical DAG | Yes | No — deps follow the tree | Nested project plans |
+| Hypergraph | No | Multi-node edges | Fan-in/fan-out |
+| **Compound graph** | **Yes** | **Yes — freely cross boundaries** | **Real-world projects** |
+
+A hierarchical DAG forces dependencies to respect the tree: a child can only depend on siblings or ancestors. Real projects don't work that way. A frontend component depends on a backend API. A deploy task depends on everything. A test task depends on tasks across multiple subsystems.
+
+### Cross-Level Dependencies
+
+Dependencies in plandb can connect any two tasks regardless of where they sit in the containment tree:
+
+```
+Backend/t-schema ──feeds_into──> Frontend/t-components    (cross-branch)
+Backend/t-api ──feeds_into──> t-deploy                     (depth 2 → depth 0)
+Frontend/t-pages ──blocks──> t-deploy                      (depth 2 → depth 0)
+```
+
+The dependency engine (`task_readiness` VIEW) doesn't care about containment depth. It checks: are all upstream tasks in the `done` state? If yes, promote. The SQL doesn't join on `parent_task_id` — it joins on `dependencies.from_task` and `dependencies.to_task`, which are unrestricted.
+
+### Composite Auto-Completion
+
+When a task is split into subtasks, it becomes a **composite** (`is_composite = true`). Composites don't hold work themselves — real work happens in the leaves.
+
+When all children of a composite finish, the composite **auto-completes**. This cascades recursively:
+
+```
+t-schema [done] ─┐
+t-api [done]     ├─ Backend [auto-completes] ─┐
+t-auth [done]    ─┘                            │
+                                                ├─ Build App [auto-completes]
+t-components [done] ─┐                         │
+t-pages [done]      ─┘ Frontend [auto-completes]┘
+```
+
+Completing `t-pages` (the last leaf in Frontend) triggers: Frontend auto-completes → if Backend is also done, Build App auto-completes → any tasks depending on Build App become ready.
+
+This is implemented in `try_complete_composite_parent()`, which recursively walks up the containment tree after each task completion, bounded to 64 levels of depth.
+
+### Recursive Decomposition
+
+Any task can be split at any time, at any depth:
+
+```bash
+plandb split t-backend --into "Schema, API, Auth"     # depth 0 → depth 1
+plandb split t-api --into "Routes > Handlers > Tests"  # depth 1 → depth 2
+plandb split t-handlers --into "Users, Posts, Search"   # depth 2 → depth 3
+```
+
+Each split creates a new level in the containment tree. The parent becomes composite. The children inherit the parent's project but can have their own dependencies — including cross-level deps to tasks in completely different branches.
+
+### Scope
+
+When the graph grows deep, agents can zoom into a subtree to reduce noise:
+
+```bash
+plandb use t-backend          # scope into Backend
+plandb list                    # only shows Schema, API, Auth
+plandb go                      # claims only from this scope
+plandb use t-api               # go deeper into API
+plandb use ..                  # back up to Backend
+plandb use --clear             # back to project root
+```
+
+`CLAIM_NEXT_TASK_SCOPED` filters by `parent_task_id`, so scoped agents only claim tasks within their subtree. This enables **subtree ownership** — one agent works on Backend, another on Frontend, each seeing only their part.
+
+### When This Architecture Matters
+
+The compound graph is most valuable when:
+
+- **Multiple subsystems with cross-dependencies**: Backend + Frontend + Infrastructure, where frontend needs backend APIs, deploy needs both, tests span everything
+- **Recursive discovery**: You split a task, then discover one subtask is itself complex and needs further splitting — the graph grows organically
+- **Team/agent ownership**: Different agents own different subtrees but have cross-team dependencies
+- **Failure isolation**: If one subtask fails, its siblings continue. The parent stays open. Fix and retry without affecting the rest
+- **Progress at any granularity**: "Backend is 60% done" comes free from the containment tree — count done children / total children
+
+For simple linear workflows (A → B → C), a flat DAG is fine. plandb doesn't force hierarchy. The compound graph is there when you need it.
 
 ---
 
@@ -457,9 +585,13 @@ plandb enables Write-Ahead Logging (`PRAGMA journal_mode = WAL`), which allows c
 
 ## Design Decisions and Trade-offs
 
-### IDs: Short, Fuzzy-Matched
+### IDs: Short, Custom, Fuzzy-Matched
 
-Task IDs are 8-character prefixes of ULIDs (e.g., `t-a1b2c3d4`). Short enough for agents to type, unique enough to avoid collisions in any realistic project. plandb uses Levenshtein distance matching for typos — `t-a1b2c3d5` will find `t-a1b2c3d4` if it's the closest match.
+Task IDs are 5-character strings: a prefix + 4 random alphanumeric chars (e.g., `t-k3m9`). Short enough for agents to type, with 36^4 = 1.6M combinations per prefix — sufficient for any project.
+
+Custom IDs are supported via `--as`: `plandb add "Design API" --as design` creates `t-design`. Custom IDs are validated to contain only alphanumeric, hyphen, or underscore characters.
+
+plandb uses Levenshtein distance matching for typos — `t-k3n9` will suggest `t-k3m9` if it's the closest match.
 
 ### JSON Result, Not Typed Schema
 

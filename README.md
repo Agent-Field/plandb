@@ -236,86 +236,16 @@ Generate integration config: `plandb prompt --for mcp|cli|http`
 | `PLANDB_AGENT` | Agent identity | `default` |
 | `NO_COLOR` | Disable colored output | unset |
 
-## Architecture: The Compound Graph
+## Architecture
 
-Most task planners use a flat DAG — tasks with dependency edges. This works until you need to reason about structure: "how is the backend progressing?" or "can I parallelize these frontend components?" A flat DAG gives you ordering but no organization.
+PlanDB uses a **compound graph** — two orthogonal structures composed together:
 
-PlanDB uses a **compound graph** — two independent structures composed together:
+- **Place graph** (containment): tasks contain subtasks recursively — like a filesystem
+- **Link graph** (dependencies): DAG edges between tasks at any depth, crossing containment boundaries — like a build graph
 
-```
-┌─────────────────────────────────────────────────────┐
-│  PLACE GRAPH (containment)     LINK GRAPH (deps)    │
-│                                                     │
-│  Build App                     t-schema ───────┐    │
-│  ├── Backend                       │           │    │
-│  │   ├── t-schema              t-api ──┐       │    │
-│  │   ├── t-api                     │   │       │    │
-│  │   └── t-auth                t-auth  │       │    │
-│  ├── Frontend                      │   │       │    │
-│  │   ├── t-components          t-components    │    │
-│  │   └── t-pages                   │           │    │
-│  └── t-deploy                  t-pages ────────┤    │
-│                                    │           │    │
-│                                t-deploy ◄──────┘    │
-│                                                     │
-│  Tree structure (who           DAG edges (what      │
-│  contains what)                must finish first)   │
-└─────────────────────────────────────────────────────┘
-```
+These are independent. A subtask at depth 3 can depend on a task at depth 0 in a different branch. This is more general than a hierarchical DAG — nesting doesn't constrain flow. Composite tasks auto-complete when all children finish, cascading up recursively.
 
-- **Place graph** (containment): tasks contain subtasks recursively, forming a forest — like a filesystem
-- **Link graph** (dependencies): DAG edges between tasks at any depth — like a build graph
-
-### Why orthogonal?
-
-These two structures are **independent**. Dependencies do NOT follow the containment tree. This is the key insight:
-
-- `t-components` (inside Frontend) depends on `t-schema` (inside Backend) — a cross-branch, cross-level dependency
-- `t-deploy` (a root-level task) depends on tasks inside both Backend and Frontend
-- Containment is about *organization*. Dependencies are about *ordering*. They serve different purposes.
-
-### How it compares
-
-| Structure | Containment | Cross-level deps | What it models |
-|-----------|-------------|-------------------|----------------|
-| Flat DAG | No | N/A (flat) | Simple task ordering |
-| Hierarchical DAG | Yes | No — deps follow the tree | Nested project plans |
-| Hypergraph | No | Multi-node edges | Fan-in/fan-out |
-| **Compound graph** | **Yes** | **Yes — freely cross boundaries** | **Real-world projects** |
-
-A hierarchical DAG forces dependencies to respect the tree: a child can only depend on siblings or ancestors. Real projects don't work that way — a frontend component depends on a backend API, a deploy task depends on everything, a test task depends on tasks across multiple subsystems.
-
-### What it enables
-
-**Recursive decomposition with cross-cutting concerns.** Split "Build Backend" into subtasks, then split "Design Schema" further into sub-subtasks. At any point, create a dependency from a deep leaf task to any other task anywhere in the tree.
-
-**Subtree-level parallelism.** After splitting, all independent subtasks become `ready` simultaneously. Agents claim them in parallel. The graph tells you exactly what's safe to run concurrently.
-
-**Scoped reasoning.** Zoom into a subtree with `plandb use t-backend` — you see only Backend tasks, claim only Backend work, track Backend progress. The full graph still exists; you're just focusing.
-
-**Automatic progress rollup.** When all children of a composite task finish, it auto-completes. This cascades up — completing the last leaf can trigger a chain of parent completions up the tree.
-
-**Failure isolation.** If one subtask fails, its siblings continue. The parent stays open. You can fix and retry the failed subtask without affecting the rest of the tree.
-
-### When is this useful?
-
-- **Multi-subsystem projects**: Backend + Frontend + Infrastructure, each with internal phases, but with cross-system dependencies (frontend needs backend API, deploy needs both)
-- **Research with dependent analysis**: Multiple investigation tracks that discover dependencies on each other mid-flight
-- **Codebase migrations**: Per-module conversion where modules have import dependencies creating cross-level edges
-- **Agent orchestration**: Each subtree can be owned by a different agent or team, with cross-team dependencies tracked in the link graph
-- **Any project where you'd naturally say** "this part depends on that part, but they're in different groups"
-
-### Visualizing the compound graph
-
-```bash
-plandb status --detail    # dependency tree (shows ordering)
-plandb status --full      # both structures: containment tree + dependency edges
-```
-
-The `--full` view shows three sections:
-1. **Containment (place graph)** — the tree of what's inside what
-2. **All tasks (flat)** — every task with status
-3. **Dependencies (link graph)** — the cross-cutting edges
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design: compound graph theory, comparison with flat DAGs/hypergraphs, cross-level dependency mechanics, and when each structure matters.
 
 ## License
 
