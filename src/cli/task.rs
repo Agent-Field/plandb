@@ -247,6 +247,10 @@ pub struct CreateTaskArgs {
         help = "Tags for filtering (repeatable: --tag api --tag auth)"
     )]
     pub tags: Vec<String>,
+    #[arg(long = "pre", help = "Pre-condition: what must be true before this task can be worked on")]
+    pub pre_condition: Option<String>,
+    #[arg(long = "post", help = "Post-condition: what must be verified after completion")]
+    pub post_condition: Option<String>,
 }
 
 #[derive(Args, Debug)]
@@ -1047,6 +1051,8 @@ pub fn create_task_cmd(
         approval_status: None,
         approved_by: None,
         approval_comment: None,
+        pre_condition: args.pre_condition,
+        post_condition: args.post_condition,
         metadata: None,
         created_at: now,
         updated_at: now,
@@ -1130,6 +1136,8 @@ fn create_batch_cmd(db: &Database, args: CreateBatchArgs, json: bool) -> Result<
             approval_status: None,
             approved_by: None,
             approval_comment: None,
+            pre_condition: None,
+            post_condition: None,
             metadata: None,
             created_at: now,
             updated_at: now,
@@ -1329,6 +1337,11 @@ pub fn go_cmd(db: &Database, args: &GoArgs, json: bool) -> Result<()> {
                 }
             }
         }
+
+        if let Some(pre) = response["task"]["pre_condition"].as_str() {
+            eprintln!();
+            eprintln!("pre-condition: {}", pre);
+        }
     }
     Ok(())
 }
@@ -1488,6 +1501,10 @@ pub fn done_cmd(db: &Database, args: DoneArgs, json: bool, compact: bool) -> Res
             eprintln!("      plandb add --title \"...\" --dep {}", task.id);
         }
     }
+    if let Some(post) = &task.post_condition {
+        eprintln!("post-condition: {}", post);
+        eprintln!("  (verify this is satisfied before moving on)");
+    }
     Ok(())
 }
 
@@ -1632,6 +1649,8 @@ pub fn go_payload(
                 "title": task.title,
                 "status": task.status,
                 "description": task.description,
+                "pre_condition": task.pre_condition,
+                "post_condition": task.post_condition,
             }),
             handoff
                 .into_iter()
@@ -1740,6 +1759,8 @@ fn decompose_or_replan(
             approval_status: None,
             approved_by: None,
             approval_comment: None,
+            pre_condition: None,
+            post_condition: None,
             metadata: None,
             created_at: now,
             updated_at: now,
@@ -1917,5 +1938,11 @@ pub fn print_task_detail(task: &Task) {
     }
     if let Some(desc) = &task.description {
         println!("description: {desc}");
+    }
+    if let Some(pre) = &task.pre_condition {
+        println!("pre-condition: {pre}");
+    }
+    if let Some(post) = &task.post_condition {
+        println!("post-condition: {post}");
     }
 }

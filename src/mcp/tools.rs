@@ -860,6 +860,8 @@ fn make_task(project_id: &str, title: &str, description: Option<String>) -> Task
         approval_status: None,
         approved_by: None,
         approval_comment: None,
+        pre_condition: None,
+        post_condition: None,
         metadata: None,
         created_at: now,
         updated_at: now,

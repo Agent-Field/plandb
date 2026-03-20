@@ -17,6 +17,7 @@ INSERT INTO tasks (
   max_retries, retry_count, retry_backoff, retry_delay_ms,
   timeout_seconds, heartbeat_interval, last_heartbeat,
   requires_approval, approval_status, approved_by, approval_comment,
+  pre_condition, post_condition,
   metadata, created_at, updated_at
 ) VALUES (
   ?1, ?2, ?3, ?4,
@@ -26,7 +27,8 @@ INSERT INTO tasks (
   ?18, ?19, ?20, ?21,
   ?22, ?23, ?24,
   ?25, ?26, ?27, ?28,
-  ?29, ?30, ?31
+  ?29, ?30,
+  ?31, ?32, ?33
 );
 "#;
 
@@ -41,6 +43,7 @@ result, error, progress, progress_note,
 max_retries, retry_count, retry_backoff, retry_delay_ms,
 timeout_seconds, heartbeat_interval, last_heartbeat,
 requires_approval, approval_status, approved_by, approval_comment,
+pre_condition, post_condition,
 metadata, created_at, updated_at
 FROM tasks
 WHERE id = ?1;
@@ -55,6 +58,7 @@ t.result, t.error, t.progress, t.progress_note,
 t.max_retries, t.retry_count, t.retry_backoff, t.retry_delay_ms,
 t.timeout_seconds, t.heartbeat_interval, t.last_heartbeat,
 t.requires_approval, t.approval_status, t.approved_by, t.approval_comment,
+t.pre_condition, t.post_condition,
 t.metadata, t.created_at, t.updated_at
 FROM tasks t
 WHERE (?1 IS NULL OR t.project_id = ?1)
@@ -84,6 +88,7 @@ result, error, progress, progress_note,
 max_retries, retry_count, retry_backoff, retry_delay_ms,
 timeout_seconds, heartbeat_interval, last_heartbeat,
 requires_approval, approval_status, approved_by, approval_comment,
+pre_condition, post_condition,
 metadata, created_at, updated_at;
 "#;
 
@@ -105,6 +110,7 @@ result, error, progress, progress_note,
 max_retries, retry_count, retry_backoff, retry_delay_ms,
 timeout_seconds, heartbeat_interval, last_heartbeat,
 requires_approval, approval_status, approved_by, approval_comment,
+pre_condition, post_condition,
 metadata, created_at, updated_at;
 "#;
 
@@ -217,6 +223,7 @@ result, error, progress, progress_note,
 max_retries, retry_count, retry_backoff, retry_delay_ms,
 timeout_seconds, heartbeat_interval, last_heartbeat,
 requires_approval, approval_status, approved_by, approval_comment,
+pre_condition, post_condition,
 metadata, created_at, updated_at
 FROM tasks
 WHERE agent_id = ?1
@@ -245,6 +252,7 @@ result, error, progress, progress_note,
 max_retries, retry_count, retry_backoff, retry_delay_ms,
 timeout_seconds, heartbeat_interval, last_heartbeat,
 requires_approval, approval_status, approved_by, approval_comment,
+pre_condition, post_condition,
 metadata, created_at, updated_at;
 "#;
 
@@ -277,6 +285,7 @@ t.result, t.error, t.progress, t.progress_note,
 t.max_retries, t.retry_count, t.retry_backoff, t.retry_delay_ms,
 t.timeout_seconds, t.heartbeat_interval, t.last_heartbeat,
 t.requires_approval, t.approval_status, t.approved_by, t.approval_comment,
+t.pre_condition, t.post_condition,
 t.metadata, t.created_at, t.updated_at
 FROM tasks t
 JOIN subtree s ON t.id = s.id
@@ -396,7 +405,7 @@ pub(crate) fn row_to_task(row: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {
     let completed_at: Option<String> = row.get(12)?;
     let result: Option<String> = row.get(13)?;
     let last_heartbeat: Option<String> = row.get(23)?;
-    let metadata: Option<String> = row.get(28)?;
+    let metadata: Option<String> = row.get(30)?;
     Ok(Task {
         id: row.get(0)?,
         project_id: row.get(1)?,
@@ -438,9 +447,11 @@ pub(crate) fn row_to_task(row: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {
         approval_status: row.get(25)?,
         approved_by: row.get(26)?,
         approval_comment: row.get(27)?,
-        metadata: parse_json(metadata).map_err(|e| conv(28, e))?,
-        created_at: parse_dt(row.get::<_, String>(29)?).map_err(|e| conv(29, e))?,
-        updated_at: parse_dt(row.get::<_, String>(30)?).map_err(|e| conv(30, e))?,
+        pre_condition: row.get(28)?,
+        post_condition: row.get(29)?,
+        metadata: parse_json(metadata).map_err(|e| conv(30, e))?,
+        created_at: parse_dt(row.get::<_, String>(31)?).map_err(|e| conv(31, e))?,
+        updated_at: parse_dt(row.get::<_, String>(32)?).map_err(|e| conv(32, e))?,
     })
 }
 
@@ -493,6 +504,8 @@ pub fn create_task(db: &Database, task: &Task, tags: &[String]) -> Result<Task> 
             &task_with_defaults.approval_status,
             &task_with_defaults.approved_by,
             &task_with_defaults.approval_comment,
+            &task_with_defaults.pre_condition,
+            &task_with_defaults.post_condition,
             &metadata,
             dt_to_sql(task_with_defaults.created_at),
             dt_to_sql(task_with_defaults.updated_at)
@@ -1082,6 +1095,8 @@ pub fn insert_task_between(
         approval_status: None,
         approved_by: None,
         approval_comment: None,
+        pre_condition: None,
+        post_condition: None,
         metadata: None,
         created_at: now,
         updated_at: now,
@@ -1368,6 +1383,8 @@ pub fn pivot_subtree(
             approval_status: None,
             approved_by: None,
             approval_comment: None,
+            pre_condition: None,
+            post_condition: None,
             metadata: None,
             created_at: now,
             updated_at: now,
@@ -1472,6 +1489,8 @@ pub fn split_task(db: &Database, task_id: &str, parts: Vec<SplitPart>) -> Result
             approval_status: None,
             approved_by: None,
             approval_comment: None,
+            pre_condition: None,
+            post_condition: None,
             metadata: None,
             created_at: now,
             updated_at: now,

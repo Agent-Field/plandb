@@ -47,6 +47,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   approval_status    TEXT,
   approved_by        TEXT,
   approval_comment   TEXT,
+  pre_condition      TEXT,
+  post_condition     TEXT,
   metadata           JSON,
   created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
