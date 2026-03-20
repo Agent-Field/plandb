@@ -219,9 +219,13 @@ pub fn status_cmd(
 
     if full {
         let mut all_deps = Vec::new();
+        let mut seen_deps = std::collections::HashSet::new();
         for task in &tasks {
             for dep in list_dependencies(db, &task.id)? {
-                all_deps.push(dep);
+                let key = (dep.from_task.clone(), dep.to_task.clone());
+                if seen_deps.insert(key) {
+                    all_deps.push(dep);
+                }
             }
         }
         if json {
@@ -231,16 +235,36 @@ pub fn status_cmd(
                 "total": total,
             }))?;
         } else {
-            println!("Project overview: {} tasks", total);
+            println!(
+                "{} {}: {}/{} done ({}%)",
+                project.id, project.name, done, total, progress_pct
+            );
+            println!();
+            println!("Tasks:");
             for task in &tasks {
+                let agent = task
+                    .agent_id
+                    .as_deref()
+                    .map(|a| format!(" @{a}"))
+                    .unwrap_or_default();
                 println!(
-                    "  {} {} {} [{}] {}",
+                    "  {} {} {} [{}]{}",
                     status_icon(&task.status),
                     task.id,
                     task.title,
                     task.status,
-                    task.agent_id.as_deref().unwrap_or("")
+                    agent
                 );
+            }
+            if !all_deps.is_empty() {
+                println!();
+                println!("Dependencies:");
+                for dep in &all_deps {
+                    println!(
+                        "  {} ──{}──> {}",
+                        dep.from_task, dep.kind, dep.to_task
+                    );
+                }
             }
         }
         return Ok(());
