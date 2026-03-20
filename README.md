@@ -127,19 +127,20 @@ plandb task add-dep --after t-upstream t-downstream              # add dependenc
 plandb what-if cancel t-abc                                      # preview effects
 ```
 
-## Multi-Agent
+## Parallelization
+
+When `plandb list --status ready` returns multiple tasks, they have no unmet dependencies and can run concurrently. **If you can spawn sub-agents, you should.**
+
+Each worker runs the same core loop independently — PlanDB coordinates via atomic claiming:
 
 ```bash
-# Set agent identity via env var
-PLANDB_AGENT=worker-1 plandb go
-PLANDB_AGENT=worker-1 plandb done --next
-
-# Or use --agent flag
-plandb go --agent worker-2
-plandb done --next --agent worker-2
+# Worker 1                                    # Worker 2
+PLANDB_AGENT=w1 plandb go                     PLANDB_AGENT=w2 plandb go
+# ... work ...                                # ... work ...
+PLANDB_AGENT=w1 plandb done --next            PLANDB_AGENT=w2 plandb done --next
 ```
 
-Atomic claiming prevents double-assignment. Dependencies enforced across agents.
+The graph tells you exactly what is safe to run concurrently. No two agents claim the same task. Dependencies are enforced automatically — downstream tasks become `ready` only when upstream completes.
 
 ## Batch Creation
 

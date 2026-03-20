@@ -206,11 +206,22 @@ plandb task pivot t-parent --file new-plan.yaml
 plandb what-if cancel t-abc                               # preview effects (safe, read-only)
 ```
 
-### Multi-Agent
+### Parallelization
+
+When multiple tasks are in `ready` status (visible via `plandb status --detail` or `plandb list --status ready`),
+they have no dependencies on each other and CAN be executed in parallel.
+
+**If you can spawn sub-agents or parallel workers, you SHOULD.** Each worker runs independently:
 ```bash
-PLANDB_AGENT=worker-1 plandb go && PLANDB_AGENT=worker-1 plandb done --next
-PLANDB_AGENT=worker-2 plandb go && PLANDB_AGENT=worker-2 plandb done --next
+# Worker 1                                    # Worker 2
+PLANDB_AGENT=w1 plandb go                     PLANDB_AGENT=w2 plandb go
+# ... work ...                                # ... work ...
+PLANDB_AGENT=w1 plandb done --next            PLANDB_AGENT=w2 plandb done --next
 ```
+
+PlanDB handles coordination: atomic claiming prevents double-assignment, dependency ordering is
+enforced automatically. Check `plandb list --status ready` — if it returns multiple tasks,
+parallelize them. The graph tells you exactly what is safe to run concurrently.
 
 ### Reference
 - **States**: pending → ready (deps done) → claimed → running → done/failed/cancelled

@@ -111,9 +111,12 @@ plandb add "Build landing page" --as landing --kind code \
 5. If a task turns out to be complex while working on it, split it: `plandb split --into "Part A, Part B"`
 6. When splitting, each new subtask also needs a proper description — use `plandb show` after split to verify
 
-If you could spawn sub-agents, each would claim a task with `plandb go`, read its
-full description, execute it independently, and complete with `plandb done --next`.
-The descriptions must be complete enough for that — no implicit context.
+PARALLELIZATION: When `plandb list --status ready` shows multiple tasks, they have
+no dependencies on each other and SHOULD be executed in parallel. If you can spawn
+sub-agents or parallel workers, do it — each runs `plandb go` (atomic claim prevents
+double-assignment), reads the description with `plandb show <id>`, executes independently,
+and completes with `plandb done --next`. The descriptions must be self-contained enough
+for any worker to pick up without additional context.
 
 The environment variable PLANDB_DB is already set.
 PROMPT_EOF
