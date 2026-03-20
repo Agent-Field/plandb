@@ -152,7 +152,10 @@ else
   echo "(Watch Claude use PlanDB with parallel sub-agents)"
   echo ""
   cd "$WORK_DIR"
-  claude "$PROMPT"
+  claude \
+    --permission-mode auto \
+    --allowedTools "Bash Edit Write Read Grep Glob Agent" \
+    "$PROMPT"
 fi
 
 # ── Show final status ────────────────────────────────────────────────
