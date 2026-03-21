@@ -1,0 +1,5 @@
+stage,format_acc,tool_acc,param_acc,reply_quality
+sft_baseline,0.6625,0.6625,0.2250,0.6448
+rs_round_1,0.6875,0.6625,0.2250,0.6245
+rs_round_2,0.7125,0.6625,0.2250,0.6247
+rs_round_3,0.7125,0.7000,0.2625,0.6249

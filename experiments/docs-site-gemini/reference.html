@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CLI Reference — PlanDB</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .ref-container {
+      display: grid;
+      grid-template-columns: 200px 1fr;
+      gap: 2rem;
+    }
+    .ref-sidebar {
+      position: sticky;
+      top: 1rem;
+      height: fit-content;
+    }
+    .ref-sidebar ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .ref-sidebar li {
+      margin-bottom: 0.5rem;
+    }
+    .ref-sidebar a {
+      text-decoration: none;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+    .ref-sidebar a:hover {
+      color: var(--primary);
+    }
+    .command-section {
+      margin-bottom: 4rem;
+      scroll-margin-top: 1rem;
+    }
+    @media (max-width: 768px) {
+      .ref-container {
+        grid-template-columns: 1fr;
+      }
+      .ref-sidebar {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="index.html">PlanDB</a>
+    <nav>
+      <ul>
+        <li><a href="guide.html">Getting Started</a></li>
+        <li><a href="arch.html">Architecture</a></li>
+        <li><a href="reference.html">CLI Reference</a></li>
+        <li><a href="playground.html">Playground</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main class="ref-container">
+    <aside class="ref-sidebar">
+      <ul>
+        <li><strong>Commands</strong></li>
+        <li><a href="#plandb">plandb</a></li>
+        <li><a href="#init">init</a></li>
+        <li><a href="#add">add</a></li>
+        <li><a href="#go">go</a></li>
+        <li><a href="#done">done</a></li>
+        <li><a href="#split">split</a></li>
+        <li><a href="#status">status</a></li>
+        <li><a href="#show">show</a></li>
+        <li><a href="#list">list</a></li>
+        <li><a href="#task">task</a></li>
+        <li><a href="#task-add-dep">task add-dep</a></li>
+      </ul>
+    </aside>
+
+    <div class="ref-content">
+      <h1>CLI Reference</h1>
+      <p>Complete documentation for the PlanDB command-line interface.</p>
+
+      <section id="plandb" class="command-section">
+        <h2>plandb</h2>
+        <p>The main entry point for PlanDB. Use subcommands to manage projects and tasks.</p>
+        <pre><code>Task graph primitive for AI agent orchestration.
+
+Manages a dependency-aware task graph in SQLite. Three interfaces: CLI, MCP server, HTTP API.
+Agents decompose work into tasks with dependencies, then execute via a claim-and-complete loop.
+
+Usage: plandb [OPTIONS] [COMMAND]</code></pre>
+      </section>
+
+      <section id="init" class="command-section">
+        <h2>init</h2>
+        <p>Initialize a new project.</p>
+        <pre><code>Usage: plandb init [OPTIONS] &lt;NAME&gt;
+
+Arguments:
+  &lt;NAME&gt;  Project name
+
+Options:
+      --description &lt;DESCRIPTION&gt;  Optional description of the project's goal</code></pre>
+      </section>
+
+      <section id="add" class="command-section">
+        <h2>add</h2>
+        <p>Add a new task to the current project.</p>
+        <pre><code>Usage: plandb add [OPTIONS] &lt;TITLE&gt;
+
+Arguments:
+  &lt;TITLE&gt;  Task title
+
+Options:
+      --as &lt;CUSTOM_ID&gt;             Custom short ID (e.g. --as api creates t-api)
+      --kind &lt;KIND&gt;                Task kind: generic, code, research, review, test, shell
+      --description &lt;DESCRIPTION&gt;  Detailed description of what the task involves
+      --dep &lt;DEPS&gt;                 Dependency: TASK_ID</code></pre>
+      </section>
+
+      <section id="go" class="command-section">
+        <h2>go</h2>
+        <p>Claim and start the next ready task.</p>
+        <pre><code>Usage: plandb go [OPTIONS]
+
+Options:
+      --agent &lt;AGENT&gt;      Agent identifier (default: 'default')</code></pre>
+      </section>
+
+      <section id="done" class="command-section">
+        <h2>done</h2>
+        <p>Complete a task.</p>
+        <pre><code>Usage: plandb done [OPTIONS] [TASK_ID]
+
+Options:
+      --result &lt;RESULT&gt;  Result data (JSON or plain text)
+      --next             After completing, claim + start next ready task</code></pre>
+      </section>
+
+      <section id="split" class="command-section">
+        <h2>split</h2>
+        <p>Split a task into subtasks.</p>
+        <pre><code>Usage: plandb split [OPTIONS] --into &lt;INTO&gt; [TASK_ID]
+
+Options:
+      --into &lt;INTO&gt;  Parts: comma-separated ("A, B") or chain ("A > B")</code></pre>
+      </section>
+
+      <section id="status" class="command-section">
+        <h2>status</h2>
+        <p>Show project progress.</p>
+        <pre><code>Usage: plandb status [OPTIONS]
+
+Options:
+      --detail             Show per-task breakdown
+      --full               Show all tasks and dependencies</code></pre>
+      </section>
+
+      <section id="show" class="command-section">
+        <h2>show</h2>
+        <p>Show full details of a task.</p>
+        <pre><code>Usage: plandb show [OPTIONS] &lt;TASK_ID&gt;</code></pre>
+      </section>
+
+      <section id="list" class="command-section">
+        <h2>list</h2>
+        <p>List tasks with optional filters.</p>
+        <pre><code>Usage: plandb list [OPTIONS]
+
+Options:
+      --status &lt;STATUS&gt;    Filter by status
+      --kind &lt;KIND&gt;        Filter by kind</code></pre>
+      </section>
+
+      <section id="task" class="command-section">
+        <h2>task</h2>
+        <p>Advanced task management commands.</p>
+        <pre><code>Usage: plandb task [OPTIONS] &lt;COMMAND&gt;
+
+Commands:
+  create        Create a new task
+  list          List tasks
+  get           Get task details
+  go            Claim next ready task
+  done          Mark task as complete
+  add-dep       Add a dependency edge
+  update        Update task fields
+  insert        Insert a task between others</code></pre>
+      </section>
+
+      <section id="task-add-dep" class="command-section">
+        <h2>task add-dep</h2>
+        <p>Add a dependency edge between two existing tasks.</p>
+        <pre><code>Usage: plandb task add-dep [OPTIONS] --after &lt;AFTER&gt; &lt;TO_TASK&gt;
+
+Arguments:
+  &lt;TO_TASK&gt;  Downstream task (the one that waits)
+
+Options:
+      --after &lt;AFTER&gt;  Upstream task (must complete first)</code></pre>
+      </section>
+    </div>
+  </main>
+
+  <footer>
+    &copy; 2026 PlanDB. Built for the future of agentic workflows.
+  </footer>
+</body>
+</html>

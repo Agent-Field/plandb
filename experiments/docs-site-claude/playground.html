@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="PlanDB Interactive Playground - Try PlanDB commands in a simulated terminal. Learn task graph management with a guided tutorial.">
+  <meta name="keywords" content="PlanDB, playground, interactive, terminal, tutorial, task graph, CLI">
+  <meta name="author" content="PlanDB">
+  <meta property="og:title" content="PlanDB Playground - Interactive Terminal">
+  <meta property="og:description" content="Try PlanDB commands in a simulated terminal. Guided tutorial included.">
+  <meta property="og:type" content="website">
+  <meta name="theme-color" content="#38bdf8">
+  <title>Playground - PlanDB</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='16' fill='%230a0a0f'/><path d='M25 30h50M25 50h35M25 70h45' stroke='%2338bdf8' stroke-width='6' stroke-linecap='round'/><circle cx='72' cy='50' r='8' fill='%234ade80'/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .playground-layout {
+      max-width: var(--max-width-wide);
+      margin: 0 auto;
+      padding: var(--space-6);
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: var(--space-6);
+      min-height: calc(100vh - var(--nav-height) - 80px);
+    }
+
+    .playground-header {
+      max-width: var(--max-width-wide);
+      margin: 0 auto;
+      padding: var(--space-8) var(--space-6) var(--space-2);
+    }
+
+    .playground-header h1 {
+      font-size: var(--text-3xl);
+      margin-bottom: var(--space-2);
+    }
+
+    .playground-header p {
+      color: var(--color-text-dim);
+      font-size: var(--text-base);
+      margin-bottom: 0;
+    }
+
+    /* Terminal panel */
+    .terminal-panel {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .terminal-panel .terminal {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .terminal-panel .terminal-body {
+      flex: 1;
+      max-height: none;
+      min-height: 400px;
+      height: calc(100vh - var(--nav-height) - 220px);
+      cursor: text;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--color-border-light) transparent;
+    }
+
+    .terminal-panel .terminal-body::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .terminal-panel .terminal-body::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .terminal-panel .terminal-body::-webkit-scrollbar-thumb {
+      background: var(--color-border-light);
+      border-radius: 3px;
+    }
+
+    .terminal-output-line {
+      white-space: pre-wrap;
+      word-break: break-word;
+      line-height: 1.5;
+    }
+
+    .terminal-input-row {
+      display: flex;
+      align-items: center;
+      margin-top: 2px;
+    }
+
+    .terminal-input-row .prompt {
+      color: var(--color-green);
+      margin-right: var(--space-2);
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    .terminal-input-row .input-area {
+      flex: 1;
+      position: relative;
+      min-height: 1.4em;
+    }
+
+    .terminal-input-row .input-text {
+      color: var(--color-text);
+      white-space: pre;
+    }
+
+    .terminal-input-row .cursor {
+      display: inline-block;
+      width: 8px;
+      height: 1.15em;
+      background: var(--color-green);
+      animation: blink 1s step-end infinite;
+      vertical-align: text-bottom;
+      margin-left: 1px;
+    }
+
+    .terminal-input-row .cursor.no-blink {
+      animation: none;
+    }
+
+    /* Hidden input for mobile/accessibility */
+    #terminal-hidden-input {
+      position: absolute;
+      left: -9999px;
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    /* Info panel */
+    .info-panel {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+    }
+
+    .info-card {
+      background: var(--color-bg-card);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4) var(--space-6);
+    }
+
+    .info-card h3 {
+      font-size: var(--text-sm);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--color-text-muted);
+      margin: 0 0 var(--space-3);
+    }
+
+    .tutorial-step-text {
+      font-size: var(--text-sm);
+      color: var(--color-text);
+      line-height: var(--leading-relaxed);
+      margin-bottom: var(--space-3);
+    }
+
+    .tutorial-step-hint {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--color-cyan);
+      background: var(--color-bg-code);
+      padding: var(--space-2) var(--space-3);
+      border-radius: var(--radius-sm);
+      margin-bottom: var(--space-3);
+    }
+
+    .tutorial-progress {
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+      margin-bottom: var(--space-2);
+    }
+
+    .tutorial-progress-bar {
+      height: 4px;
+      background: var(--color-border);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-bottom: var(--space-3);
+    }
+
+    .tutorial-progress-fill {
+      height: 100%;
+      background: var(--color-accent);
+      border-radius: 2px;
+      transition: width 0.3s ease;
+    }
+
+    .tutorial-idle {
+      text-align: center;
+      padding: var(--space-4) 0;
+    }
+
+    .tutorial-idle p {
+      font-size: var(--text-sm);
+      color: var(--color-text-dim);
+      margin-bottom: var(--space-4);
+    }
+
+    .tutorial-complete {
+      text-align: center;
+      padding: var(--space-4) 0;
+    }
+
+    .tutorial-complete p {
+      font-size: var(--text-sm);
+      color: var(--color-green);
+    }
+
+    /* Quick reference */
+    .quick-ref-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .quick-ref-list li {
+      font-size: var(--text-xs);
+      padding: var(--space-1) 0;
+      border-bottom: 1px solid var(--color-border);
+      margin-bottom: 0;
+      display: flex;
+      justify-content: space-between;
+      gap: var(--space-2);
+    }
+
+    .quick-ref-list li:last-child {
+      border-bottom: none;
+    }
+
+    .quick-ref-cmd {
+      font-family: var(--font-mono);
+      color: var(--color-cyan);
+      white-space: nowrap;
+    }
+
+    .quick-ref-desc {
+      color: var(--color-text-muted);
+      text-align: right;
+    }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .playground-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .info-panel {
+        order: -1;
+      }
+
+      .terminal-panel .terminal-body {
+        height: 50vh;
+        min-height: 300px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <input type="text" id="terminal-hidden-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Terminal input">
+
+  <div class="playground-header">
+    <h1>Playground</h1>
+    <p>Try PlanDB in a simulated terminal. Type commands or start the guided tutorial.</p>
+  </div>
+
+  <div class="playground-layout">
+    <div class="terminal-panel">
+      <div class="terminal" id="terminal">
+        <div class="terminal-header">
+          <span class="terminal-dot red"></span>
+          <span class="terminal-dot yellow"></span>
+          <span class="terminal-dot green"></span>
+          <span class="terminal-title">plandb playground</span>
+        </div>
+        <div class="terminal-body" id="terminal-body">
+          <!-- Output lines and input row rendered by JS -->
+        </div>
+      </div>
+    </div>
+
+    <div class="info-panel">
+      <div class="info-card" id="tutorial-card">
+        <h3>Tutorial</h3>
+        <div id="tutorial-content">
+          <!-- Filled by JS -->
+        </div>
+      </div>
+
+      <div class="info-card">
+        <h3>Quick Reference</h3>
+        <ul class="quick-ref-list">
+          <li><span class="quick-ref-cmd">plandb init &lt;name&gt;</span><span class="quick-ref-desc">Create project</span></li>
+          <li><span class="quick-ref-cmd">plandb add "title"</span><span class="quick-ref-desc">Add task</span></li>
+          <li><span class="quick-ref-cmd">plandb status</span><span class="quick-ref-desc">Overview</span></li>
+          <li><span class="quick-ref-cmd">plandb status --detail</span><span class="quick-ref-desc">Tree view</span></li>
+          <li><span class="quick-ref-cmd">plandb list</span><span class="quick-ref-desc">All tasks</span></li>
+          <li><span class="quick-ref-cmd">plandb go</span><span class="quick-ref-desc">Claim next</span></li>
+          <li><span class="quick-ref-cmd">plandb done</span><span class="quick-ref-desc">Complete task</span></li>
+          <li><span class="quick-ref-cmd">plandb show &lt;id&gt;</span><span class="quick-ref-desc">Task details</span></li>
+          <li><span class="quick-ref-cmd">plandb split</span><span class="quick-ref-desc">Split task</span></li>
+          <li><span class="quick-ref-cmd">help</span><span class="quick-ref-desc">All commands</span></li>
+          <li><span class="quick-ref-cmd">clear</span><span class="quick-ref-desc">Clear screen</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <ul class="footer-links">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="getting-started.html">Getting Started</a></li>
+      <li><a href="cli-reference.html">CLI Reference</a></li>
+      <li><a href="architecture.html">Architecture</a></li>
+      <li><a href="playground.html">Playground</a></li>
+    </ul>
+    <p>PlanDB &mdash; Task graph primitive for AI agents.</p>
+  </footer>
+
+  <script src="nav.js"></script>
+  <script src="playground.js"></script>
+</body>
+</html>

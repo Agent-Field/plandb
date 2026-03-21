@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Playground — PlanDB</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .playground-container {
+      display: grid;
+      grid-template-columns: 1fr 300px;
+      gap: 1rem;
+      height: 500px;
+      margin-top: 2rem;
+    }
+    .terminal {
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 1rem;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 0.9rem;
+      border-radius: 0.5rem;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+    .terminal-output {
+      flex-grow: 1;
+      white-space: pre-wrap;
+    }
+    .terminal-input-line {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .terminal-prompt {
+      color: #22c55e;
+    }
+    .terminal-input {
+      background: transparent;
+      border: none;
+      color: inherit;
+      font-family: inherit;
+      font-size: inherit;
+      outline: none;
+      flex-grow: 1;
+    }
+    .tutorial-sidebar {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      padding: 1rem;
+      border-radius: 0.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .tutorial-step {
+      display: none;
+    }
+    .tutorial-step.active {
+      display: block;
+    }
+    .tutorial-nav {
+      margin-top: auto;
+      display: flex;
+      justify-content: space-between;
+    }
+    .hint {
+      background: #dcfce7;
+      color: #166534;
+      padding: 0.5rem;
+      border-radius: 0.25rem;
+      font-size: 0.8rem;
+      margin-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="index.html">PlanDB</a>
+    <nav>
+      <ul>
+        <li><a href="guide.html">Getting Started</a></li>
+        <li><a href="arch.html">Architecture</a></li>
+        <li><a href="reference.html">CLI Reference</a></li>
+        <li><a href="playground.html">Playground</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main>
+    <h1>Interactive Playground</h1>
+    <p>Try PlanDB right in your browser. Follow the tutorial or explore on your own.</p>
+
+    <div class="playground-container">
+      <div class="terminal" id="terminal">
+        <div class="terminal-output" id="output">Welcome to PlanDB Interactive Playground.
+Type 'help' to see available commands.
+
+</div>
+        <div class="terminal-input-line">
+          <span class="terminal-prompt">$</span>
+          <input type="text" class="terminal-input" id="input" autofocus spellcheck="false">
+        </div>
+      </div>
+
+      <aside class="tutorial-sidebar">
+        <div id="step-1" class="tutorial-step active">
+          <h3>Step 1: Init</h3>
+          <p>Start by creating a new project. Use the <code>init</code> command.</p>
+          <div class="hint">Type: <code>plandb init "demo"</code></div>
+        </div>
+        <div id="step-2" class="tutorial-step">
+          <h3>Step 2: Add Tasks</h3>
+          <p>Now let's add some tasks with dependencies.</p>
+          <div class="hint">Type: <code>plandb add "Setup" --as setup</code></div>
+        </div>
+        <div id="step-3" class="tutorial-step">
+          <h3>Step 3: Dependencies</h3>
+          <p>Add a task that depends on the first one.</p>
+          <div class="hint">Type: <code>plandb add "Code" --dep t-setup</code></div>
+        </div>
+        <div id="step-4" class="tutorial-step">
+          <h3>Step 4: Go</h3>
+          <p>Ready to work? Claim the next available task.</p>
+          <div class="hint">Type: <code>plandb go</code></div>
+        </div>
+        <div id="step-5" class="tutorial-step">
+          <h3>Step 5: Status</h3>
+          <p>Check the graph status.</p>
+          <div class="hint">Type: <code>plandb status --detail</code></div>
+        </div>
+        
+        <div class="tutorial-nav">
+          <button id="prev-btn" disabled>&larr;</button>
+          <span id="step-indicator">1 / 5</span>
+          <button id="next-btn">&rarr;</button>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <footer>
+    &copy; 2026 PlanDB. Built for the future of agentic workflows.
+  </footer>
+
+  <script>
+    const input = document.getElementById('input');
+    const output = document.getElementById('output');
+    const terminal = document.getElementById('terminal');
+    
+    let state = {
+      project: null,
+      tasks: [],
+      currentTask: null,
+      step: 1
+    };
+
+    const steps = [
+      { id: 1, cmd: /plandb init/i },
+      { id: 2, cmd: /plandb add .* --as setup/i },
+      { id: 3, cmd: /plandb add .* --dep t-setup/i },
+      { id: 4, cmd: /plandb go/i },
+      { id: 5, cmd: /plandb status --detail/i }
+    ];
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const val = input.value.trim();
+        if (val) {
+          handleCommand(val);
+        }
+        input.value = '';
+      }
+    });
+
+    function print(text) {
+      output.textContent += text + '\n';
+      terminal.scrollTop = terminal.scrollHeight;
+    }
+
+    function handleCommand(cmd) {
+      print('$ ' + cmd);
+      
+      const parts = cmd.split(' ');
+      if (parts[0] !== 'plandb' && cmd !== 'help' && cmd !== 'clear') {
+        print(`Command not found: ${parts[0]}. Did you mean 'plandb'?`);
+        return;
+      }
+
+      if (cmd === 'help') {
+        print('Available commands: plandb init, plandb add, plandb go, plandb done, plandb status, clear');
+        return;
+      }
+
+      if (cmd === 'clear') {
+        output.textContent = '';
+        return;
+      }
+
+      // Basic Simulator
+      const sub = parts[1];
+      if (sub === 'init') {
+        state.project = parts[2] || 'project';
+        print(`Output: created p-demo (${state.project})\nnext: plandb add "First task"`);
+      } else if (sub === 'add') {
+        const title = parts[2];
+        const isSetup = cmd.includes('--as setup');
+        const id = isSetup ? 't-setup' : 't-' + Math.random().toString(36).substr(2, 4);
+        state.tasks.push({ id, title, status: 'pending', deps: cmd.includes('--dep t-setup') ? ['t-setup'] : [] });
+        print(`Output: created task ${id} (${title})`);
+      } else if (sub === 'go') {
+        const ready = state.tasks.find(t => t.status === 'pending' && t.deps.every(d => state.tasks.find(tt => tt.id === d)?.status === 'done'));
+        if (ready) {
+          ready.status = 'running';
+          state.currentTask = ready;
+          print(`→ ${ready.id} "${ready.title}" claimed.`);
+        } else {
+          print('No ready tasks found.');
+        }
+      } else if (sub === 'status') {
+        print(`p-demo: ${state.tasks.filter(t=>t.status==='done').length}/${state.tasks.length} done`);
+        state.tasks.forEach(t => {
+          const icon = t.status === 'done' ? '✓' : (t.status === 'running' ? '▶' : '○');
+          print(`${icon} ${t.id} ${t.title}`);
+        });
+      } else {
+        print('Unknown plandb command.');
+      }
+
+      // Check tutorial progress
+      const currentStep = steps[state.step - 1];
+      if (currentStep && currentStep.cmd.test(cmd)) {
+        nextStep();
+      }
+    }
+
+    function nextStep() {
+      if (state.step < 5) {
+        document.getElementById(`step-${state.step}`).classList.remove('active');
+        state.step++;
+        document.getElementById(`step-${state.step}`).classList.add('active');
+        updateUI();
+      }
+    }
+
+    function prevStep() {
+      if (state.step > 1) {
+        document.getElementById(`step-${state.step}`).classList.remove('active');
+        state.step--;
+        document.getElementById(`step-${state.step}`).classList.add('active');
+        updateUI();
+      }
+    }
+
+    function updateUI() {
+      document.getElementById('step-indicator').textContent = `${state.step} / 5`;
+      document.getElementById('prev-btn').disabled = state.step === 1;
+      document.getElementById('next-btn').disabled = state.step === 5;
+    }
+
+    document.getElementById('next-btn').addEventListener('click', nextStep);
+    document.getElementById('prev-btn').addEventListener('click', prevStep);
+  </script>
+</body>
+</html>

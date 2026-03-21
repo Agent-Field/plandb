@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PlanDB Playground</title>
+    <meta name="description" content="Interactive browser playground for PlanDB." />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="app.js" defer></script>
+    <script src="playground.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="nav-shell">
+        <a class="brand" href="index.html">
+          <span class="brand-mark">P</span>
+          <span class="brand-text">
+            <span class="brand-name">PlanDB</span>
+            <span class="brand-tag">Task graph primitive for AI agents</span>
+          </span>
+        </a>
+        <nav class="nav-links" aria-label="Primary">
+          <a data-nav href="index.html">Overview</a>
+          <a data-nav href="getting-started.html">Getting Started</a>
+          <a data-nav href="cli-reference.html">CLI Reference</a>
+          <a data-nav href="architecture.html">Architecture</a>
+          <a data-nav href="playground.html">Playground</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="page-shell">
+      <section class="page-intro">
+        <div class="eyebrow">Interactive</div>
+        <h1 class="page-title">Playground</h1>
+        <p class="lede">
+          Type PlanDB commands into a terminal-like simulator and watch the task
+          graph evolve. Tutorial mode walks through the core workflow from
+          project creation to task splitting and status inspection.
+        </p>
+      </section>
+
+      <section class="section tutorial-grid">
+        <aside class="content-card tutorial-panel">
+          <div class="section-header">
+            <h2>Tutorial mode</h2>
+            <p>
+              Follow the canonical loop:
+              <span class="inline-code">init -> add -> go -> done --next -> split -> status</span>.
+            </p>
+          </div>
+          <div class="terminal-actions">
+            <button type="button" id="tutorial-start">Start tutorial</button>
+            <button type="button" id="tutorial-hint">Show hint</button>
+            <button type="button" id="session-reset">Reset session</button>
+          </div>
+          <ol class="tutorial-step-list" id="tutorial-steps">
+            <li class="tutorial-step" data-step-index="0">
+              <strong>1. Initialize</strong>
+              Create a project with <span class="inline-code">plandb init "demo-flow"</span>.
+            </li>
+            <li class="tutorial-step" data-step-index="1">
+              <strong>2. Add work</strong>
+              Add a first task with a full description and a custom ID.
+            </li>
+            <li class="tutorial-step" data-step-index="2">
+              <strong>3. Add a dependent task</strong>
+              Create a second task that depends on the first.
+            </li>
+            <li class="tutorial-step" data-step-index="3">
+              <strong>4. Claim work</strong>
+              Use <span class="inline-code">plandb go</span> to start the ready task.
+            </li>
+            <li class="tutorial-step" data-step-index="4">
+              <strong>5. Complete and advance</strong>
+              Finish the current task with <span class="inline-code">plandb done --next</span>.
+            </li>
+            <li class="tutorial-step" data-step-index="5">
+              <strong>6. Split execution</strong>
+              Break the running task into a dependency chain.
+            </li>
+            <li class="tutorial-step" data-step-index="6">
+              <strong>7. Inspect graph state</strong>
+              Run <span class="inline-code">plandb status --detail</span>.
+            </li>
+          </ol>
+        </aside>
+
+        <section class="terminal-card playground" aria-label="PlanDB browser playground">
+          <div class="terminal-topbar">
+            <span class="terminal-dot" aria-hidden="true"></span>
+          </div>
+          <div class="playground-screen" id="terminal-output"></div>
+          <form class="terminal-form" id="terminal-form">
+            <span class="terminal-prompt">demo@plandb $</span>
+            <input
+              id="terminal-input"
+              class="terminal-input"
+              type="text"
+              name="command"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="Type plandb help, tutorial start, clear..."
+              aria-label="PlanDB command input"
+            />
+          </form>
+        </section>
+      </section>
+
+      <section class="section grid-2">
+        <article class="content-card prose">
+          <div class="section-header">
+            <h2>Supported commands</h2>
+          </div>
+          <ul>
+            <li><span class="inline-code">plandb init "name"</span></li>
+            <li><span class="inline-code">plandb add "task" --description "..." --as id --dep t-upstream --kind code</span></li>
+            <li><span class="inline-code">plandb go</span></li>
+            <li><span class="inline-code">plandb done --next</span></li>
+            <li><span class="inline-code">plandb split --into "A, B" / "A &gt; B"</span></li>
+            <li><span class="inline-code">plandb status --detail</span></li>
+            <li><span class="inline-code">plandb show t-task</span></li>
+            <li><span class="inline-code">plandb help</span>, <span class="inline-code">clear</span>, <span class="inline-code">tutorial start</span></li>
+          </ul>
+        </article>
+
+        <article class="callout prose">
+          <div class="section-header">
+            <h2>Why a simulator?</h2>
+          </div>
+          <p>
+            The site stays deployable as static HTML, CSS, and JavaScript while
+            still demonstrating the mental model of the CLI. Outputs are
+            deterministic, so examples stay coherent and tutorial mode can
+            enforce a clean learning path.
+          </p>
+        </article>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-shell">
+        <span>PlanDB static documentation site.</span>
+        <span>&copy; <span data-year></span> PlanDB</span>
+      </div>
+    </footer>
+  </body>
+</html>

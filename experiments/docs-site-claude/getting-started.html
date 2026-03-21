@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Get started with PlanDB - a step-by-step guide to task planning, dependencies, and multi-agent orchestration.">
+  <title>Getting Started - PlanDB</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <div class="page-with-sidebar">
+
+    <!-- Sidebar TOC -->
+    <aside class="sidebar">
+      <div class="sidebar-title">On this page</div>
+      <ul class="sidebar-nav" id="sidebar-nav">
+        <li><a href="#step-1">1. Initialize Project</a></li>
+        <li><a href="#step-2">2. Add Tasks</a></li>
+        <li><a href="#step-3">3. Add Dependencies</a></li>
+        <li><a href="#step-4">4. Check Status</a></li>
+        <li><a href="#step-5">5. Start Working</a></li>
+        <li><a href="#step-6">6. Complete &amp; Continue</a></li>
+        <li><a href="#step-7">7. Split Tasks</a></li>
+        <li><a href="#step-8">8. Multi-Agent</a></li>
+      </ul>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="page-content">
+
+      <h1>Getting Started</h1>
+      <p class="text-dim">
+        This guide walks you through PlanDB from first init to multi-agent parallel execution.
+        Each step builds on the last, giving you a working task graph by the end.
+      </p>
+
+      <!-- Step 1: Initialize Project -->
+      <section class="step" data-step="1" id="step-1">
+        <h3>Initialize Project</h3>
+        <p>
+          Every PlanDB project starts with <code>plandb init</code>. This creates a
+          <code>.plandb.db</code> SQLite database in your current directory to store tasks,
+          dependencies, and execution state.
+        </p>
+
+        <div class="terminal">
+          <div class="terminal-header">
+            <span class="terminal-dot red"></span>
+            <span class="terminal-dot yellow"></span>
+            <span class="terminal-dot green"></span>
+            <span class="terminal-title">Terminal</span>
+          </div>
+          <div class="terminal-body">
+<div class="terminal-line"><span class="token-prompt">$ </span><span class="token-command">plandb</span> <span class="token-command">init</span> <span class="token-string">"my-project"</span></div>
+<div class="terminal-line">&nbsp;</div>
+<div class="terminal-line"><span class="token-success">Created project p-my-project</span></div>
+<div class="terminal-line"><span class="token-output">Database: .plandb.db</span></div>
+<div class="terminal-line"><span class="token-output">Run `plandb add` to create your first task.</span></div>
+          </div>
+        </div>
+
+        <p class="text-dim text-sm mt-4">
+          The project name is used for display and filtering. You can have multiple
+          <code>.plandb.db</code> files in different directories for different projects.
+        </p>
+      </section>
+
+      <!-- Step 2: Add Tasks -->
+      <section class="step" data-step="2" id="step-2">
+        <h3>Add Tasks</h3>
+        <p>
+          Add tasks with a title and optional metadata. The <code>--kind</code> flag categorizes
+          the work, and <code>--priority</code> controls ordering when multiple tasks are ready.
+        </p>
+
+        <div class="terminal">
+          <div class="terminal-header">
+            <span class="terminal-dot red"></span>
+            <span class="terminal-dot yellow"></span>
+            <span class="terminal-dot green"></span>
+            <span class="terminal-title">Terminal</span>
+          </div>
+          <div class="terminal-body">
+<div class="terminal-line"><span class="token-prompt">$ </span><span class="token-command">plandb</span> <span class="token-command">add</span> <span class="token-string">"Design schema"</span> <span class="token-flag">--kind</span> research <span class="token-flag">--priority</span> 10</div>
+<div class="terminal-line">&nbsp;</div>
+<div class="terminal-line"><span class="token-success">Created t-001</span> <span class="token-output">"Design schema" [research, priority 10]</span></div>
+<div class="terminal-line">&nbsp;</div>
+<div class="terminal-line"><span class="token-prompt">$ </span><span class="token-command">plandb</span> <span class="token-command">add</span> <span class="token-string">"Build API endpoints"</span> <span class="token-flag">--kind</span> code <span class="token-flag">--priority</span> 8</div>
+<div class="terminal-line">&nbsp;</div>
+<div class="terminal-line"><span class="token-success">Created t-002</span> <span class="token-output">"Build API endpoints" [code, priority 8]</span></div>
+<div class="terminal-line">&nbsp;</div>
+<div class="terminal-line"><span class="token-prompt">$ </span><span class="token-command">plandb</span> <span class="token-command">add</span> <span class="token-string">"Write integration tests"</span> <span class="token-flag">--kind</span> test <span class="token-flag">--priority</span> 5</div>
+<div class="terminal-line">&nbsp;</div>
+<div class="terminal-line"><span class="token-success">Created t-003</span> <span class="token-output">"Write integration tests" [test, priority 5]</span></div>
+          </div>
+        </div>
+
+        <p class="text-dim text-sm mt-4">
+          Available kinds: <code>code</code>, <code>research</code>, <code>review</code>,
+          <code>test</code>, <code>shell</code>, <code>generic</code>.
+          Higher priority numbers are picked up first.
+        </p>
+      </section>
+
+      <!-- Step 3: Add Dependencies -->
+      <section class="step" data-step="3" id="step-3">
+        <h3>Add Dependencies</h3>
+        <p>
+          Wire tasks together with <code>--dep</code>. A dependent task stays in
+          <span class="badge badge-pending">pending</span> status until all its upstream tasks
+          are <span class="badge badge-done">done</span>. Dependency kinds control how tasks relate.
+        </p>
+
+        <div class="terminal">
+          <div class="terminal-header">
+            <span class="terminal-dot red"></span>
+            <span class="terminal-dot yellow"></span>
+            <span class="terminal-dot green"></span>
+            <span class="terminal-title">Terminal</span>
+          </div>
+          <div class="terminal-body">
+<div class="terminal-line"><span class="token-prompt">$ </span><span class="token-command">plandb</span> <span class="token-command">add</span> <span class="token-string">"Build API endpoints"</span> <span class="token-flag">--dep</span> <span class="token-id">t-001</span>:feeds_into <span class="token-flag">--kind</span> code</div>
+<div class="terminal-line">&nbsp;</div>
+<div class="terminal-line"><span class="token-success">Created t-004</span> <span class="token-output">"Build API endpoints" [code]</span></div>
+<div class="terminal-line"><span class="token-output">  dep: t-001 (feeds_into) &mdash; blocked until t-001 completes</span></div>
+<div class="terminal-line">&nbsp;</div>
+<div class="terminal-line"><span class="token-prompt">$ </span><span class="token-command">plandb</span> <span class="token-command">add</span> <span class="token-string">"Write API tests"</span> <span class="token-flag">--dep</span> <span class="token-id">t-004</span>:feeds_into <span class="token-flag">--kind</span> test</div>
+<div class="terminal-line">&nbsp;</div>
+<div class="terminal-line"><span class="token-success">Created t-005</span> <span class="token-output">"Write API tests" [test]</span></div>
+<div class="terminal-line"><span class="token-output">  dep: t-004 (feeds_into) &mdash; blocked until t-004 completes</span></div>
+          </div>
+        </div>
+
+        <p class="mt-4">Dependency types:</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Kind</th>
+              <th>Meaning</th>
+              <th>Example</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>feeds_into</code></td>
+              <td>Result data flows to dependent task</td>
+              <td>Schema design feeds into API build</td>
+            </tr>
+            <tr>
+              <td><code>blocks</code></td>
+              <td>Ordering only, no data flow</td>
+              <td>Deploy must wait for tests</td>
+            </tr>
+            <tr>
+              <td><code>suggests</code></td>
+              <td>Soft dependency, does not block</td>
+              <td>Docs are nice to have before review</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Step 4: Check Status -->
+      <section class="step" data-step="4" id="step-4">
+        <h3>Check Status</h3>
+        <p>
+          See the full project state with <code>plandb status --detail</code>. It shows
+          task counts by status, the dependency graph, and what is ready to work on next.
+        </p>
+
+        <div class="terminal">
+          <div class="terminal-header">
+            <span class="terminal-dot red"></span>
+            <span class="terminal-dot yellow"></span>
+            <span class="terminal-dot green"></span>
+            <span class="terminal-title">Terminal</span>
+          </div>
+          <div class="terminal-body">
+<div class="terminal-line"><span class="token-prompt">$ </span><span class="token-command">plandb</span> <span class="token-command">status</span> <span class="token-flag">--detail</span></div>
+<div class="terminal-line">&nbsp;</div>
+<div class="terminal-line"><span class="token-accent">my-project</span> <span class="token-output">&mdash; 0/3 done</span></div>
+<div class="terminal-line">&nbsp;</div>
+<div class="terminal-line"><span class="token-output">  </span><span class="token-accent">ready</span><span class="token-output">   1   </span><span class="token-warning">pending</span><span class="token-output">  2   </span><span class="token-success">done</span><span class="token-output">  0</span></div>
+<div class="terminal-line">&nbsp;</div>
+<div class="terminal-line"><span class="token-accent">Ready:</span></div>
+<div class="terminal-line"><span class="token-output">  </span><span class="token-id">t-001</span><span class="token-output">  Design schema          </span><span class="token-warning">[research]</span><span class="token-output">  priority 10</span></div>
+<div class="terminal-line">&nbsp;</div>
+<div class="terminal-line"><span class="token-warning">Pending:</span></div>
+<div class="terminal-line"><span class="token-output">  </span><span class="token-id">t-004</span><span class="token-output">  Build API endpoints     </span><span class="token-warning">[code]</span><span class="token-output">      blocked by t-001</span></div>
+<div class="terminal-line"><span class="token-output">  </span><span class="token-id">t-005</span><span class="token-output">  Write API tests         </span><span class="token-warning">[test]</span><span class="token-output">      blocked by t-004</span></div>
+          </div>
+        </div>
+
+        <p class="text-dim text-sm mt-4">
+          Use <code>plandb project dag</code> to see the full dependency tree, or
+          <code>plandb status --json</code> for machine-readable output.
+        </p>
+      </section>
+
+      <!-- Step 5: Start Working -->
+      <section class="step" data-step="5" id="step-5">
+        <h3>Start Working</h3>
+        <p>
+          Claim the next ready task with <code>plandb go</code>. PlanDB picks the highest-priority
+          ready task, atomically marks it as <span class="badge badge-running">running</span>,
+          and shows you what to work on including upstream context.
+        </p>
+
+        <div class="terminal">
+          <div class="terminal-header">
+            <span class="terminal-dot red"></span>
+            <span class="terminal-dot yellow"></span>
+            <span class="terminal-dot green"></span>
+            <span class="terminal-title">Terminal</span>
+          </div>
+          <div class="terminal-body">
+<div class="terminal-line"><span class="token-prompt">$ </span><span class="token-command">plandb</span> <span class="token-command">go</span></div>
+<div class="terminal-line">&nbsp;</div>
+<div class="terminal-line"><span class="token-accent">&rarr;</span> <span class="token-id">t-001</span> <span class="token-output">"Design schema"</span> <span class="token-warning">[1/3 &middot; 1 ready &middot; 2 blocked]</span></div>
+<div class="terminal-line">&nbsp;</div>
+<div class="terminal-line"><span class="token-output">downstream:</span></div>
+<div class="terminal-line"><span class="token-output">  t-004 "Build API endpoints" (receives YOUR result)</span></div>
+          </div>
+        </div>
+
+        <p class="text-dim text-sm mt-4">
+          The atomic claim prevents two agents from grabbing the same task. The downstream
+          section reminds you what depends on your output.
+        </p>
+      </section>
+
+      <!-- Step 6: Complete & Continue -->
+      <section class="step" data-step="6" id="step-6">
+        <h3>Complete &amp; Continue</h3>
+        <p>
+          When finished, mark the task done with <code>plandb done</code>. The <code>--next</code>
+          flag automatically claims the next available task. Use <code>--result</code> to pass
+          data to downstream tasks.
+        </p>
+
+        <div class="terminal">
+          <div class="terminal-header">
+            <span class="terminal-dot red"></span>
+            <span class="terminal-dot yellow"></span>
+            <span class="terminal-dot green"></span>
+            <span class="terminal-title">Terminal</span>
+          </div>
+          <div class="terminal-body">
+<div class="terminal-line"><span class="token-prompt">$ </span><span class="token-command">plandb</span> <span class="token-command">done</span> <span class="token-flag">--result</span> <span class="token-string">'{"schema":"users, posts, comments"}'</span> <span class="token-flag">--next</span></div>
+<div class="terminal-line">&nbsp;</div>
+<div class="terminal-line"><span class="token-success">&check; t-001</span> <span class="token-output">"Design schema" completed</span></div>
+<div class="terminal-line"><span class="token-output">  result stored &mdash; available to downstream tasks</span></div>
+<div class="terminal-line">&nbsp;</div>
+<div class="terminal-line"><span class="token-accent">&rarr;</span> <span class="token-id">t-004</span> <span class="token-output">"Build API endpoints"</span> <span class="token-warning">[2/3 &middot; 1 ready &middot; 1 blocked]</span></div>
+<div class="terminal-line">&nbsp;</div>
+<div class="terminal-line"><span class="token-output">upstream:</span></div>
+<div class="terminal-line"><span class="token-output">  t-001 &rarr; (feeds_into) result: {"schema":"users, posts, comments"}</span></div>
+<div class="terminal-line">&nbsp;</div>
+<div class="terminal-line"><span class="token-output">downstream:</span></div>
+<div class="terminal-line"><span class="token-output">  t-005 "Write API tests" (receives YOUR result)</span></div>
+          </div>
+        </div>
+
+        <p class="text-dim text-sm mt-4">
+          The result from t-001 is now visible to t-004 as upstream context. This is how
+          data flows through the task graph without shared state.
+        </p>
+      </section>
+
+      <!-- Step 7: Split Tasks -->
+      <section class="step" data-step="7" id="step-7">
+        <h3>Split Tasks</h3>
+        <p>
+          When a task turns out to be larger than expected, split it into subtasks.
+          Dependencies are automatically rewired: the parent's upstream feeds into each
+          new subtask, and the parent's downstream waits for all of them.
+        </p>
+
+        <div class="terminal">
+          <div class="terminal-header">
+            <span class="terminal-dot red"></span>
+            <span class="terminal-dot yellow"></span>
+            <span class="terminal-dot green"></span>
+            <span class="terminal-title">Terminal</span>
+          </div>
+          <div class="terminal-body">
+<div class="terminal-line"><span class="token-prompt">$ </span><span class="token-command">plandb</span> <span class="token-command">task</span> <span class="token-command">split</span> <span class="token-id">t-004</span> <span class="token-flag">--into</span> <span class="token-string">'[</span></div>
+<div class="terminal-line"><span class="token-string">  {"title": "Auth endpoints"},</span></div>
+<div class="terminal-line"><span class="token-string">  {"title": "Database layer"},</span></div>
+<div class="terminal-line"><span class="token-string">  {"title": "REST API routes"}</span></div>
+<div class="terminal-line"><span class="token-string">]'</span></div>
+<div class="terminal-line">&nbsp;</div>
+<div class="terminal-line"><span class="token-success">Split t-004</span> <span class="token-output">"Build API endpoints" into 3 subtasks:</span></div>
+<div class="terminal-line">&nbsp;</div>
+<div class="terminal-line"><span class="token-output">  </span><span class="token-id">t-006</span><span class="token-output">  Auth endpoints     </span><span class="token-accent">ready</span></div>
+<div class="terminal-line"><span class="token-output">  </span><span class="token-id">t-007</span><span class="token-output">  Database layer     </span><span class="token-accent">ready</span></div>
+<div class="terminal-line"><span class="token-output">  </span><span class="token-id">t-008</span><span class="token-output">  REST API routes    </span><span class="token-accent">ready</span></div>
+<div class="terminal-line">&nbsp;</div>
+<div class="terminal-line"><span class="token-output">  deps rewired: t-001 &rarr; [t-006, t-007, t-008] &rarr; t-005</span></div>
+<div class="terminal-line"><span class="token-output">  original t-004 cancelled</span></div>
+          </div>
+        </div>
+
+        <p class="text-dim text-sm mt-4">
+          After splitting, all three subtasks are <span class="badge badge-ready">ready</span>
+          in parallel since their shared upstream (t-001) is already done.
+          Downstream task t-005 will wait for all three to complete.
+        </p>
+      </section>
+
+      <!-- Step 8: Multi-Agent -->
+      <section class="step" data-step="8" id="step-8">
+        <h3>Multi-Agent Execution</h3>
+        <p>
+          PlanDB's atomic claiming makes it safe for multiple agents to work in parallel.
+          Set <code>PLANDB_AGENT</code> to identify each worker. Independent ready tasks are
+          distributed automatically with no conflicts.
+        </p>
+
+        <div class="terminal">
+          <div class="terminal-header">
+            <span class="terminal-dot red"></span>
+            <span class="terminal-dot yellow"></span>
+            <span class="terminal-dot green"></span>
+            <span class="terminal-title">Terminal &mdash; Agent 1</span>
+          </div>
+          <div class="terminal-body">
+<div class="terminal-line"><span class="token-prompt">$ </span><span class="token-flag">PLANDB_AGENT</span>=worker-1 <span class="token-command">plandb</span> <span class="token-command">go</span></div>
+<div class="terminal-line">&nbsp;</div>
+<div class="terminal-line"><span class="token-accent">&rarr;</span> <span class="token-id">t-006</span> <span class="token-output">"Auth endpoints"</span> <span class="token-warning">[2/5 &middot; 3 ready &middot; 1 blocked]</span></div>
+          </div>
+        </div>
+
+        <div class="terminal mt-4">
+          <div class="terminal-header">
+            <span class="terminal-dot red"></span>
+            <span class="terminal-dot yellow"></span>
+            <span class="terminal-dot green"></span>
+            <span class="terminal-title">Terminal &mdash; Agent 2</span>
+          </div>
+          <div class="terminal-body">
+<div class="terminal-line"><span class="token-prompt">$ </span><span class="token-flag">PLANDB_AGENT</span>=worker-2 <span class="token-command">plandb</span> <span class="token-command">go</span></div>
+<div class="terminal-line">&nbsp;</div>
+<div class="terminal-line"><span class="token-accent">&rarr;</span> <span class="token-id">t-007</span> <span class="token-output">"Database layer"</span> <span class="token-warning">[2/5 &middot; 2 ready &middot; 1 blocked]</span></div>
+          </div>
+        </div>
+
+        <div class="terminal mt-4">
+          <div class="terminal-header">
+            <span class="terminal-dot red"></span>
+            <span class="terminal-dot yellow"></span>
+            <span class="terminal-dot green"></span>
+            <span class="terminal-title">Terminal &mdash; Agent 3</span>
+          </div>
+          <div class="terminal-body">
+<div class="terminal-line"><span class="token-prompt">$ </span><span class="token-flag">PLANDB_AGENT</span>=worker-3 <span class="token-command">plandb</span> <span class="token-command">go</span></div>
+<div class="terminal-line">&nbsp;</div>
+<div class="terminal-line"><span class="token-accent">&rarr;</span> <span class="token-id">t-008</span> <span class="token-output">"REST API routes"</span> <span class="token-warning">[2/5 &middot; 1 ready &middot; 1 blocked]</span></div>
+          </div>
+        </div>
+
+        <p class="text-dim text-sm mt-4">
+          Each agent atomically claims a different task. When all three finish,
+          t-005 "Write API tests" becomes <span class="badge badge-ready">ready</span> and
+          the next <code>plandb go</code> picks it up.
+          Use <code>plandb task list --status running</code> to see what each agent is working on.
+        </p>
+      </section>
+
+      <!-- Next page link -->
+      <div class="mt-8" style="padding: var(--space-6); border-top: 1px solid var(--color-border);">
+        <a href="cli-reference.html" class="btn btn-primary">
+          Next: CLI Reference &rarr;
+        </a>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <ul class="footer-links">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="getting-started.html">Getting Started</a></li>
+      <li><a href="cli-reference.html">CLI Reference</a></li>
+      <li><a href="architecture.html">Architecture</a></li>
+      <li><a href="playground.html">Playground</a></li>
+    </ul>
+    <p>PlanDB &mdash; Task graph primitive for AI agents.</p>
+  </footer>
+
+  <script src="nav.js"></script>
+
+  <!-- Sidebar active-link tracking on scroll -->
+  <script>
+  (function () {
+    'use strict';
+    var links = document.querySelectorAll('#sidebar-nav a');
+    var sections = [];
+    links.forEach(function (link) {
+      var id = link.getAttribute('href').slice(1);
+      var el = document.getElementById(id);
+      if (el) sections.push({ id: id, el: el, link: link });
+    });
+
+    function onScroll() {
+      var scrollY = window.scrollY + 120;
+      var current = sections[0];
+      for (var i = 0; i < sections.length; i++) {
+        if (sections[i].el.offsetTop <= scrollY) {
+          current = sections[i];
+        }
+      }
+      links.forEach(function (l) { l.classList.remove('active'); });
+      if (current) current.link.classList.add('active');
+    }
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+  })();
+  </script>
+
+</body>
+</html>

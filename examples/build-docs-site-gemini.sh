@@ -13,7 +13,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLANDB_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-WORK_DIR="$PLANDB_ROOT/docs-site-gemini"
+WORK_DIR="$PLANDB_ROOT/experiments/docs-site-gemini"
 
 command -v plandb >/dev/null 2>&1 || { echo "error: plandb not found. Run: cargo install --path $PLANDB_ROOT"; exit 1; }
 command -v gemini >/dev/null 2>&1 || { echo "error: gemini not found. Install: https://github.com/google-gemini/gemini-cli"; exit 1; }

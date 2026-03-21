@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="PlanDB - Task graph primitive for AI agents. A compound graph model for orchestrating AI agent work with dependency tracking, recursive decomposition, and parallel execution.">
+  <meta name="keywords" content="PlanDB, task graph, AI agents, dependency tracking, CLI, multi-agent orchestration">
+  <meta name="author" content="PlanDB">
+  <meta property="og:title" content="PlanDB - Task Graph Primitive for AI Agents">
+  <meta property="og:description" content="Compound graph model for orchestrating AI agent work. Init to done in 5 commands.">
+  <meta property="og:type" content="website">
+  <meta name="theme-color" content="#38bdf8">
+  <title>PlanDB - Task Graph Primitive for AI Agents</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='16' fill='%230a0a0f'/><path d='M25 30h50M25 50h35M25 70h45' stroke='%2338bdf8' stroke-width='6' stroke-linecap='round'/><circle cx='72' cy='50' r='8' fill='%234ade80'/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    /* Landing-page-specific styles */
+    .hero-glow {
+      position: absolute;
+      top: -120px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 600px;
+      height: 400px;
+      background: radial-gradient(ellipse at center, rgba(56, 189, 248, 0.08) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .hero {
+      position: relative;
+      overflow: visible;
+    }
+
+    .hero > * {
+      position: relative;
+      z-index: 1;
+    }
+
+    .hero .subtitle {
+      font-size: var(--text-base);
+      color: var(--color-text-muted);
+      max-width: 520px;
+      margin: 0 auto var(--space-10);
+    }
+
+    .terminal-demo {
+      max-width: 640px;
+      margin: var(--space-12) auto 0;
+      text-align: left;
+    }
+
+    .terminal-line {
+      opacity: 0;
+      animation: termFadeIn 0.3s ease forwards;
+    }
+
+    .terminal-line:nth-child(1)  { animation-delay: 0.3s; }
+    .terminal-line:nth-child(2)  { animation-delay: 0.6s; }
+    .terminal-line:nth-child(3)  { animation-delay: 0.9s; }
+    .terminal-line:nth-child(4)  { animation-delay: 1.2s; }
+    .terminal-line:nth-child(5)  { animation-delay: 1.5s; }
+    .terminal-line:nth-child(6)  { animation-delay: 1.8s; }
+    .terminal-line:nth-child(7)  { animation-delay: 2.1s; }
+    .terminal-line:nth-child(8)  { animation-delay: 2.4s; }
+    .terminal-line:nth-child(9)  { animation-delay: 2.7s; }
+    .terminal-line:nth-child(10) { animation-delay: 3.0s; }
+
+    @keyframes termFadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .features-section {
+      max-width: var(--max-width-wide);
+      margin: 0 auto;
+      padding: var(--space-16) var(--space-6) var(--space-20);
+    }
+
+    .features-section h2 {
+      text-align: center;
+      margin-top: 0;
+      margin-bottom: var(--space-2);
+    }
+
+    .features-subtitle {
+      text-align: center;
+      color: var(--color-text-muted);
+      font-size: var(--text-sm);
+      margin-bottom: var(--space-10);
+    }
+
+    .card-icon-circle {
+      width: 44px;
+      height: 44px;
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: var(--space-4);
+      font-size: 1.3rem;
+    }
+
+    .card-icon-circle.blue   { background: rgba(56, 189, 248, 0.12); }
+    .card-icon-circle.green  { background: rgba(74, 222, 128, 0.12); }
+    .card-icon-circle.purple { background: rgba(167, 139, 250, 0.12); }
+    .card-icon-circle.yellow { background: rgba(251, 191, 36, 0.12); }
+
+    .footer-divider {
+      width: 48px;
+      height: 1px;
+      background: var(--color-border);
+      margin: var(--space-4) auto;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="hero-glow"></div>
+    <h1>PlanDB</h1>
+    <p class="tagline">Task graph primitive for AI agents</p>
+    <p class="subtitle">
+      A compound graph model for orchestrating AI agent work &mdash; with dependency tracking,
+      recursive decomposition, and parallel execution baked in.
+    </p>
+    <div class="btn-group">
+      <a href="getting-started.html" class="btn btn-primary">Get Started</a>
+      <a href="cli-reference.html" class="btn btn-secondary">CLI Reference</a>
+    </div>
+
+    <!-- Animated Terminal -->
+    <div class="terminal-demo">
+      <div class="terminal">
+        <div class="terminal-header">
+          <span class="terminal-dot red"></span>
+          <span class="terminal-dot yellow"></span>
+          <span class="terminal-dot green"></span>
+          <span class="terminal-title">plandb &mdash; terminal</span>
+        </div>
+        <div class="terminal-body">
+          <div class="terminal-line"><span class="token-prompt">$ </span><span class="token-command">plandb</span> init <span class="token-string">'my-project'</span></div>
+          <div class="terminal-line"><span class="token-output">Created project </span><span class="token-accent">p-my-project</span></div>
+          <div class="terminal-line">&nbsp;</div>
+          <div class="terminal-line"><span class="token-prompt">$ </span><span class="token-command">plandb</span> add <span class="token-string">'Design API'</span> <span class="token-flag">--kind</span> research</div>
+          <div class="terminal-line"><span class="token-prompt">$ </span><span class="token-command">plandb</span> add <span class="token-string">'Implement API'</span> <span class="token-flag">--dep</span> <span class="token-id">t-design-api</span></div>
+          <div class="terminal-line">&nbsp;</div>
+          <div class="terminal-line"><span class="token-prompt">$ </span><span class="token-command">plandb</span> go</div>
+          <div class="terminal-line"><span class="token-success">&#10132; t-design-api</span> <span class="token-output">"Design API"</span> <span class="badge badge-running">running</span></div>
+          <div class="terminal-line">&nbsp;</div>
+          <div class="terminal-line"><span class="token-prompt">$ </span><span class="token-command">plandb</span> done <span class="token-flag">--next</span><span class="cursor-blink"></span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section class="features-section">
+    <h2>Built for composite intelligence</h2>
+    <p class="features-subtitle">Everything AI agents need to coordinate work &mdash; nothing they don't.</p>
+
+    <div class="card-grid">
+      <!-- Card 1: Compound Graph -->
+      <div class="card">
+        <div class="card-icon-circle blue">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/>
+            <path d="M9 6h6M6 9v6M18 9v6M9 18h6"/>
+          </svg>
+        </div>
+        <h3>Compound Graph</h3>
+        <p>Place graph for spatial hierarchy plus link graph for typed dependencies. Two orthogonal structures that compose cleanly.</p>
+      </div>
+
+      <!-- Card 2: Recursive Decomposition -->
+      <div class="card">
+        <div class="card-icon-circle purple">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="2" width="8" height="8" rx="1"/><rect x="14" y="2" width="8" height="8" rx="1"/><rect x="8" y="14" width="8" height="8" rx="1"/>
+            <path d="M6 10v2a2 2 0 002 2h0M18 10v2a2 2 0 01-2 2h0"/>
+          </svg>
+        </div>
+        <h3>Recursive Decomposition</h3>
+        <p>Split tasks mid-flight with <code>plandb task split</code>. Zoom into composites. Replan entire subtrees without losing state.</p>
+      </div>
+
+      <!-- Card 3: Multi-Agent Ready -->
+      <div class="card">
+        <div class="card-icon-circle green">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+          </svg>
+        </div>
+        <h3>Multi-Agent Ready</h3>
+        <p>Atomic task claiming prevents conflicts. Dependency enforcement ensures correct ordering. Multiple agents work the graph in parallel.</p>
+      </div>
+
+      <!-- Card 4: Zero Friction CLI -->
+      <div class="card">
+        <div class="card-icon-circle yellow">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>
+          </svg>
+        </div>
+        <h3>Zero Friction CLI</h3>
+        <p>From <code>init</code> to <code>done</code> in five commands. No config files, no servers, no setup. A single SQLite file holds all state.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <ul class="footer-links">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="getting-started.html">Getting Started</a></li>
+      <li><a href="cli-reference.html">CLI Reference</a></li>
+      <li><a href="architecture.html">Architecture</a></li>
+      <li><a href="playground.html">Playground</a></li>
+    </ul>
+    <div class="footer-divider"></div>
+    <p>PlanDB &mdash; Built for AI agents</p>
+  </footer>
+
+  <script src="nav.js"></script>
+</body>
+</html>

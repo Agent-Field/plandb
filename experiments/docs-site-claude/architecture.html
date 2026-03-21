@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="PlanDB Architecture — the compound graph model that powers task decomposition, dependency tracking, and multi-agent coordination.">
+  <title>Architecture — PlanDB</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="page-with-sidebar">
+
+  <!-- Sidebar TOC -->
+  <aside class="sidebar">
+    <div class="sidebar-title">On this page</div>
+    <ul class="sidebar-nav">
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#place-graph">Place Graph</a></li>
+      <li><a href="#link-graph">Link Graph</a></li>
+      <li><a href="#orthogonality">Orthogonality</a></li>
+      <li><a href="#task-lifecycle">Task Lifecycle</a></li>
+      <li><a href="#multi-agent">Multi-Agent Coordination</a></li>
+      <li><a href="#recursive-decomposition">Recursive Decomposition</a></li>
+      <li><a href="#adaptation">Plan Adaptation</a></li>
+    </ul>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="page-content">
+
+    <h1>Architecture</h1>
+    <p class="text-dim" style="font-size: var(--text-lg); margin-bottom: var(--space-8);">
+      PlanDB models work as a <strong style="color: #fff;">compound graph</strong> &mdash; two orthogonal
+      structures layered on the same set of tasks. Understanding this model is the key to using PlanDB effectively.
+    </p>
+
+    <!-- ============================== -->
+    <!-- Overview -->
+    <!-- ============================== -->
+    <h2 id="overview">Overview</h2>
+    <p>
+      Most task trackers give you either a hierarchy (nested folders, subtasks) or a dependency graph
+      (Gantt charts, DAGs) &mdash; but not both. PlanDB gives you both, independently, on the same set of tasks.
+    </p>
+    <p>
+      The two structures are:
+    </p>
+    <ul>
+      <li><strong>Place Graph</strong> (containment) &mdash; <em>where</em> a task lives. Projects contain tasks; tasks contain subtasks. A tree.</li>
+      <li><strong>Link Graph</strong> (dependencies) &mdash; <em>what</em> a task needs before it can start. A directed acyclic graph (DAG) of data-flow and ordering edges.</li>
+    </ul>
+    <p>
+      Together they form a compound graph: the Place Graph defines scope and decomposition; the Link Graph defines execution order and data flow. They are independent &mdash; restructuring one does not break the other.
+    </p>
+
+    <div class="diagram">
+      <pre><code>                   <span class="token-accent">COMPOUND GRAPH</span>
+    ┌─────────────────────┬─────────────────────────┐
+    │   <span class="token-command">Place Graph</span>        │   <span class="token-warning">Link Graph</span>             │
+    │   (containment)     │   (dependencies)         │
+    │                     │                          │
+    │   project           │   task-A ──feeds──▶ task-C│
+    │   ├── task-A        │       │                  │
+    │   ├── task-B        │       └──blocks──▶ task-D│
+    │   │   ├── task-D    │                          │
+    │   │   └── task-E    │   task-B ──feeds──▶ task-E│
+    │   └── task-C        │                          │
+    │                     │                          │
+    │   <span class="token-comment">Tree structure</span>     │   <span class="token-comment">DAG structure</span>           │
+    └─────────────────────┴─────────────────────────┘</code></pre>
+    </div>
+
+
+    <!-- ============================== -->
+    <!-- Place Graph -->
+    <!-- ============================== -->
+    <h2 id="place-graph">Place Graph (Containment)</h2>
+    <p>
+      The Place Graph is a tree that defines <em>where</em> tasks live. Every task belongs to exactly one
+      parent &mdash; either a project or another task. This gives you hierarchical decomposition: a large
+      task can be broken into subtasks, and those subtasks can be broken down further.
+    </p>
+
+    <div class="diagram">
+      <pre><code>  <span class="token-accent">my-project</span>                     <span class="token-comment">← project (root)</span>
+  ├── <span class="token-command">t-intake</span>                    <span class="token-comment">← top-level task</span>
+  ├── <span class="token-command">t-analysis</span>                  <span class="token-comment">← top-level task</span>
+  │   ├── <span class="token-id">t-ip-clauses</span>            <span class="token-comment">← subtask of t-analysis</span>
+  │   ├── <span class="token-id">t-liability</span>             <span class="token-comment">← subtask of t-analysis</span>
+  │   └── <span class="token-id">t-non-compete</span>           <span class="token-comment">← subtask of t-analysis</span>
+  ├── <span class="token-command">t-review</span>                    <span class="token-comment">← top-level task</span>
+  └── <span class="token-command">t-report</span>                    <span class="token-comment">← top-level task</span></code></pre>
+    </div>
+
+    <h3>Scoping with <code>plandb use</code></h3>
+    <p>
+      The <code>plandb use</code> command changes your working scope to any node in the Place Graph.
+      All subsequent commands operate within that scope &mdash; <code>plandb list</code> shows only
+      children, <code>plandb add</code> creates tasks inside it, and <code>plandb status</code> reports
+      on that subtree.
+    </p>
+    <pre><code><span class="token-prompt">$</span> <span class="token-command">plandb</span> <span class="token-flag">use</span> <span class="token-string">t-analysis</span>
+<span class="token-output">Scope set to t-analysis "Analysis phase"</span>
+
+<span class="token-prompt">$</span> <span class="token-command">plandb</span> <span class="token-flag">list</span>
+<span class="token-output">  t-ip-clauses    ready    "IP clause analysis"</span>
+<span class="token-output">  t-liability     ready    "Liability analysis"</span>
+<span class="token-output">  t-non-compete   ready    "Non-compete analysis"</span>
+
+<span class="token-prompt">$</span> <span class="token-command">plandb</span> <span class="token-flag">use</span> <span class="token-string">--root</span>
+<span class="token-output">Scope reset to project root</span></code></pre>
+    <p>
+      This lets you zoom into a composite task, work on its children, and zoom back out &mdash;
+      without losing track of the larger plan.
+    </p>
+
+
+    <!-- ============================== -->
+    <!-- Link Graph -->
+    <!-- ============================== -->
+    <h2 id="link-graph">Link Graph (Dependencies)</h2>
+    <p>
+      The Link Graph is a DAG (directed acyclic graph) that defines <em>execution order</em> and
+      <em>data flow</em> between tasks. Dependencies are edges between tasks &mdash; they determine
+      which tasks are <span class="badge badge-ready">ready</span> to execute.
+    </p>
+    <p>
+      A task becomes <span class="badge badge-ready">ready</span> when <strong>all</strong> of its
+      blocking dependencies (those of type <code>feeds_into</code> or <code>blocks</code>) are
+      <span class="badge badge-done">done</span>.
+    </p>
+
+    <div class="diagram">
+      <pre><code>  <span class="token-command">t-intake</span> ──<span class="token-warning">feeds_into</span>──▶ <span class="token-command">t-analysis</span> ──<span class="token-warning">feeds_into</span>──▶ <span class="token-command">t-review</span>
+      │                                               │
+      │                                               ▼
+      └────────<span class="token-warning">feeds_into</span>──▶ <span class="token-command">t-report</span> ◀──<span class="token-warning">blocks</span>──────┘
+
+  <span class="token-id">t-research</span> ···<span class="token-comment">suggests</span>···▷ <span class="token-command">t-analysis</span>
+  <span class="token-comment">(soft dep: does not block)</span></code></pre>
+    </div>
+
+    <h3>Dependency Types</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Blocks?</th>
+          <th>Data flow?</th>
+          <th>Use when</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>feeds_into</code></td>
+          <td>Yes</td>
+          <td>Yes</td>
+          <td>Task B needs the output of Task A (e.g., anatomy result feeds into planner)</td>
+        </tr>
+        <tr>
+          <td><code>blocks</code></td>
+          <td>Yes</td>
+          <td>No</td>
+          <td>Task B must wait for Task A, but doesn't use A's result (ordering constraint)</td>
+        </tr>
+        <tr>
+          <td><code>suggests</code></td>
+          <td>No</td>
+          <td>No</td>
+          <td>Nice to have A done first, but B can proceed without it (soft/optional)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <pre><code><span class="token-prompt">$</span> <span class="token-command">plandb</span> <span class="token-flag">add</span> <span class="token-string">--title</span> "Run analysis" <span class="token-string">--dep</span> t-intake:feeds_into
+<span class="token-prompt">$</span> <span class="token-command">plandb</span> <span class="token-flag">add</span> <span class="token-string">--title</span> "Generate report" <span class="token-string">--dep</span> t-analysis:feeds_into <span class="token-string">--dep</span> t-review:blocks</code></pre>
+
+
+    <!-- ============================== -->
+    <!-- Orthogonality -->
+    <!-- ============================== -->
+    <h2 id="orthogonality">Orthogonality</h2>
+    <p>
+      The Place Graph and Link Graph are <strong>independent</strong>. A task's position in the
+      containment hierarchy says nothing about its dependencies, and vice versa. This is the key
+      design insight that makes PlanDB's model powerful.
+    </p>
+
+    <div class="diagram">
+      <pre><code>  <span class="token-accent">Place Graph (who owns it)</span>          <span class="token-accent">Link Graph (what it needs)</span>
+
+  project                           t-intake ──▶ t-ip-clauses
+  ├── t-intake                      t-intake ──▶ t-liability
+  ├── t-analysis                    t-intake ──▶ t-non-compete
+  │   ├── <span class="token-id">t-ip-clauses</span>              t-ip-clauses ──┐
+  │   ├── <span class="token-id">t-liability</span>               t-liability ───┼──▶ t-review
+  │   └── <span class="token-id">t-non-compete</span>             t-non-compete ─┘
+  ├── t-review
+  └── t-report                      t-review ──▶ t-report
+
+  <span class="token-comment">t-ip-clauses is a CHILD of t-analysis (place)</span>
+  <span class="token-comment">but DEPENDS ON t-intake (link) — a sibling of its parent.</span>
+  <span class="token-comment">These two relationships are orthogonal.</span></code></pre>
+    </div>
+
+    <p>Why does this matter?</p>
+    <ul>
+      <li><strong>Decomposition is free.</strong> You can split a task into subtasks without rewiring dependencies. The subtasks inherit the parent's place but can depend on anything in the graph.</li>
+      <li><strong>Dependencies are composable.</strong> You can add a dependency between any two tasks regardless of where they sit in the hierarchy. No need to restructure the tree to express a cross-cutting constraint.</li>
+      <li><strong>Refactoring is safe.</strong> Moving a task to a different parent (re-parenting) does not change its dependencies. Changing dependencies does not move it in the hierarchy.</li>
+    </ul>
+
+
+    <!-- ============================== -->
+    <!-- Task Lifecycle -->
+    <!-- ============================== -->
+    <h2 id="task-lifecycle">Task Lifecycle</h2>
+    <p>
+      Every task moves through a state machine. The transitions are enforced by PlanDB &mdash; you
+      cannot skip states or move backward (except through explicit replan operations).
+    </p>
+
+    <div class="diagram" style="padding: var(--space-8);">
+      <pre><code>
+          ┌──────────────────────────────────────────────────────┐
+          │                  TASK STATE MACHINE                  │
+          └──────────────────────────────────────────────────────┘
+
+  <span class="token-comment">deps unmet</span>       <span class="token-comment">deps met</span>        <span class="token-comment">agent claims</span>     <span class="token-comment">agent starts</span>
+ ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐
+ │          │   │          │   │          │   │          │
+ │ <span class="token-comment">PENDING</span>  │──▶│  <span class="token-accent">READY</span>   │──▶│ <span class="token-warning">CLAIMED</span>  │──▶│ <span class="token-warning">RUNNING</span>  │
+ │          │   │          │   │          │   │          │
+ └──────────┘   └──────────┘   └──────────┘   └─────┬────┘
+                                                     │
+                                           ┌─────────┴─────────┐
+                                           │                   │
+                                           ▼                   ▼
+                                     ┌──────────┐       ┌──────────┐
+                                     │          │       │          │
+                                     │   <span class="token-command">DONE</span>   │       │  <span class="token-error">FAILED</span>  │
+                                     │          │       │          │
+                                     └──────────┘       └──────────┘
+      </code></pre>
+    </div>
+
+    <h3>Task States</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>State</th>
+          <th>Badge</th>
+          <th>Meaning</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>pending</code></td>
+          <td><span class="badge badge-pending">pending</span></td>
+          <td>Blocked &mdash; one or more <code>feeds_into</code> or <code>blocks</code> dependencies are not yet <code>done</code></td>
+        </tr>
+        <tr>
+          <td><code>ready</code></td>
+          <td><span class="badge badge-ready">ready</span></td>
+          <td>All blocking dependencies satisfied &mdash; available for an agent to claim</td>
+        </tr>
+        <tr>
+          <td><code>claimed</code></td>
+          <td><span class="badge badge-running">claimed</span></td>
+          <td>An agent has atomically claimed this task but has not started execution</td>
+        </tr>
+        <tr>
+          <td><code>running</code></td>
+          <td><span class="badge badge-running">running</span></td>
+          <td>Agent is actively working on the task</td>
+        </tr>
+        <tr>
+          <td><code>done</code></td>
+          <td><span class="badge badge-done">done</span></td>
+          <td>Completed successfully &mdash; result stored, dependents may become <code>ready</code></td>
+        </tr>
+        <tr>
+          <td><code>failed</code></td>
+          <td><span class="badge badge-failed">failed</span></td>
+          <td>Failed &mdash; error recorded, dependents remain blocked</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Automatic State Transitions</h3>
+    <p>
+      PlanDB automatically promotes <span class="badge badge-pending">pending</span> tasks to
+      <span class="badge badge-ready">ready</span> whenever a dependency completes. When you run
+      <code>plandb done t-intake</code>, PlanDB walks the Link Graph and promotes every task whose
+      blocking dependencies are now all satisfied.
+    </p>
+
+
+    <!-- ============================== -->
+    <!-- Multi-Agent Coordination -->
+    <!-- ============================== -->
+    <h2 id="multi-agent">Multi-Agent Coordination</h2>
+    <p>
+      PlanDB is designed for parallel execution by multiple agents. The coordination mechanism is
+      simple and race-free: <strong>atomic claiming via SQLite transactions</strong>.
+    </p>
+
+    <h3>How It Works</h3>
+    <p>
+      When an agent runs <code>plandb go</code>, PlanDB executes a single SQL transaction that:
+    </p>
+    <ol>
+      <li>Finds the highest-priority <span class="badge badge-ready">ready</span> task</li>
+      <li>Sets its state to <span class="badge badge-running">claimed</span> and records the agent name</li>
+      <li>Returns the task to the agent</li>
+    </ol>
+    <p>
+      Because SQLite serializes writes, two agents running <code>plandb go</code> simultaneously will
+      never claim the same task. No locks, no distributed consensus &mdash; just SQLite's built-in
+      transaction isolation.
+    </p>
+
+    <h3>Agent Identity</h3>
+    <p>
+      Agents identify themselves via the <code>PLANDB_AGENT</code> environment variable. This is used
+      for tracking which agent owns which task, and for filtering:
+    </p>
+    <pre><code><span class="token-prompt">$</span> <span class="token-command">PLANDB_AGENT=worker-1</span> <span class="token-flag">plandb go</span>
+<span class="token-output">Claimed t-intake "Implement intake classifier"</span>
+
+<span class="token-prompt">$</span> <span class="token-command">PLANDB_AGENT=worker-2</span> <span class="token-flag">plandb go</span>
+<span class="token-output">Claimed t-analysis "Run analysis phase"</span>
+
+<span class="token-comment"># Both agents work in parallel, no conflicts</span>
+
+<span class="token-prompt">$</span> <span class="token-command">plandb</span> <span class="token-flag">list</span> <span class="token-string">--status running</span>
+<span class="token-output">  t-intake     running  worker-1  "Implement intake classifier"</span>
+<span class="token-output">  t-analysis   running  worker-2  "Run analysis phase"</span></code></pre>
+
+    <h3>Task Kinds</h3>
+    <p>
+      Each task has a <code>kind</code> that indicates the type of work. This is metadata for
+      filtering and reporting &mdash; PlanDB does not enforce different behavior per kind.
+    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>Kind</th>
+          <th>Typical use</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><code>code</code></td><td>Implementation work &mdash; writing or modifying source code</td></tr>
+        <tr><td><code>research</code></td><td>Investigation, reading docs, exploring options</td></tr>
+        <tr><td><code>review</code></td><td>Code review, architecture review, security audit</td></tr>
+        <tr><td><code>test</code></td><td>Writing or running tests</td></tr>
+        <tr><td><code>shell</code></td><td>Running shell commands, deployments, infrastructure</td></tr>
+        <tr><td><code>generic</code></td><td>Default &mdash; anything that does not fit the above</td></tr>
+      </tbody>
+    </table>
+
+
+    <!-- ============================== -->
+    <!-- Recursive Decomposition -->
+    <!-- ============================== -->
+    <h2 id="recursive-decomposition">Recursive Decomposition</h2>
+    <p>
+      Real-world tasks are often too large to complete in a single step. PlanDB supports
+      <strong>recursive decomposition</strong> &mdash; splitting a running task into subtasks,
+      zooming into the subtree, completing the children, and bubbling results back up.
+    </p>
+
+    <h3>The Split &rarr; Zoom &rarr; Work &rarr; Return Cycle</h3>
+    <div class="diagram">
+      <pre><code>  <span class="token-warning">1. SPLIT</span>                           <span class="token-warning">2. ZOOM</span>
+  Agent discovers t-analysis         Agent scopes into t-analysis
+  is too large. Splits it:           to work on children:
+
+  project                            <span class="token-accent">t-analysis</span>  <span class="token-comment">← current scope</span>
+  ├── t-intake  <span class="token-command">done</span>                 ├── <span class="token-accent">t-ip-clauses</span>    <span class="token-command">ready</span>
+  ├── <span class="token-accent">t-analysis</span>  <span class="token-warning">running</span>            ├── <span class="token-accent">t-liability</span>     <span class="token-command">ready</span>
+  │   ├── t-ip-clauses               └── <span class="token-accent">t-non-compete</span>   <span class="token-command">ready</span>
+  │   ├── t-liability
+  │   └── t-non-compete
+  ├── t-review  <span class="token-comment">pending</span>
+  └── t-report  <span class="token-comment">pending</span>
+
+  <span class="token-warning">3. WORK</span>                            <span class="token-warning">4. RETURN</span>
+  Complete subtasks (possibly         All children done; parent
+  in parallel across agents):         auto-completes. Dependents
+                                      become ready:
+  t-analysis
+  ├── t-ip-clauses    <span class="token-command">done</span>           project
+  ├── t-liability     <span class="token-command">done</span>           ├── t-intake     <span class="token-command">done</span>
+  └── t-non-compete   <span class="token-command">done</span>           ├── t-analysis   <span class="token-command">done</span>
+                                      ├── t-review     <span class="token-accent">ready</span>  <span class="token-comment">← unblocked!</span>
+                                      └── t-report     <span class="token-comment">pending</span></code></pre>
+    </div>
+
+    <pre><code><span class="token-comment"># Split a running task into subtasks</span>
+<span class="token-prompt">$</span> <span class="token-command">plandb</span> <span class="token-flag">task split</span> <span class="token-string">t-analysis</span> --into '[
+    {"title": "IP clause analysis"},
+    {"title": "Liability analysis"},
+    {"title": "Non-compete analysis"}
+  ]'
+
+<span class="token-comment"># Zoom into the subtree</span>
+<span class="token-prompt">$</span> <span class="token-command">plandb</span> <span class="token-flag">use</span> <span class="token-string">t-analysis</span>
+
+<span class="token-comment"># Work on children (or dispatch to parallel agents)</span>
+<span class="token-prompt">$</span> <span class="token-command">PLANDB_AGENT=worker-1</span> <span class="token-flag">plandb go</span>
+<span class="token-prompt">$</span> <span class="token-command">PLANDB_AGENT=worker-2</span> <span class="token-flag">plandb go</span>
+<span class="token-prompt">$</span> <span class="token-command">PLANDB_AGENT=worker-3</span> <span class="token-flag">plandb go</span></code></pre>
+
+
+    <!-- ============================== -->
+    <!-- Adaptation -->
+    <!-- ============================== -->
+    <h2 id="adaptation">Plan Adaptation</h2>
+    <p>
+      Plans change. PlanDB provides operations to modify the task graph mid-flight while preserving
+      its structural invariants (no cycles in the Link Graph, single parent in the Place Graph).
+    </p>
+
+    <h3>Adaptation Operations</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Operation</th>
+          <th>Command</th>
+          <th>What it does</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Insert</strong></td>
+          <td><code>plandb task insert</code></td>
+          <td>Add a new task between two existing tasks, automatically rewiring dependency edges</td>
+        </tr>
+        <tr>
+          <td><strong>Amend</strong></td>
+          <td><code>plandb task amend</code></td>
+          <td>Add context to a future task's description based on discoveries from earlier tasks</td>
+        </tr>
+        <tr>
+          <td><strong>Split</strong></td>
+          <td><code>plandb task split</code></td>
+          <td>Decompose a task into subtasks (Place Graph change, Link Graph preserved)</td>
+        </tr>
+        <tr>
+          <td><strong>Replan</strong></td>
+          <td><code>plandb task replan</code></td>
+          <td>Cancel a pending subtree and replace it with a new plan from a YAML file</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Insert: Adding a Step Mid-Flight</h3>
+    <p>
+      When you discover a missing step between two tasks, <code>insert</code> splices it in
+      and rewires the dependency edges:
+    </p>
+    <div class="diagram">
+      <pre><code>  <span class="token-comment">Before:</span>  t-intake ──feeds──▶ t-analysis
+
+  <span class="token-prompt">$</span> <span class="token-command">plandb task insert</span> --after t-intake --before t-analysis \
+      --title "Jurisdiction detection"
+
+  <span class="token-comment">After:</span>   t-intake ──feeds──▶ <span class="token-accent">t-jurisdiction</span> ──feeds──▶ t-analysis</code></pre>
+    </div>
+
+    <h3>Amend: Annotating Future Tasks</h3>
+    <p>
+      As earlier tasks produce insights, annotate downstream tasks so future agents (or future
+      sessions) have the context they need:
+    </p>
+    <pre><code><span class="token-prompt">$</span> <span class="token-command">plandb</span> <span class="token-flag">task amend</span> <span class="token-string">t-review</span> --prepend \
+    "NOTE: Section 14 has a survival clause that affects termination analysis"</code></pre>
+
+    <h3>Replan: Replacing a Subtree</h3>
+    <p>
+      When a section of the plan is no longer valid, cancel it and load a replacement:
+    </p>
+    <pre><code><span class="token-prompt">$</span> <span class="token-command">plandb</span> <span class="token-flag">task replan</span> <span class="token-string">t-review</span> --file revised-review.yaml
+<span class="token-output">Cancelled 3 pending tasks under t-review</span>
+<span class="token-output">Created 5 new tasks from revised-review.yaml</span>
+<span class="token-output">Dependency edges rewired</span></code></pre>
+
+    <h3>Invariants Preserved</h3>
+    <p>
+      All adaptation operations maintain two invariants:
+    </p>
+    <ul>
+      <li><strong>No cycles</strong> in the Link Graph &mdash; PlanDB rejects any dependency that would create a cycle</li>
+      <li><strong>Single parent</strong> in the Place Graph &mdash; every task has exactly one parent (project or task)</li>
+    </ul>
+    <p>
+      These invariants ensure that the graph always has a well-defined topological order (so
+      <code>plandb go</code> always knows what to execute next) and a well-defined scope hierarchy
+      (so <code>plandb use</code> always has an unambiguous subtree).
+    </p>
+
+  </main>
+</div>
+
+<!-- Footer -->
+<footer class="footer">
+  <ul class="footer-links">
+    <li><a href="index.html">Home</a></li>
+    <li><a href="getting-started.html">Getting Started</a></li>
+    <li><a href="cli-reference.html">CLI Reference</a></li>
+    <li><a href="architecture.html">Architecture</a></li>
+    <li><a href="playground.html">Playground</a></li>
+  </ul>
+  <p>PlanDB &mdash; A local-first task graph for AI agents and humans.</p>
+</footer>
+
+<script src="nav.js"></script>
+</body>
+</html>

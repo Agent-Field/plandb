@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PlanDB Getting Started</title>
+    <meta name="description" content="Get started with the core PlanDB workflow." />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="nav-shell">
+        <a class="brand" href="index.html">
+          <span class="brand-mark">P</span>
+          <span class="brand-text">
+            <span class="brand-name">PlanDB</span>
+            <span class="brand-tag">Task graph primitive for AI agents</span>
+          </span>
+        </a>
+        <nav class="nav-links" aria-label="Primary">
+          <a data-nav href="index.html">Overview</a>
+          <a data-nav href="getting-started.html">Getting Started</a>
+          <a data-nav href="cli-reference.html">CLI Reference</a>
+          <a data-nav href="architecture.html">Architecture</a>
+          <a data-nav href="playground.html">Playground</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="page-shell">
+      <section class="page-intro">
+        <div class="eyebrow">Guide</div>
+        <h1 class="page-title">Getting Started</h1>
+        <p class="lede">
+          PlanDB works best when each task is a complete work order: short title,
+          detailed description, and explicit dependencies. This walkthrough takes
+          a small release plan from initialization through execution and graph
+          inspection.
+        </p>
+      </section>
+
+      <section class="section">
+        <div class="steps">
+          <article class="content-card step prose" id="init">
+            <h2>Initialize a project</h2>
+            <p>
+              Start by creating a named project. PlanDB stores the graph in
+              SQLite, so the database becomes the shared state for every agent
+              working on the same effort.
+            </p>
+            <pre class="code-block">$ plandb init "agent-launch"
+created p-launch (agent-launch)</pre>
+            <p class="muted">
+              Use the project name to describe the actual initiative, not just a
+              ticket. That makes status output legible when several efforts share
+              one database.
+            </p>
+          </article>
+
+          <article class="content-card step prose" id="add">
+            <h2>Add tasks with dependencies</h2>
+            <p>
+              Add tasks in dependency order so downstream tasks can point to task
+              IDs that already exist. Descriptions should be detailed enough for
+              another agent to execute the task later with no hidden context.
+            </p>
+            <pre class="code-block">$ plandb add "Design launch checklist" --as checklist --kind research --description "Define the release checklist, required owners, and dependencies for the agent launch."
+created task t-checklist
+
+$ plandb add "Draft announcement" --as announce --kind code --dep t-checklist --description "Write the launch announcement copy using the final checklist and release scope."
+created task t-announce
+
+$ plandb add "Publish docs" --as docs --kind code --dep t-announce --description "Update docs site navigation, release notes, and rollout instructions after announcement copy is approved."
+created task t-docs</pre>
+            <p>
+              In this example, `t-announce` cannot begin until `t-checklist` is
+              done, and `t-docs` waits for the announcement task. The graph now
+              encodes execution order instead of relying on memory.
+            </p>
+          </article>
+
+          <article class="content-card step prose" id="go">
+            <h2>Claim the next ready task</h2>
+            <p>
+              Use `plandb go` to claim and start the next ready task. If several
+              agents are connected to the same project, PlanDB prevents them from
+              claiming the same node.
+            </p>
+            <pre class="code-block">$ plandb go
+→ t-checklist "Design launch checklist" [1/3 · 1 ready]</pre>
+            <p>
+              This is the preferred entry point for execution. The command only
+              returns tasks whose dependencies are already complete.
+            </p>
+          </article>
+
+          <article class="content-card step prose" id="done">
+            <h2>Complete and continue with <span class="inline-code">done --next</span></h2>
+            <p>
+              When the current task is finished, complete it and immediately
+              claim the next ready task. This keeps the execution loop tight.
+            </p>
+            <pre class="code-block">$ plandb done --next
+✓ t-checklist done → claimed t-announce "Draft announcement"</pre>
+            <p>
+              Use `--result` when a downstream task needs structured handoff
+              data, and `--files` when you want PlanDB to record which files
+              changed during the task.
+            </p>
+          </article>
+
+          <article class="content-card step prose" id="split">
+            <h2>Split work when a task becomes too broad</h2>
+            <p>
+              If a task turns out to be larger than expected, split it while
+              working. Use a comma-separated list for parallel parts or a
+              `>` chain when the new subtasks still need internal sequencing.
+            </p>
+            <pre class="code-block">$ plandb split --into "Write email draft, Review with legal, Schedule send"
+
+$ plandb split --into "Draft changelog > QA release notes > Publish release post"</pre>
+            <p>
+              Split when you discover new structure. Do not wait until the task
+              is blocked or ambiguous. Smaller nodes make it easier for another
+              agent to pick up a piece of work safely.
+            </p>
+          </article>
+
+          <article class="content-card step prose" id="status">
+            <h2>Inspect graph progress with status</h2>
+            <p>
+              Use `plandb status --detail` to see the live task breakdown and
+              dependency tree. This is the fastest way to check what is done,
+              ready, running, or still blocked.
+            </p>
+            <pre class="code-block">$ plandb status --detail
+p-launch agent-launch: 1/3 done (33%)
+✓ t-checklist Design launch checklist
+◉ t-announce Draft announcement
+○ t-docs Publish docs</pre>
+            <p>
+              The graph state is now inspectable by anyone, human or agent.
+              There is no need to reconstruct the plan from prose updates alone.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section grid-2">
+        <article class="callout prose">
+          <div class="section-header">
+            <h2>Why descriptions matter</h2>
+          </div>
+          <p>
+            A task title is only a label. The description is the executable
+            contract. It should name the files, the intended output, the
+            acceptance criteria, and any constraints that would otherwise stay in
+            someone’s head.
+          </p>
+          <p>
+            That matters even more with AI agents. A future agent should be able
+            to run `plandb show t-announce`, read the description, and start
+            work without external chat context.
+          </p>
+        </article>
+
+        <article class="content-card prose">
+          <div class="section-header">
+            <h2>Next steps</h2>
+          </div>
+          <ul>
+            <li>Use the <a href="cli-reference.html">CLI reference</a> for verified command syntax.</li>
+            <li>Read the <a href="architecture.html">architecture page</a> to understand the compound graph model.</li>
+            <li>Open the <a href="playground.html">interactive playground</a> to rehearse the workflow in a browser terminal.</li>
+          </ul>
+        </article>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-shell">
+        <span>PlanDB static documentation site.</span>
+        <span>&copy; <span data-year></span> PlanDB</span>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Getting Started — PlanDB</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <a href="index.html">PlanDB</a>
+    <nav>
+      <ul>
+        <li><a href="guide.html">Getting Started</a></li>
+        <li><a href="arch.html">Architecture</a></li>
+        <li><a href="reference.html">CLI Reference</a></li>
+        <li><a href="playground.html">Playground</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main>
+    <h1>Getting Started</h1>
+    <p>This guide will walk you through the core workflow of PlanDB.</p>
+
+    <h2>1. Initialize your project</h2>
+    <p>Every PlanDB journey starts with a name.</p>
+    <pre><code>$ plandb init "my-agent-mission"</code></pre>
+
+    <h2>2. Decompose the mission into tasks</h2>
+    <p>A good task has a clear goal and a detailed description. Use dependencies to ensure tasks are executed in the right order.</p>
+    <pre><code>$ plandb add "Setup project" --description "Create repo and install dependencies." --as setup
+$ plandb add "Implement feature" --description "Write core logic for feature A." --dep t-setup --as feature</code></pre>
+    <p><strong>Note:</strong> We used <code>--as</code> to give tasks readable IDs (<code>t-setup</code>, <code>t-feature</code>). PlanDB generates unique IDs by default if you don't specify one.</p>
+
+    <h2>3. Start working</h2>
+    <p>When you're ready to start, use the <code>go</code> command. PlanDB will find the next task that is ready to run and claim it for you.</p>
+    <pre><code>$ plandb go</code></pre>
+
+    <h2>4. Complete tasks and chain work</h2>
+    <p>When a task is finished, mark it as done. You can use <code>--next</code> to automatically claim the next available task in one step.</p>
+    <pre><code>$ plandb done --next</code></pre>
+
+    <h2>5. Split complex tasks on the fly</h2>
+    <p>If you realize a task is too big mid-execution, split it into smaller subtasks.</p>
+    <pre><code>$ plandb split --into "Design, Implementation, Testing"</code></pre>
+    <p>You can also create a dependency chain when splitting:</p>
+    <pre><code>$ plandb split --into "A > B > C"</code></pre>
+
+    <h2>6. Visualize progress</h2>
+    <p>Check the status of your task graph at any time.</p>
+    <pre><code>$ plandb status --detail</code></pre>
+
+    <div style="margin-top: 3rem; text-align: center;">
+      <a href="reference.html" class="btn">Explore the Full CLI Reference &rarr;</a>
+    </div>
+  </main>
+
+  <footer>
+    &copy; 2026 PlanDB. Built for the future of agentic workflows.
+  </footer>
+</body>
+</html>

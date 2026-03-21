@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Architecture — PlanDB</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <a href="index.html">PlanDB</a>
+    <nav>
+      <ul>
+        <li><a href="guide.html">Getting Started</a></li>
+        <li><a href="arch.html">Architecture</a></li>
+        <li><a href="reference.html">CLI Reference</a></li>
+        <li><a href="playground.html">Playground</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main>
+    <h1>Architecture</h1>
+    <p>PlanDB is built on the concept of a <strong>compound graph</strong>. This is not just a tree or just a DAG, but two independent structures composed together.</p>
+
+    <h2>The Place Graph (Containment)</h2>
+    <p>The place graph defines how tasks are <em>nested</em>. Just like files and folders in a filesystem, tasks in PlanDB can contain subtasks to any depth.</p>
+    <ul>
+      <li>Tasks at the top level have depth 0.</li>
+      <li>Subtasks can be added to any existing task.</li>
+      <li>Recursive completion: A parent task is automatically completed when all of its children are done.</li>
+    </ul>
+
+    <h2>The Link Graph (Dependencies)</h2>
+    <p>The link graph defines the <em>execution order</em>. It is an orthogonal structure that is completely independent of the containment tree.</p>
+    <ul>
+      <li>Any task can depend on any other task, regardless of their position in the tree.</li>
+      <li>Dependencies can cross branch boundaries—a subtask at depth 3 can depend on a task at depth 0 in a different branch.</li>
+      <li>This allows for complex build-like dependency flows within a clean organizational hierarchy.</li>
+    </ul>
+
+    <h2>Composition</h2>
+    <p>When combined, these structures allow for sophisticated workflows. An AI agent can look at the containment tree to understand the scope of a task, and follow the link graph to determine what is ready to be worked on.</p>
+    
+    <pre><code>$ plandb status --full
+# Shows both the tree and the dependency edges!</code></pre>
+
+    <div style="margin-top: 3rem; text-align: center;">
+      <a href="guide.html" class="btn">Learn how to use it &rarr;</a>
+    </div>
+  </main>
+
+  <footer>
+    &copy; 2026 PlanDB. Built for the future of agentic workflows.
+  </footer>
+</body>
+</html>

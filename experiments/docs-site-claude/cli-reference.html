@@ -1,0 +1,1238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="PlanDB CLI Reference - Complete command documentation for the task graph primitive for AI agent orchestration.">
+  <meta name="keywords" content="PlanDB, CLI, reference, commands, task graph, AI agents, orchestration">
+  <title>CLI Reference - PlanDB</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="page-with-sidebar">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-title">CLI Reference</div>
+    <input type="text" class="search-box" id="cmd-search" placeholder="Filter commands..." aria-label="Filter commands">
+    <ul class="sidebar-nav" id="sidebar-nav">
+      <li><a href="#core-workflow">Core Workflow</a></li>
+      <li><a href="#task-management">Task Management</a></li>
+      <li><a href="#plan-adaptation">Plan Adaptation</a></li>
+      <li><a href="#dependencies">Dependencies</a></li>
+      <li><a href="#communication">Communication</a></li>
+      <li><a href="#inspection">Inspection</a></li>
+      <li><a href="#scoping">Scoping</a></li>
+      <li><a href="#server">Server &amp; Integration</a></li>
+      <li><a href="#global-options">Global Options</a></li>
+      <li><a href="#environment">Environment Variables</a></li>
+      <li><a href="#task-states">Task States</a></li>
+      <li><a href="#dep-types">Dependency Types</a></li>
+      <li><a href="#task-kinds">Task Kinds</a></li>
+    </ul>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="page-content">
+    <h1>CLI Reference</h1>
+    <p class="text-dim">Complete command reference for <code>plandb</code>. Every flag, every option, from actual <code>--help</code> output.</p>
+
+    <!-- ========== CORE WORKFLOW ========== -->
+    <section id="core-workflow" data-group="core-workflow">
+      <h2>Core Workflow</h2>
+      <p class="text-dim">The five commands you use 90% of the time: create a project, add tasks, claim work, complete it, check progress.</p>
+
+      <!-- init -->
+      <article class="cmd-entry card" id="cmd-init" data-cmd="init project create">
+        <h3><code>plandb init</code></h3>
+        <p>Create a project and set it as default. Shortcut for <code>plandb project create</code>.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb init</span> <span class="token-string">"auth-system"</span></code></pre>
+        <h4>Arguments</h4>
+        <table>
+          <thead><tr><th>Name</th><th>Required</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>&lt;NAME&gt;</code></td><td>Yes</td><td>Project name</td></tr>
+          </tbody>
+        </table>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--description</code></td><td>string</td><td>Optional description of the project's goal</td></tr>
+          </tbody>
+        </table>
+        <h4>Example</h4>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb init</span> <span class="token-string">"auth-system"</span> <span class="token-flag">--description</span> <span class="token-string">"JWT-based authentication service"</span>
+<span class="token-success">Created project p-auth-system (set as default)</span></code></pre>
+      </article>
+
+      <!-- add -->
+      <article class="cmd-entry card" id="cmd-add" data-cmd="add task create">
+        <h3><code>plandb add</code></h3>
+        <p>Create a new task. Shortcut for <code>plandb task create</code>. The title is positional.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb add</span> <span class="token-string">"Design API schema"</span> <span class="token-flag">--dep</span> <span class="token-id">t-research</span></code></pre>
+        <h4>Arguments</h4>
+        <table>
+          <thead><tr><th>Name</th><th>Required</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>&lt;TITLE&gt;</code></td><td>Yes</td><td>Task title</td></tr>
+          </tbody>
+        </table>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--project</code></td><td>string</td><td>current</td><td>Project ID (uses default if set via <code>plandb use</code>)</td></tr>
+            <tr><td><code>--as</code></td><td>string</td><td></td><td>Custom short ID (e.g. <code>--as api</code> creates <code>t-api</code>)</td></tr>
+            <tr><td><code>--kind</code></td><td>enum</td><td>generic</td><td>Task kind: generic, code, research, review, test, shell</td></tr>
+            <tr><td><code>--description</code></td><td>string</td><td></td><td>Detailed description of what the task involves</td></tr>
+            <tr><td><code>--priority</code></td><td>int</td><td>0</td><td>Priority (higher = more important)</td></tr>
+            <tr><td><code>--dep</code></td><td>string</td><td></td><td>Dependency: <code>TASK_ID</code> (default: feeds_into) or <code>TASK_ID:KIND</code>. Repeatable.</td></tr>
+            <tr><td><code>--parent</code></td><td>string</td><td></td><td>Parent task ID (for hierarchical decomposition)</td></tr>
+            <tr><td><code>--max-retries</code></td><td>int</td><td>0</td><td>Max auto-retry attempts on failure</td></tr>
+            <tr><td><code>--timeout</code></td><td>int</td><td></td><td>Timeout in seconds (reclaims task if exceeded)</td></tr>
+            <tr><td><code>--requires-approval</code></td><td>flag</td><td></td><td>Require human approval before task completes</td></tr>
+            <tr><td><code>--tag</code></td><td>string</td><td></td><td>Tags for filtering. Repeatable: <code>--tag api --tag auth</code></td></tr>
+          </tbody>
+        </table>
+        <h4>Example</h4>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb add</span> <span class="token-string">"Implement auth handler"</span> <span class="token-flag">--as</span> <span class="token-id">impl</span> <span class="token-flag">--kind</span> code <span class="token-flag">--dep</span> <span class="token-id">t-design</span> <span class="token-flag">--tag</span> backend
+<span class="token-success">Created t-impl "Implement auth handler" [code] depends on: t-design</span></code></pre>
+      </article>
+
+      <!-- go -->
+      <article class="cmd-entry card" id="cmd-go" data-cmd="go claim start next">
+        <h3><code>plandb go</code></h3>
+        <p>Claim and start the next ready task in one command. The preferred agent entry point. Atomic: no two agents claim the same task.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb go</span> <span class="token-flag">--agent</span> worker-1</code></pre>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--agent</code></td><td>string</td><td>default</td><td>Agent identifier. Also reads <code>PLANDB_AGENT</code> env var.</td></tr>
+            <tr><td><code>--project</code></td><td>string</td><td>current</td><td>Project ID (uses default if not set)</td></tr>
+          </tbody>
+        </table>
+        <h4>Example</h4>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb go</span> <span class="token-flag">--agent</span> claude-1
+<span class="token-accent">--> t-impl "Implement auth handler" [2/8 - 3 ready - 1 blocked]</span>
+
+<span class="token-output">upstream:
+  t-design --> (structured)
+
+downstream: t-tests "Write auth tests" (receives YOUR result)</span></code></pre>
+      </article>
+
+      <!-- done -->
+      <article class="cmd-entry card" id="cmd-done" data-cmd="done complete finish result next">
+        <h3><code>plandb done</code></h3>
+        <p>Complete a task, optionally attach result data and claim the next ready task in one shot.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb done</span> <span class="token-flag">--result</span> <span class="token-string">'{"api":"done"}'</span> <span class="token-flag">--next</span></code></pre>
+        <h4>Arguments</h4>
+        <table>
+          <thead><tr><th>Name</th><th>Required</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>[TASK_ID]</code></td><td>No</td><td>Task ID to complete. Omit to complete your current running task.</td></tr>
+          </tbody>
+        </table>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--result</code></td><td>string</td><td></td><td>Result data (JSON or plain text). Passed to downstream tasks via handoff.</td></tr>
+            <tr><td><code>--files</code></td><td>string</td><td></td><td>Files modified (comma-separated paths). Enables conflict detection.</td></tr>
+            <tr><td><code>--next</code></td><td>flag</td><td></td><td>After completing, claim + start next ready task.</td></tr>
+            <tr><td><code>--agent</code></td><td>string</td><td>default</td><td>Agent ID. Also reads <code>PLANDB_AGENT</code> env var.</td></tr>
+          </tbody>
+        </table>
+        <h4>Example</h4>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb done</span> <span class="token-flag">--result</span> <span class="token-string">'{"files":["src/auth.rs"]}'</span> <span class="token-flag">--next</span> <span class="token-flag">--agent</span> worker-1
+<span class="token-success">Completed t-impl "Implement auth handler"</span>
+<span class="token-accent">--> t-tests "Write auth tests" [3/8 - 2 ready]</span></code></pre>
+      </article>
+
+      <!-- status -->
+      <article class="cmd-entry card" id="cmd-status" data-cmd="status progress overview summary">
+        <h3><code>plandb status</code></h3>
+        <p>Show project progress: done/total, ready tasks, running agents. Three detail levels.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb status</span> <span class="token-flag">--detail</span></code></pre>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--project</code></td><td>string</td><td>Project ID (uses default if not set)</td></tr>
+            <tr><td><code>--detail</code></td><td>flag</td><td>Show per-task breakdown with status icons</td></tr>
+            <tr><td><code>--full</code></td><td>flag</td><td>Show all tasks and dependency edges</td></tr>
+          </tbody>
+        </table>
+        <h4>Example</h4>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb status</span>
+<span class="token-output">auth-system: 3/8 done - 2 ready - 1 running (worker-1)</span>
+
+<span class="token-prompt">$ </span><span class="token-command">plandb status</span> <span class="token-flag">--detail</span>
+<span class="token-success">[x]</span> t-research "Research auth patterns"
+<span class="token-success">[x]</span> t-design   "Design API schema"
+<span class="token-success">[x]</span> t-impl     "Implement auth handler"
+<span class="token-warning">[>]</span> t-tests    "Write auth tests"         <span class="token-warning">(worker-1)</span>
+<span class="token-accent">[o]</span> t-review   "Code review"
+<span class="token-accent">[o]</span> t-docs     "Write documentation"
+<span class="token-comment">[.]</span> t-deploy   "Deploy to staging"
+<span class="token-comment">[.]</span> t-e2e      "Run E2E tests"</code></pre>
+      </article>
+
+      <!-- show -->
+      <article class="cmd-entry card" id="cmd-show" data-cmd="show get details inspect">
+        <h3><code>plandb show</code></h3>
+        <p>Show full details of a task. Shortcut for <code>plandb task get</code>. Supports fuzzy ID matching.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb show</span> <span class="token-id">t-impl</span></code></pre>
+        <h4>Arguments</h4>
+        <table>
+          <thead><tr><th>Name</th><th>Required</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>&lt;TASK_ID&gt;</code></td><td>Yes</td><td>Task ID (supports fuzzy matching)</td></tr>
+          </tbody>
+        </table>
+        <h4>Example</h4>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb show</span> <span class="token-id">t-impl</span>
+<span class="token-output">id: t-impl
+project: p-auth-system
+title: Implement auth handler
+status: done
+kind: code
+priority: 0
+description: Implement JWT-based auth handler with refresh tokens.
+result: {"files":["src/auth.rs"]}</span></code></pre>
+      </article>
+
+      <!-- list -->
+      <article class="cmd-entry card" id="cmd-list" data-cmd="list filter query tasks">
+        <h3><code>plandb list</code></h3>
+        <p>List tasks with optional filters. Shortcut for <code>plandb task list</code>.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb list</span> <span class="token-flag">--status</span> ready <span class="token-flag">--kind</span> code</code></pre>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--project</code></td><td>string</td><td>Project ID</td></tr>
+            <tr><td><code>--status</code></td><td>enum</td><td>Filter by status: pending, ready, claimed, running, done, failed</td></tr>
+            <tr><td><code>--kind</code></td><td>enum</td><td>Filter by task kind</td></tr>
+            <tr><td><code>--tag</code></td><td>string</td><td>Filter by tag</td></tr>
+            <tr><td><code>--agent</code></td><td>string</td><td>Filter by agent</td></tr>
+          </tbody>
+        </table>
+        <h4>Example</h4>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb list</span> <span class="token-flag">--status</span> ready
+<span class="token-accent">[o]</span> t-review "Code review"         <span class="token-comment">ready</span>
+<span class="token-accent">[o]</span> t-docs   "Write documentation" <span class="token-comment">ready</span></code></pre>
+      </article>
+
+      <!-- split -->
+      <article class="cmd-entry card" id="cmd-split" data-cmd="split decompose divide subtasks">
+        <h3><code>plandb split</code></h3>
+        <p>Split a task into sub-tasks. Shortcut for <code>plandb task split</code>. Supports comma-separated titles, chain syntax with <code>&gt;</code>, or JSON arrays.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb split</span> <span class="token-flag">--into</span> <span class="token-string">"Parse tokens, Build AST, Generate IR"</span></code></pre>
+        <h4>Arguments</h4>
+        <table>
+          <thead><tr><th>Name</th><th>Required</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>[TASK_ID]</code></td><td>No</td><td>Task ID to split. Omit to split current running task.</td></tr>
+          </tbody>
+        </table>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--into</code></td><td>string</td><td>Parts: comma-separated (<code>"A, B, C"</code>), chain (<code>"A &gt; B &gt; C"</code>), or JSON array</td></tr>
+          </tbody>
+        </table>
+        <h4>Example</h4>
+        <pre><code><span class="token-comment"># Parallel sub-tasks (no dependencies between them)</span>
+<span class="token-prompt">$ </span><span class="token-command">plandb split</span> <span class="token-flag">--into</span> <span class="token-string">"Unit tests, Integration tests, E2E tests"</span>
+
+<span class="token-comment"># Sequential chain (each depends on the previous)</span>
+<span class="token-prompt">$ </span><span class="token-command">plandb split</span> <span class="token-flag">--into</span> <span class="token-string">"Parse > Validate > Transform"</span></code></pre>
+      </article>
+    </section>
+
+    <!-- ========== TASK MANAGEMENT ========== -->
+    <section id="task-management" data-group="task-management">
+      <h2>Task Management</h2>
+      <p class="text-dim">Lower-level task lifecycle commands available under <code>plandb task</code>.</p>
+
+      <!-- task create -->
+      <article class="cmd-entry card" id="cmd-task-create" data-cmd="task create add new">
+        <h3><code>plandb task create</code></h3>
+        <p>Create a new task in a project. Same as <code>plandb add</code> but under the <code>task</code> subcommand.</p>
+        <p class="text-dim text-sm">See <a href="#cmd-add"><code>plandb add</code></a> for the full options table.</p>
+      </article>
+
+      <!-- task create-batch -->
+      <article class="cmd-entry card" id="cmd-task-create-batch" data-cmd="task create-batch batch yaml import bulk">
+        <h3><code>plandb task create-batch</code></h3>
+        <p>Create multiple tasks from a YAML file. Ideal for bootstrapping a project plan.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb task create-batch</span> <span class="token-flag">--file</span> tasks.yaml</code></pre>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--file</code></td><td>path</td><td>YAML file with task definitions (see docs for schema). Required.</td></tr>
+            <tr><td><code>--project</code></td><td>string</td><td>Project ID (uses default if not set)</td></tr>
+          </tbody>
+        </table>
+        <h4>YAML Format</h4>
+        <pre><code><span class="token-comment"># tasks.yaml</span>
+tasks:
+  - id: design
+    title: "Design API schema"
+    kind: research
+    priority: 10
+    description: |
+      Research auth patterns and design the API.
+  - id: impl
+    title: "Implement handler"
+    kind: code
+    deps: [{ task: design, kind: feeds_into }]</code></pre>
+      </article>
+
+      <!-- task list -->
+      <article class="cmd-entry card" id="cmd-task-list" data-cmd="task list filter">
+        <h3><code>plandb task list</code></h3>
+        <p>List tasks with optional filters. Same as <code>plandb list</code>.</p>
+        <p class="text-dim text-sm">See <a href="#cmd-list"><code>plandb list</code></a> for the full options table.</p>
+      </article>
+
+      <!-- task get -->
+      <article class="cmd-entry card" id="cmd-task-get" data-cmd="task get show details">
+        <h3><code>plandb task get</code></h3>
+        <p>Get full details of a single task. Supports fuzzy ID matching. Same as <code>plandb show</code>.</p>
+        <p class="text-dim text-sm">See <a href="#cmd-show"><code>plandb show</code></a> for the full options table.</p>
+      </article>
+
+      <!-- task next -->
+      <article class="cmd-entry card" id="cmd-task-next" data-cmd="task next peek ready">
+        <h3><code>plandb task next</code></h3>
+        <p>Show or claim the next ready task for an agent. Prefer <code>plandb go</code> for the combined claim+start flow.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb task next</span> <span class="token-flag">--agent</span> worker-1 <span class="token-flag">--claim</span></code></pre>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--agent</code></td><td>string</td><td></td><td>Agent identifier. Required.</td></tr>
+            <tr><td><code>--project</code></td><td>string</td><td>current</td><td>Project ID</td></tr>
+            <tr><td><code>--claim</code></td><td>flag</td><td></td><td>Also claim the task atomically</td></tr>
+          </tbody>
+        </table>
+      </article>
+
+      <!-- task go -->
+      <article class="cmd-entry card" id="cmd-task-go" data-cmd="task go claim start">
+        <h3><code>plandb task go</code></h3>
+        <p>Claim + start next ready task. Same as <code>plandb go</code>.</p>
+        <p class="text-dim text-sm">See <a href="#cmd-go"><code>plandb go</code></a> for the full options table.</p>
+      </article>
+
+      <!-- task claim -->
+      <article class="cmd-entry card" id="cmd-task-claim" data-cmd="task claim reserve lock">
+        <h3><code>plandb task claim</code></h3>
+        <p>Claim a specific task by ID for an agent. The task must be in <code>ready</code> status.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb task claim</span> <span class="token-id">t-review</span> <span class="token-flag">--agent</span> reviewer-1</code></pre>
+        <h4>Arguments</h4>
+        <table>
+          <thead><tr><th>Name</th><th>Required</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>&lt;TASK_ID&gt;</code></td><td>Yes</td><td>Task ID to claim (must be in ready status)</td></tr>
+          </tbody>
+        </table>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--agent</code></td><td>string</td><td>Agent identifier claiming the task. Required.</td></tr>
+          </tbody>
+        </table>
+      </article>
+
+      <!-- task start -->
+      <article class="cmd-entry card" id="cmd-task-start" data-cmd="task start begin run">
+        <h3><code>plandb task start</code></h3>
+        <p>Transition a claimed task to running status.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb task start</span> <span class="token-id">t-review</span></code></pre>
+        <h4>Arguments</h4>
+        <table>
+          <thead><tr><th>Name</th><th>Required</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>&lt;TASK_ID&gt;</code></td><td>Yes</td><td>Task ID to start</td></tr>
+          </tbody>
+        </table>
+      </article>
+
+      <!-- task done -->
+      <article class="cmd-entry card" id="cmd-task-done" data-cmd="task done complete finish">
+        <h3><code>plandb task done</code></h3>
+        <p>Mark a task as complete. Same as <code>plandb done</code>.</p>
+        <p class="text-dim text-sm">See <a href="#cmd-done"><code>plandb done</code></a> for the full options table.</p>
+      </article>
+
+      <!-- task fail -->
+      <article class="cmd-entry card" id="cmd-task-fail" data-cmd="task fail error abort">
+        <h3><code>plandb task fail</code></h3>
+        <p>Mark a task as failed with an error message.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb task fail</span> <span class="token-id">t-deploy</span> <span class="token-flag">--error</span> <span class="token-string">"API changed, need to redesign"</span></code></pre>
+        <h4>Arguments</h4>
+        <table>
+          <thead><tr><th>Name</th><th>Required</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>&lt;TASK_ID&gt;</code></td><td>Yes</td><td>Task ID to mark as failed</td></tr>
+          </tbody>
+        </table>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--error</code></td><td>string</td><td>Error message describing why the task failed. Required.</td></tr>
+          </tbody>
+        </table>
+      </article>
+
+      <!-- task cancel -->
+      <article class="cmd-entry card" id="cmd-task-cancel" data-cmd="task cancel abort remove">
+        <h3><code>plandb task cancel</code></h3>
+        <p>Cancel a task, optionally cascading to all downstream dependent tasks.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb task cancel</span> <span class="token-id">t-deploy</span> <span class="token-flag">--cascade</span></code></pre>
+        <h4>Arguments</h4>
+        <table>
+          <thead><tr><th>Name</th><th>Required</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>&lt;TASK_ID&gt;</code></td><td>Yes</td><td>Task ID to cancel</td></tr>
+          </tbody>
+        </table>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--cascade</code></td><td>flag</td><td>Also cancel all downstream dependent tasks</td></tr>
+          </tbody>
+        </table>
+      </article>
+
+      <!-- task update -->
+      <article class="cmd-entry card" id="cmd-task-update" data-cmd="task update edit modify">
+        <h3><code>plandb task update</code></h3>
+        <p>Update task fields: title, description, kind, priority.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb task update</span> <span class="token-id">t-impl</span> <span class="token-flag">--priority</span> 10 <span class="token-flag">--kind</span> code</code></pre>
+        <h4>Arguments</h4>
+        <table>
+          <thead><tr><th>Name</th><th>Required</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>&lt;TASK_ID&gt;</code></td><td>Yes</td><td>Task ID to update</td></tr>
+          </tbody>
+        </table>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--title</code></td><td>string</td><td>New title</td></tr>
+            <tr><td><code>--description</code></td><td>string</td><td>New description</td></tr>
+            <tr><td><code>--kind</code></td><td>enum</td><td>New task kind</td></tr>
+            <tr><td><code>--priority</code></td><td>int</td><td>New priority</td></tr>
+          </tbody>
+        </table>
+      </article>
+
+      <!-- task heartbeat -->
+      <article class="cmd-entry card" id="cmd-task-heartbeat" data-cmd="task heartbeat alive ping">
+        <h3><code>plandb task heartbeat</code></h3>
+        <p>Update heartbeat timestamp to prove an agent is still working on a task. Useful for timeout-based reclaim.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb task heartbeat</span> <span class="token-id">t-impl</span></code></pre>
+        <h4>Arguments</h4>
+        <table>
+          <thead><tr><th>Name</th><th>Required</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>&lt;TASK_ID&gt;</code></td><td>Yes</td><td>Task ID to heartbeat</td></tr>
+          </tbody>
+        </table>
+      </article>
+
+      <!-- task progress -->
+      <article class="cmd-entry card" id="cmd-task-progress" data-cmd="task progress percent update">
+        <h3><code>plandb task progress</code></h3>
+        <p>Report progress percentage (0-100) on a running task.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb task progress</span> <span class="token-id">t-impl</span> <span class="token-flag">--percent</span> 75 <span class="token-flag">--note</span> <span class="token-string">"3 of 4 endpoints done"</span></code></pre>
+        <h4>Arguments</h4>
+        <table>
+          <thead><tr><th>Name</th><th>Required</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>&lt;TASK_ID&gt;</code></td><td>Yes</td><td>Task ID</td></tr>
+          </tbody>
+        </table>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--percent</code></td><td>int</td><td>Progress percentage (0-100). Required.</td></tr>
+            <tr><td><code>--note</code></td><td>string</td><td>Progress note</td></tr>
+          </tbody>
+        </table>
+      </article>
+
+      <!-- task approve -->
+      <article class="cmd-entry card" id="cmd-task-approve" data-cmd="task approve human review gate">
+        <h3><code>plandb task approve</code></h3>
+        <p>Approve a task that requires human approval before completion. Only applies to tasks created with <code>--requires-approval</code>.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb task approve</span> <span class="token-id">t-deploy</span> <span class="token-flag">--by</span> <span class="token-string">"alice"</span> <span class="token-flag">--comment</span> <span class="token-string">"LGTM"</span></code></pre>
+        <h4>Arguments</h4>
+        <table>
+          <thead><tr><th>Name</th><th>Required</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>&lt;TASK_ID&gt;</code></td><td>Yes</td><td>Task ID to approve</td></tr>
+          </tbody>
+        </table>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--by</code></td><td>string</td><td>Who approved (human name or ID)</td></tr>
+            <tr><td><code>--comment</code></td><td>string</td><td>Approval comment or feedback</td></tr>
+          </tbody>
+        </table>
+      </article>
+    </section>
+
+    <!-- ========== PLAN ADAPTATION ========== -->
+    <section id="plan-adaptation" data-group="plan-adaptation">
+      <h2>Plan Adaptation</h2>
+      <p class="text-dim">Mid-flight replanning: insert steps, amend context, pivot subtrees, split tasks, or replan entirely.</p>
+
+      <!-- task insert -->
+      <article class="cmd-entry card" id="cmd-task-insert" data-cmd="task insert between rewire add step">
+        <h3><code>plandb task insert</code></h3>
+        <p>Insert a new task between two existing tasks, rewiring dependencies automatically.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb task insert</span> <span class="token-flag">--after</span> <span class="token-id">t-design</span> <span class="token-flag">--before</span> <span class="token-id">t-impl</span> <span class="token-flag">--title</span> <span class="token-string">"Add validation layer"</span></code></pre>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--after</code></td><td>string</td><td>Upstream task (new task depends on this). Required.</td></tr>
+            <tr><td><code>--before</code></td><td>string</td><td>Downstream task (will depend on new task). Rewires the after-to-before edge.</td></tr>
+            <tr><td><code>--title</code></td><td>string</td><td>Title of the new task. Required.</td></tr>
+            <tr><td><code>--description</code></td><td>string</td><td>Description for the new task.</td></tr>
+            <tr><td><code>--project</code></td><td>string</td><td>Project ID</td></tr>
+          </tbody>
+        </table>
+        <h4>Example</h4>
+        <pre><code><span class="token-comment"># Before: t-design --> t-impl</span>
+<span class="token-prompt">$ </span><span class="token-command">plandb task insert</span> <span class="token-flag">--after</span> <span class="token-id">t-design</span> <span class="token-flag">--before</span> <span class="token-id">t-impl</span> <span class="token-flag">--title</span> <span class="token-string">"Add validation"</span>
+<span class="token-comment"># After:  t-design --> t-a3f7 "Add validation" --> t-impl</span></code></pre>
+      </article>
+
+      <!-- task amend -->
+      <article class="cmd-entry card" id="cmd-task-amend" data-cmd="task amend annotate prepend context note">
+        <h3><code>plandb task amend</code></h3>
+        <p>Prepend context to a task's description. Use this to annotate future tasks with discoveries made during current work.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb task amend</span> <span class="token-id">t-impl</span> <span class="token-flag">--prepend</span> <span class="token-string">"NOTE: Use JWT, not sessions"</span></code></pre>
+        <h4>Arguments</h4>
+        <table>
+          <thead><tr><th>Name</th><th>Required</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>&lt;TASK_ID&gt;</code></td><td>Yes</td><td>Task ID to amend</td></tr>
+          </tbody>
+        </table>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--prepend</code></td><td>string</td><td>Text to prepend to the task's description. Required.</td></tr>
+          </tbody>
+        </table>
+      </article>
+
+      <!-- task pivot -->
+      <article class="cmd-entry card" id="cmd-task-pivot" data-cmd="task pivot replace subtree new plan">
+        <h3><code>plandb task pivot</code></h3>
+        <p>Replace a task's pending subtree with new tasks from JSON or YAML. Keeps completed subtasks by default with <code>--keep-done</code>.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb task pivot</span> <span class="token-id">t-auth</span> <span class="token-flag">--file</span> new-plan.yaml <span class="token-flag">--keep-done</span></code></pre>
+        <h4>Arguments</h4>
+        <table>
+          <thead><tr><th>Name</th><th>Required</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>&lt;PARENT_ID&gt;</code></td><td>Yes</td><td>Parent task whose subtree will be replaced</td></tr>
+          </tbody>
+        </table>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--subtasks</code></td><td>string</td><td>New subtasks as JSON array: <code>[{"title":"...","description":"..."}]</code></td></tr>
+            <tr><td><code>--file</code></td><td>path</td><td>YAML file with new subtasks (alternative to --subtasks)</td></tr>
+            <tr><td><code>--keep-done</code></td><td>flag</td><td>Keep already-completed subtasks (only replace pending/ready ones)</td></tr>
+          </tbody>
+        </table>
+      </article>
+
+      <!-- task split (under task subcommand) -->
+      <article class="cmd-entry card" id="cmd-task-split" data-cmd="task split divide parts">
+        <h3><code>plandb task split</code></h3>
+        <p>Split one task into multiple sub-tasks. Same as <code>plandb split</code>.</p>
+        <p class="text-dim text-sm">See <a href="#cmd-split"><code>plandb split</code></a> for the full options table.</p>
+      </article>
+
+      <!-- task decompose -->
+      <article class="cmd-entry card" id="cmd-task-decompose" data-cmd="task decompose yaml subtasks breakdown">
+        <h3><code>plandb task decompose</code></h3>
+        <p>Decompose a task into subtasks defined in a YAML file. The parent task becomes a composite.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb task decompose</span> <span class="token-id">t-auth</span> <span class="token-flag">--file</span> auth-subtasks.yaml</code></pre>
+        <h4>Arguments</h4>
+        <table>
+          <thead><tr><th>Name</th><th>Required</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>&lt;TASK_ID&gt;</code></td><td>Yes</td><td>Task ID to decompose (becomes composite parent)</td></tr>
+          </tbody>
+        </table>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--file</code></td><td>path</td><td>YAML file defining subtasks with optional <code>deps_on</code> references. Required.</td></tr>
+          </tbody>
+        </table>
+      </article>
+
+      <!-- task replan -->
+      <article class="cmd-entry card" id="cmd-task-replan" data-cmd="task replan redo replace recreate">
+        <h3><code>plandb task replan</code></h3>
+        <p>Cancel pending subtasks and recreate from a YAML file. Use when the original plan is no longer valid.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb task replan</span> <span class="token-id">t-auth</span> <span class="token-flag">--file</span> revised-plan.yaml</code></pre>
+        <h4>Arguments</h4>
+        <table>
+          <thead><tr><th>Name</th><th>Required</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>&lt;TASK_ID&gt;</code></td><td>Yes</td><td>Task ID whose pending subtasks will be cancelled and recreated</td></tr>
+          </tbody>
+        </table>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--file</code></td><td>path</td><td>YAML file defining the new subtask plan. Required.</td></tr>
+          </tbody>
+        </table>
+      </article>
+
+      <!-- task pause -->
+      <article class="cmd-entry card" id="cmd-task-pause" data-cmd="task pause suspend stop save">
+        <h3><code>plandb task pause</code></h3>
+        <p>Pause a running task, saving progress for later resumption.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb task pause</span> <span class="token-id">t-impl</span> <span class="token-flag">--progress</span> 60 <span class="token-flag">--note</span> <span class="token-string">"Blocked on API spec"</span></code></pre>
+        <h4>Arguments</h4>
+        <table>
+          <thead><tr><th>Name</th><th>Required</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>&lt;TASK_ID&gt;</code></td><td>Yes</td><td>Task ID to pause</td></tr>
+          </tbody>
+        </table>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--progress</code></td><td>int</td><td>Save progress percentage (0-100) before pausing</td></tr>
+            <tr><td><code>--note</code></td><td>string</td><td>Note explaining why the task was paused or what remains</td></tr>
+          </tbody>
+        </table>
+      </article>
+    </section>
+
+    <!-- ========== DEPENDENCIES ========== -->
+    <section id="dependencies" data-group="dependencies">
+      <h2>Dependencies</h2>
+      <p class="text-dim">Add or remove dependency edges between tasks.</p>
+
+      <!-- task add-dep -->
+      <article class="cmd-entry card" id="cmd-task-add-dep" data-cmd="task add-dep dependency edge link">
+        <h3><code>plandb task add-dep</code></h3>
+        <p>Add a dependency edge between two tasks.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb task add-dep</span> <span class="token-id">t-tests</span> <span class="token-flag">--after</span> <span class="token-id">t-impl</span> <span class="token-flag">--kind</span> feeds_into</code></pre>
+        <h4>Arguments</h4>
+        <table>
+          <thead><tr><th>Name</th><th>Required</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>&lt;TO_TASK&gt;</code></td><td>Yes</td><td>Downstream task (the one that waits)</td></tr>
+          </tbody>
+        </table>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--after</code></td><td>string</td><td></td><td>Upstream task (must complete first). Required.</td></tr>
+            <tr><td><code>--kind</code></td><td>enum</td><td>feeds_into</td><td>Dependency type: feeds_into, blocks, suggests</td></tr>
+          </tbody>
+        </table>
+      </article>
+
+      <!-- task remove-dep -->
+      <article class="cmd-entry card" id="cmd-task-remove-dep" data-cmd="task remove-dep dependency unlink detach">
+        <h3><code>plandb task remove-dep</code></h3>
+        <p>Remove a dependency edge between two tasks.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb task remove-dep</span> <span class="token-id">t-tests</span> <span class="token-flag">--after</span> <span class="token-id">t-impl</span></code></pre>
+        <h4>Arguments</h4>
+        <table>
+          <thead><tr><th>Name</th><th>Required</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>&lt;TO_TASK&gt;</code></td><td>Yes</td><td>Downstream task</td></tr>
+          </tbody>
+        </table>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--after</code></td><td>string</td><td>Upstream task. Required.</td></tr>
+          </tbody>
+        </table>
+      </article>
+    </section>
+
+    <!-- ========== COMMUNICATION ========== -->
+    <section id="communication" data-group="communication">
+      <h2>Communication</h2>
+      <p class="text-dim">Inter-agent communication via notes and artifact attachments.</p>
+
+      <!-- task note -->
+      <article class="cmd-entry card" id="cmd-task-note" data-cmd="task note message communicate agent">
+        <h3><code>plandb task note</code></h3>
+        <p>Add a note to a task. Visible to all agents working on related tasks. Use for inter-agent communication.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb task note</span> <span class="token-id">t-impl</span> <span class="token-string">"Found unusual structure: definitions split across 3 exhibits"</span> <span class="token-flag">--agent</span> analyst-1</code></pre>
+        <h4>Arguments</h4>
+        <table>
+          <thead><tr><th>Name</th><th>Required</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>&lt;TASK_ID&gt;</code></td><td>Yes</td><td>Task ID to attach note to</td></tr>
+            <tr><td><code>&lt;CONTENT&gt;</code></td><td>Yes</td><td>Note content</td></tr>
+          </tbody>
+        </table>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--agent</code></td><td>string</td><td>Agent ID who is leaving the note</td></tr>
+          </tbody>
+        </table>
+      </article>
+
+      <!-- task notes -->
+      <article class="cmd-entry card" id="cmd-task-notes" data-cmd="task notes list read messages">
+        <h3><code>plandb task notes</code></h3>
+        <p>List all notes on a task.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb task notes</span> <span class="token-id">t-impl</span></code></pre>
+        <h4>Arguments</h4>
+        <table>
+          <thead><tr><th>Name</th><th>Required</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>&lt;TASK_ID&gt;</code></td><td>Yes</td><td>Task ID to list notes for</td></tr>
+          </tbody>
+        </table>
+      </article>
+
+      <!-- artifact write -->
+      <article class="cmd-entry card" id="cmd-artifact-write" data-cmd="artifact write attach upload file output">
+        <h3><code>plandb artifact write</code></h3>
+        <p>Write an artifact to a task, from a file or inline content.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb artifact write</span> <span class="token-flag">--task</span> <span class="token-id">t-impl</span> <span class="token-flag">--name</span> <span class="token-string">"schema.sql"</span> <span class="token-flag">--file</span> ./schema.sql <span class="token-flag">--kind</span> source</code></pre>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--task</code></td><td>string</td><td>Task ID to attach artifact to. Required.</td></tr>
+            <tr><td><code>--name</code></td><td>string</td><td>Artifact name (used for retrieval). Required.</td></tr>
+            <tr><td><code>--file</code></td><td>path</td><td>Read artifact content from this file path</td></tr>
+            <tr><td><code>--content</code></td><td>string</td><td>Inline artifact content (alternative to --file)</td></tr>
+            <tr><td><code>--kind</code></td><td>string</td><td>Artifact kind (e.g. source, config, report)</td></tr>
+            <tr><td><code>--mime</code></td><td>string</td><td>MIME type (e.g. application/json, text/plain)</td></tr>
+          </tbody>
+        </table>
+      </article>
+
+      <!-- artifact read -->
+      <article class="cmd-entry card" id="cmd-artifact-read" data-cmd="artifact read download get retrieve">
+        <h3><code>plandb artifact read</code></h3>
+        <p>Read an artifact by name from a task.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb artifact read</span> <span class="token-flag">--task</span> <span class="token-id">t-impl</span> <span class="token-flag">--name</span> <span class="token-string">"schema.sql"</span></code></pre>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--task</code></td><td>string</td><td>Task ID. Required.</td></tr>
+            <tr><td><code>--name</code></td><td>string</td><td>Artifact name to read. Required.</td></tr>
+          </tbody>
+        </table>
+      </article>
+
+      <!-- artifact list -->
+      <article class="cmd-entry card" id="cmd-artifact-list" data-cmd="artifact list artifacts files">
+        <h3><code>plandb artifact list</code></h3>
+        <p>List all artifacts attached to a task.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb artifact list</span> <span class="token-flag">--task</span> <span class="token-id">t-impl</span></code></pre>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--task</code></td><td>string</td><td>Task ID to list artifacts for. Required.</td></tr>
+          </tbody>
+        </table>
+      </article>
+    </section>
+
+    <!-- ========== INSPECTION ========== -->
+    <section id="inspection" data-group="inspection">
+      <h2>Inspection</h2>
+      <p class="text-dim">Look ahead, preview mutations, view the dependency graph, and get full project overviews.</p>
+
+      <!-- ahead -->
+      <article class="cmd-entry card" id="cmd-ahead" data-cmd="ahead lookahead upcoming next buffer">
+        <h3><code>plandb ahead</code></h3>
+        <p>Show upcoming tasks after current running tasks complete. Returns the lookahead buffer: currently running tasks and the next N layers of tasks that will become ready.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb ahead</span> <span class="token-flag">--depth</span> 3</code></pre>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--depth</code></td><td>int</td><td>2</td><td>Number of dependency layers to look ahead</td></tr>
+            <tr><td><code>--project</code></td><td>string</td><td>current</td><td>Project ID</td></tr>
+          </tbody>
+        </table>
+        <h4>Example</h4>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb ahead</span> <span class="token-flag">--depth</span> 2
+<span class="token-warning">Running now:</span>
+  t-impl "Implement auth handler" <span class="token-warning">(worker-1)</span>
+
+<span class="token-accent">Layer 1 (becomes ready when running tasks complete):</span>
+  t-tests  "Write auth tests"
+  t-review "Code review"
+
+<span class="token-comment">Layer 2:</span>
+  t-deploy "Deploy to staging"</code></pre>
+      </article>
+
+      <!-- what-if cancel -->
+      <article class="cmd-entry card" id="cmd-what-if-cancel" data-cmd="what-if cancel preview simulate dry-run">
+        <h3><code>plandb what-if cancel</code></h3>
+        <p>Preview what happens if a task is cancelled. Shows downstream impact without applying changes.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb what-if cancel</span> <span class="token-id">t-impl</span></code></pre>
+        <h4>Arguments</h4>
+        <table>
+          <thead><tr><th>Name</th><th>Required</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>&lt;TASK_ID&gt;</code></td><td>Yes</td><td>Task ID to simulate cancelling</td></tr>
+          </tbody>
+        </table>
+      </article>
+
+      <!-- what-if insert -->
+      <article class="cmd-entry card" id="cmd-what-if-insert" data-cmd="what-if insert preview simulate">
+        <h3><code>plandb what-if insert</code></h3>
+        <p>Preview what happens if a task is inserted between two existing tasks.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb what-if insert</span> <span class="token-flag">--after</span> <span class="token-id">t-design</span> <span class="token-flag">--before</span> <span class="token-id">t-impl</span> <span class="token-flag">--title</span> <span class="token-string">"Add validation"</span></code></pre>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--after</code></td><td>string</td><td>Upstream task. Required.</td></tr>
+            <tr><td><code>--before</code></td><td>string</td><td>Downstream task</td></tr>
+            <tr><td><code>--title</code></td><td>string</td><td>Title of the simulated task. Required.</td></tr>
+            <tr><td><code>--project</code></td><td>string</td><td>Project ID</td></tr>
+          </tbody>
+        </table>
+      </article>
+
+      <!-- task overview -->
+      <article class="cmd-entry card" id="cmd-task-overview" data-cmd="task overview full project summary all">
+        <h3><code>plandb task overview</code></h3>
+        <p>Full project overview: all tasks, dependencies, and progress summary.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb task overview</span></code></pre>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--project</code></td><td>string</td><td>Project ID (uses default if not set)</td></tr>
+          </tbody>
+        </table>
+      </article>
+
+      <!-- project dag -->
+      <article class="cmd-entry card" id="cmd-project-dag" data-cmd="project dag tree graph dependency visualization">
+        <h3><code>plandb project dag</code></h3>
+        <p>Render the task dependency graph as a tree.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb project dag</span></code></pre>
+        <h4>Arguments</h4>
+        <table>
+          <thead><tr><th>Name</th><th>Required</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>[PROJECT_ID]</code></td><td>No</td><td>Project ID (uses default if not set)</td></tr>
+          </tbody>
+        </table>
+      </article>
+
+      <!-- project list -->
+      <article class="cmd-entry card" id="cmd-project-list" data-cmd="project list projects all">
+        <h3><code>plandb project list</code></h3>
+        <p>List all projects, optionally filtered by status.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb project list</span> <span class="token-flag">--status</span> active</code></pre>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--status</code></td><td>enum</td><td>Filter by status: active, completed, archived</td></tr>
+          </tbody>
+        </table>
+      </article>
+
+      <!-- project status -->
+      <article class="cmd-entry card" id="cmd-project-status" data-cmd="project status counts progress">
+        <h3><code>plandb project status</code></h3>
+        <p>Show project status with task counts.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb project status</span></code></pre>
+        <h4>Arguments</h4>
+        <table>
+          <thead><tr><th>Name</th><th>Required</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>[PROJECT_ID]</code></td><td>No</td><td>Project ID (uses default if not set)</td></tr>
+          </tbody>
+        </table>
+      </article>
+
+      <!-- events list -->
+      <article class="cmd-entry card" id="cmd-events-list" data-cmd="events list history log audit">
+        <h3><code>plandb events list</code></h3>
+        <p>List past events with optional filters.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb events list</span> <span class="token-flag">--project</span> <span class="token-id">p-auth</span> <span class="token-flag">--limit</span> 20</code></pre>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--project</code></td><td>string</td><td>Project ID. Required.</td></tr>
+            <tr><td><code>--type</code></td><td>string</td><td>Filter by event type</td></tr>
+            <tr><td><code>--since</code></td><td>string</td><td>Only show events after this datetime (YYYY-MM-DD HH:MM:SS)</td></tr>
+            <tr><td><code>--limit</code></td><td>int</td><td>Max number of events to return</td></tr>
+          </tbody>
+        </table>
+      </article>
+
+      <!-- events watch -->
+      <article class="cmd-entry card" id="cmd-events-watch" data-cmd="events watch stream realtime live">
+        <h3><code>plandb events watch</code></h3>
+        <p>Watch for new events in real-time (polls every 1s).</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb events watch</span> <span class="token-flag">--project</span> <span class="token-id">p-auth</span></code></pre>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--project</code></td><td>string</td><td>Project ID. Required.</td></tr>
+            <tr><td><code>--type</code></td><td>string</td><td>Filter by event type</td></tr>
+          </tbody>
+        </table>
+      </article>
+    </section>
+
+    <!-- ========== SCOPING ========== -->
+    <section id="scoping" data-group="scoping">
+      <h2>Scoping</h2>
+      <p class="text-dim">Set the active project or zoom into composite tasks.</p>
+
+      <!-- use -->
+      <article class="cmd-entry card" id="cmd-use" data-cmd="use scope project task zoom navigate cd">
+        <h3><code>plandb use</code></h3>
+        <p>Set scope: project, composite task, or parent. Works like <code>cd</code> for your task graph.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb use</span> <span class="token-id">p-auth-system</span>    <span class="token-comment"># Set active project</span>
+<span class="token-prompt">$ </span><span class="token-command">plandb use</span> <span class="token-id">t-auth</span>            <span class="token-comment"># Zoom into composite task</span>
+<span class="token-prompt">$ </span><span class="token-command">plandb use</span> ..                 <span class="token-comment"># Go up one level</span></code></pre>
+        <h4>Arguments</h4>
+        <table>
+          <thead><tr><th>Name</th><th>Required</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>[TARGET]</code></td><td>No</td><td>Project ID, task ID, or <code>..</code> to go up</td></tr>
+          </tbody>
+        </table>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--clear</code></td><td>flag</td><td>Clear scope to project root</td></tr>
+          </tbody>
+        </table>
+      </article>
+    </section>
+
+    <!-- ========== SERVER & INTEGRATION ========== -->
+    <section id="server" data-group="server">
+      <h2>Server &amp; Integration</h2>
+      <p class="text-dim">Run PlanDB as an MCP server, HTTP API, or generate integration configs.</p>
+
+      <!-- mcp -->
+      <article class="cmd-entry card" id="cmd-mcp" data-cmd="mcp server stdio json-rpc claude cursor windsurf">
+        <h3><code>plandb mcp</code></h3>
+        <p>Start MCP server (stdio JSON-RPC) for Claude Code, Cursor, and Windsurf integration.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb mcp</span></code></pre>
+        <p class="text-dim text-sm">No additional options beyond global flags. The server reads/writes on stdin/stdout using the MCP protocol.</p>
+      </article>
+
+      <!-- serve -->
+      <article class="cmd-entry card" id="cmd-serve" data-cmd="serve http api rest sse server port">
+        <h3><code>plandb serve</code></h3>
+        <p>Start HTTP server with REST API and SSE event stream.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb serve</span> <span class="token-flag">--port</span> 9090</code></pre>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>-p, --port</code></td><td>int</td><td>8484</td><td>Port to listen on</td></tr>
+          </tbody>
+        </table>
+      </article>
+
+      <!-- prompt -->
+      <article class="cmd-entry card" id="cmd-prompt" data-cmd="prompt config integration setup mcp cli http">
+        <h3><code>plandb prompt</code></h3>
+        <p>Generate integration prompt/config for your agent platform. Outputs ready-to-paste configuration.</p>
+        <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb prompt</span> <span class="token-flag">--for</span> mcp
+<span class="token-prompt">$ </span><span class="token-command">plandb prompt</span> <span class="token-flag">--for</span> cli
+<span class="token-prompt">$ </span><span class="token-command">plandb prompt</span> <span class="token-flag">--list</span></code></pre>
+        <h4>Options</h4>
+        <table>
+          <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--for</code></td><td>enum</td><td>Target platform: <code>mcp</code>, <code>cli</code>, or <code>http</code></td></tr>
+            <tr><td><code>--list</code></td><td>flag</td><td>List available platforms</td></tr>
+          </tbody>
+        </table>
+      </article>
+    </section>
+
+    <!-- ========== GLOBAL OPTIONS ========== -->
+    <section id="global-options" data-group="global-options">
+      <h2>Global Options</h2>
+      <p class="text-dim">These flags are available on every command.</p>
+      <table>
+        <thead><tr><th>Flag</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>--db</code></td><td>path</td><td><code>.plandb.db</code></td><td>Path to SQLite database file</td></tr>
+          <tr><td><code>--json</code></td><td>flag</td><td></td><td>Output as structured JSON</td></tr>
+          <tr><td><code>-c, --compact</code></td><td>flag</td><td></td><td>Compact output optimized for LLM context windows</td></tr>
+          <tr><td><code>-h, --help</code></td><td>flag</td><td></td><td>Print help</td></tr>
+          <tr><td><code>-V, --version</code></td><td>flag</td><td></td><td>Print version</td></tr>
+        </tbody>
+      </table>
+      <h4>Output Modes</h4>
+      <pre><code><span class="token-prompt">$ </span><span class="token-command">plandb status</span>                  <span class="token-comment"># Human-readable (default)</span>
+<span class="token-prompt">$ </span><span class="token-command">plandb status</span> <span class="token-flag">--json</span>           <span class="token-comment"># Structured JSON</span>
+<span class="token-prompt">$ </span><span class="token-command">plandb status</span> <span class="token-flag">-c</span>               <span class="token-comment"># Compact (token-efficient for LLMs)</span>
+<span class="token-prompt">$ </span><span class="token-command">plandb status</span> <span class="token-flag">--json</span> <span class="token-flag">-c</span>       <span class="token-comment"># Compact JSON</span></code></pre>
+    </section>
+
+    <!-- ========== ENVIRONMENT VARIABLES ========== -->
+    <section id="environment" data-group="environment">
+      <h2>Environment Variables</h2>
+      <table>
+        <thead><tr><th>Variable</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>PLANDB_AGENT</code></td>
+            <td><code>default</code></td>
+            <td>Default agent ID. Avoids passing <code>--agent</code> on every command. Set per-agent in multi-agent setups.</td>
+          </tr>
+          <tr>
+            <td><code>PLANDB_DB</code></td>
+            <td><code>.plandb.db</code></td>
+            <td>Path to SQLite database. Overrides <code>--db</code> flag. Useful for sharing a DB across directories.</td>
+          </tr>
+        </tbody>
+      </table>
+      <h4>Example: Multi-Agent Setup</h4>
+      <pre><code><span class="token-comment"># Terminal 1 — Agent A</span>
+<span class="token-prompt">$ </span>export PLANDB_AGENT=agent-a
+<span class="token-prompt">$ </span>export PLANDB_DB=/shared/project.plandb.db
+<span class="token-prompt">$ </span><span class="token-command">plandb go</span>      <span class="token-comment"># Claims as agent-a</span>
+
+<span class="token-comment"># Terminal 2 — Agent B</span>
+<span class="token-prompt">$ </span>export PLANDB_AGENT=agent-b
+<span class="token-prompt">$ </span>export PLANDB_DB=/shared/project.plandb.db
+<span class="token-prompt">$ </span><span class="token-command">plandb go</span>      <span class="token-comment"># Claims a different task as agent-b</span></code></pre>
+    </section>
+
+    <!-- ========== TASK STATES ========== -->
+    <section id="task-states" data-group="task-states">
+      <h2>Task States</h2>
+      <p>Every task follows this lifecycle:</p>
+      <div class="diagram">
+        <pre><code><span class="badge badge-pending">pending</span>  ---(deps satisfied)---&gt;  <span class="badge badge-ready">ready</span>  ---(go/claim)---&gt;  <span class="badge badge-running">claimed</span>  ---(start)---&gt;  <span class="badge badge-running">running</span>
+                                                                                           |
+                                                                               +-----------+-----------+
+                                                                               |                       |
+                                                                         <span class="badge badge-done">done</span>                  <span class="badge badge-failed">failed</span></code></pre>
+      </div>
+      <table>
+        <thead><tr><th>State</th><th>Meaning</th><th>Transitions To</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-pending">pending</span></td><td>Waiting for upstream dependencies to complete</td><td>ready (automatic)</td></tr>
+          <tr><td><span class="badge badge-ready">ready</span></td><td>All dependencies satisfied, available for claiming</td><td>claimed</td></tr>
+          <tr><td><span class="badge badge-running">claimed</span></td><td>Reserved by an agent, not yet started</td><td>running</td></tr>
+          <tr><td><span class="badge badge-running">running</span></td><td>Actively being worked on</td><td>done, failed, paused</td></tr>
+          <tr><td><span class="badge badge-done">done</span></td><td>Completed successfully (result data available)</td><td>terminal</td></tr>
+          <tr><td><span class="badge badge-failed">failed</span></td><td>Failed with an error message</td><td>ready (retry)</td></tr>
+        </tbody>
+      </table>
+      <p class="text-dim text-sm">Note: <code>plandb go</code> combines claim + start in one atomic operation, transitioning directly from <code>ready</code> to <code>running</code>.</p>
+    </section>
+
+    <!-- ========== DEPENDENCY TYPES ========== -->
+    <section id="dep-types" data-group="dep-types">
+      <h2>Dependency Types</h2>
+      <table>
+        <thead><tr><th>Type</th><th>Blocks?</th><th>Data Flow?</th><th>Use When</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>feeds_into</code></td>
+            <td>Yes</td>
+            <td>Yes</td>
+            <td>Task B needs Task A's result data (e.g., anatomy output feeds into planner)</td>
+          </tr>
+          <tr>
+            <td><code>blocks</code></td>
+            <td>Yes</td>
+            <td>No</td>
+            <td>Task B must wait for A but doesn't use A's result (ordering only)</td>
+          </tr>
+          <tr>
+            <td><code>suggests</code></td>
+            <td>No</td>
+            <td>No</td>
+            <td>Nice to have A done first, but B can proceed without it (soft dependency)</td>
+          </tr>
+        </tbody>
+      </table>
+      <h4>Specifying Dependencies</h4>
+      <pre><code><span class="token-comment"># Default: feeds_into</span>
+<span class="token-prompt">$ </span><span class="token-command">plandb add</span> <span class="token-string">"Implement"</span> <span class="token-flag">--dep</span> <span class="token-id">t-design</span>
+
+<span class="token-comment"># Explicit type</span>
+<span class="token-prompt">$ </span><span class="token-command">plandb add</span> <span class="token-string">"Implement"</span> <span class="token-flag">--dep</span> <span class="token-id">t-design:feeds_into</span>
+<span class="token-prompt">$ </span><span class="token-command">plandb add</span> <span class="token-string">"Deploy"</span> <span class="token-flag">--dep</span> <span class="token-id">t-tests:blocks</span>
+<span class="token-prompt">$ </span><span class="token-command">plandb add</span> <span class="token-string">"Docs"</span> <span class="token-flag">--dep</span> <span class="token-id">t-impl:suggests</span>
+
+<span class="token-comment"># Multiple dependencies</span>
+<span class="token-prompt">$ </span><span class="token-command">plandb add</span> <span class="token-string">"Integration tests"</span> <span class="token-flag">--dep</span> <span class="token-id">t-api</span> <span class="token-flag">--dep</span> <span class="token-id">t-db</span></code></pre>
+    </section>
+
+    <!-- ========== TASK KINDS ========== -->
+    <section id="task-kinds" data-group="task-kinds">
+      <h2>Task Kinds</h2>
+      <table>
+        <thead><tr><th>Kind</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>generic</code></td><td>Default. Any task that doesn't fit a specific kind.</td></tr>
+          <tr><td><code>code</code></td><td>Implementation tasks: writing, modifying, or refactoring code.</td></tr>
+          <tr><td><code>research</code></td><td>Investigation, exploration, or information gathering.</td></tr>
+          <tr><td><code>review</code></td><td>Code review, design review, or security audit.</td></tr>
+          <tr><td><code>test</code></td><td>Writing or running tests.</td></tr>
+          <tr><td><code>shell</code></td><td>Shell commands, infrastructure, or deployment tasks.</td></tr>
+        </tbody>
+      </table>
+      <p class="text-dim text-sm">Use <code>--kind</code> when creating tasks to enable filtering with <code>plandb list --kind code</code>.</p>
+    </section>
+
+  </main>
+</div>
+
+<!-- Footer -->
+<footer class="footer">
+  <ul class="footer-links">
+    <li><a href="index.html">Home</a></li>
+    <li><a href="getting-started.html">Getting Started</a></li>
+    <li><a href="cli-reference.html">CLI Reference</a></li>
+    <li><a href="architecture.html">Architecture</a></li>
+    <li><a href="playground.html">Playground</a></li>
+  </ul>
+  <p>PlanDB &mdash; Task graph primitive for AI agent orchestration.</p>
+</footer>
+
+<!-- Navigation -->
+<script src="nav.js"></script>
+
+<!-- Search & Sidebar Active State -->
+<script>
+(function () {
+  'use strict';
+
+  var searchInput = document.getElementById('cmd-search');
+  var entries = document.querySelectorAll('.cmd-entry');
+  var sections = document.querySelectorAll('section[data-group]');
+  var sidebarLinks = document.querySelectorAll('#sidebar-nav a');
+
+  /* --- Search / Filter --- */
+  searchInput.addEventListener('input', function () {
+    var query = this.value.toLowerCase().trim();
+
+    if (!query) {
+      entries.forEach(function (el) { el.style.display = ''; });
+      sections.forEach(function (el) { el.style.display = ''; });
+      return;
+    }
+
+    sections.forEach(function (section) {
+      var sectionEntries = section.querySelectorAll('.cmd-entry');
+      var anyVisible = false;
+
+      sectionEntries.forEach(function (entry) {
+        var cmdData = (entry.getAttribute('data-cmd') || '').toLowerCase();
+        var title = (entry.querySelector('h3') || {}).textContent || '';
+        var text = title.toLowerCase() + ' ' + cmdData;
+        var match = text.indexOf(query) !== -1;
+        entry.style.display = match ? '' : 'none';
+        if (match) anyVisible = true;
+      });
+
+      section.style.display = anyVisible ? '' : 'none';
+    });
+  });
+
+  /* --- Sidebar Active State on Scroll --- */
+  var observerOptions = {
+    root: null,
+    rootMargin: '-80px 0px -60% 0px',
+    threshold: 0
+  };
+
+  var observer = new IntersectionObserver(function (observerEntries) {
+    observerEntries.forEach(function (entry) {
+      if (entry.isIntersecting) {
+        var id = entry.target.id;
+        sidebarLinks.forEach(function (link) {
+          link.classList.toggle('active', link.getAttribute('href') === '#' + id);
+        });
+      }
+    });
+  }, observerOptions);
+
+  sections.forEach(function (section) {
+    observer.observe(section);
+  });
+
+  /* Also observe non-group sections */
+  var extraSections = document.querySelectorAll('#global-options, #environment, #task-states, #dep-types, #task-kinds');
+  extraSections.forEach(function (section) {
+    observer.observe(section);
+  });
+
+  /* --- Keyboard shortcut: focus search with / --- */
+  document.addEventListener('keydown', function (e) {
+    if (e.key === '/' && document.activeElement !== searchInput) {
+      e.preventDefault();
+      searchInput.focus();
+    }
+  });
+})();
+</script>
+
+</body>
+</html>

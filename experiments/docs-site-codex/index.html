@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PlanDB</title>
+    <meta
+      name="description"
+      content="PlanDB documentation and interactive playground for dependency-aware task orchestration."
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="nav-shell">
+        <a class="brand" href="index.html">
+          <span class="brand-mark">P</span>
+          <span class="brand-text">
+            <span class="brand-name">PlanDB</span>
+            <span class="brand-tag">Task graph primitive for AI agents</span>
+          </span>
+        </a>
+        <nav class="nav-links" aria-label="Primary">
+          <a data-nav href="index.html">Overview</a>
+          <a data-nav href="getting-started.html">Getting Started</a>
+          <a data-nav href="cli-reference.html">CLI Reference</a>
+          <a data-nav href="architecture.html">Architecture</a>
+          <a data-nav href="playground.html">Playground</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="page-shell">
+      <section class="hero">
+        <div>
+          <div class="eyebrow">Compound graph orchestration</div>
+          <h1>PlanDB</h1>
+          <p class="lede">
+            A CLI task graph tool for AI agents. PlanDB turns complex work into
+            a dependency-aware graph that agents can claim, execute, decompose,
+            and complete without losing coordination state.
+          </p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="getting-started.html">Start the workflow</a>
+            <a class="button button-secondary" href="playground.html">Open playground</a>
+          </div>
+        </div>
+        <aside class="hero-panel" aria-label="Terminal preview">
+          <div class="terminal-topbar">
+            <span class="terminal-dot" aria-hidden="true"></span>
+          </div>
+          <div class="terminal-body">
+            <pre>$ plandb init "release-plan"
+created p-demo (release-plan)
+
+$ plandb add "Draft docs" --dep t-api --description "Write docs"
+created task t-docs
+
+$ plandb go
+→ t-api "Design API" [1 ready]
+
+$ plandb done --next
+✓ t-api done → claimed t-docs</pre>
+          </div>
+        </aside>
+      </section>
+
+      <section class="section">
+        <div class="metric-grid">
+          <article class="metric-card">
+            <strong>2 graphs</strong>
+            <span class="muted">Place graph for containment, link graph for dependencies.</span>
+          </article>
+          <article class="metric-card">
+            <strong>1 loop</strong>
+            <span class="muted">Claim the next ready task, complete it, move forward.</span>
+          </article>
+          <article class="metric-card">
+            <strong>N agents</strong>
+            <span class="muted">Shared coordination state for parallel execution.</span>
+          </article>
+          <article class="metric-card">
+            <strong>0 guesswork</strong>
+            <span class="muted">Descriptions double as durable work orders.</span>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-header page-intro">
+          <h2>What PlanDB is</h2>
+          <p>
+            PlanDB is the task graph primitive behind agent orchestration. It
+            stores work in SQLite, enforces dependencies, and gives agents a
+            simple operational loop: claim the next ready task, perform the
+            work, then complete and continue.
+          </p>
+        </div>
+        <div class="feature-grid">
+          <article class="content-card">
+            <h3>Shared state for agent work</h3>
+            <p>
+              Every task lives in a persistent graph with explicit IDs,
+              descriptions, dependencies, status, and ownership. An agent can
+              stop, resume, or hand off work without reconstructing context from
+              chat history.
+            </p>
+          </article>
+          <article class="content-card">
+            <h3>Dependency-aware execution</h3>
+            <p>
+              `plandb go` only claims tasks whose upstream dependencies are
+              complete. That gives you safe parallelism by default instead of
+              optimistic concurrency and manual coordination.
+            </p>
+          </article>
+          <article class="content-card">
+            <h3>Recursive decomposition</h3>
+            <p>
+              Work starts coarse, then splits as you learn more. Subtasks can
+              live inside parent tasks while dependency edges continue to express
+              execution order across the broader graph.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section grid-2">
+        <article class="content-card prose">
+          <div class="section-header">
+            <h2>Why it exists</h2>
+          </div>
+          <p>
+            AI agents need more than a flat todo list. They need a durable model
+            of work that distinguishes structure from sequencing: what belongs
+            inside what, and what must happen before what.
+          </p>
+          <p>
+            PlanDB exists to represent both at once. The place graph models
+            containment and decomposition. The link graph models dependencies.
+            Keeping those structures orthogonal avoids the usual failure mode
+            where hierarchy and execution order get conflated.
+          </p>
+          <p>
+            The result is a compound graph that matches how agents actually work:
+            break tasks down, coordinate across specialists, and continue from
+            shared project state instead of ephemeral prompts.
+          </p>
+        </article>
+
+        <article class="content-card prose">
+          <div class="section-header">
+            <h2>The core loop</h2>
+          </div>
+          <pre class="code-block">$ plandb init "docs-site"
+$ plandb add "Draft architecture page" --description "Explain place graph and link graph"
+$ plandb add "Build playground" --dep t-architecture --description "Create terminal simulator"
+$ plandb go
+$ plandb done --next</pre>
+          <p class="muted">
+            That loop is the operational center: initialize a project, encode
+            work with dependencies, claim what is ready, and complete tasks while
+            automatically advancing.
+          </p>
+        </article>
+      </section>
+
+      <section class="section">
+        <div class="section-header page-intro">
+          <h2>Why it fits AI agent orchestration</h2>
+          <p>
+            PlanDB makes agent collaboration explicit. Tasks are not just titles;
+            they are instructions. Dependencies are not conventions; they are
+            enforced edges.
+          </p>
+        </div>
+        <div class="grid-2">
+          <article class="content-card">
+            <h3>Descriptions as work orders</h3>
+            <p>
+              Each task description can specify exact files, acceptance
+              criteria, and constraints so a different agent can pick it up from
+              `plandb show` and work independently.
+            </p>
+          </article>
+          <article class="content-card">
+            <h3>Safe multi-agent claiming</h3>
+            <p>
+              Multiple agents can run the same workflow against one database.
+              Ready-state gating prevents duplicate ownership and keeps execution
+              aligned with the actual graph.
+            </p>
+          </article>
+          <article class="content-card">
+            <h3>Adaptive decomposition</h3>
+            <p>
+              When a task grows during execution, split it into parallel parts or
+              a chained sequence instead of rewriting the plan from scratch.
+            </p>
+          </article>
+          <article class="content-card">
+            <h3>Operational clarity</h3>
+            <p>
+              `status`, `show`, and the task-level tools make the project state
+              inspectable at any time. The graph becomes the source of truth for
+              both humans and agents.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <article class="callout prose">
+          <div class="section-header">
+            <h2>Continue into the docs</h2>
+          </div>
+          <p>
+            Start with the guided workflow, inspect the live CLI surface, or see
+            how the compound graph model works under the hood.
+          </p>
+          <div class="button-row">
+            <a class="button button-primary" href="getting-started.html">Read Getting Started</a>
+            <a class="button button-secondary" href="cli-reference.html">Browse CLI Reference</a>
+            <a class="button button-secondary" href="architecture.html">Study Architecture</a>
+            <a class="button button-secondary" href="playground.html">Try Playground</a>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-shell">
+        <span>PlanDB static documentation site.</span>
+        <span>&copy; <span data-year></span> PlanDB</span>
+      </div>
+    </footer>
+  </body>
+</html>

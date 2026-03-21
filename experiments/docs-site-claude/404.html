@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>404 — PlanDB</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='8' cy='16' r='4' fill='%2338bdf8'/><circle cx='24' cy='8' r='4' fill='%2338bdf8'/><circle cx='24' cy='24' r='4' fill='%2338bdf8'/><line x1='12' y1='14' x2='20' y2='10' stroke='%2338bdf8' stroke-width='2'/><line x1='12' y1='18' x2='20' y2='22' stroke='%2338bdf8' stroke-width='2'/></svg>">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container" style="text-align:center; padding-top: 8rem;">
+    <h1 style="font-size: 6rem; margin-bottom: 0.5rem;">404</h1>
+    <p class="text-dim" style="font-size: 1.25rem; margin-bottom: 2rem;">
+      Task not found. This page doesn't exist in the graph.
+    </p>
+    <div class="terminal" style="max-width: 480px; margin: 0 auto 2rem;">
+      <div class="terminal-header">
+        <span class="terminal-dot red"></span>
+        <span class="terminal-dot yellow"></span>
+        <span class="terminal-dot green"></span>
+        <span class="terminal-title">plandb</span>
+      </div>
+      <div class="terminal-body">
+        <div class="terminal-line"><span class="token-prompt">$ </span><span class="token-command">plandb show</span> <span class="token-string">t-this-page</span></div>
+        <div class="terminal-line"><span class="token-error">error: task t-this-page not found</span></div>
+      </div>
+    </div>
+    <a href="index.html" class="btn btn-primary">Back to Home</a>
+  </div>
+  <script src="nav.js"></script>
+</body>
+</html>

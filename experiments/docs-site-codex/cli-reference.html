@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PlanDB CLI Reference</title>
+    <meta name="description" content="Reference for PlanDB CLI commands." />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="nav-shell">
+        <a class="brand" href="index.html">
+          <span class="brand-mark">P</span>
+          <span class="brand-text">
+            <span class="brand-name">PlanDB</span>
+            <span class="brand-tag">Task graph primitive for AI agents</span>
+          </span>
+        </a>
+        <nav class="nav-links" aria-label="Primary">
+          <a data-nav href="index.html">Overview</a>
+          <a data-nav href="getting-started.html">Getting Started</a>
+          <a data-nav href="cli-reference.html">CLI Reference</a>
+          <a data-nav href="architecture.html">Architecture</a>
+          <a data-nav href="playground.html">Playground</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="page-shell">
+      <section class="page-intro">
+        <div class="eyebrow">Reference</div>
+        <h1 class="page-title">CLI Reference</h1>
+        <p class="lede">
+          This page is built from live help output from the installed PlanDB CLI
+          in this workspace. Usage lines and option names below are verified from
+          command output, not reconstructed from memory.
+        </p>
+      </section>
+
+      <section class="section grid-2">
+        <aside class="toc-card">
+          <h2>On this page</h2>
+          <ol class="toc-list">
+            <li><a href="#overview">CLI overview</a></li>
+            <li><a href="#workflow">Getting-started commands</a></li>
+            <li><a href="#task-namespace">Task namespace</a></li>
+            <li><a href="#verified-scope">Verified scope</a></li>
+          </ol>
+        </aside>
+
+        <article class="callout prose" id="verified-scope">
+          <div class="section-header">
+            <h2>Verified scope</h2>
+          </div>
+          <p>
+            Fully inspected with live help output:
+            <span class="inline-code">plandb --help</span>,
+            <span class="inline-code">init --help</span>,
+            <span class="inline-code">add --help</span>,
+            <span class="inline-code">go --help</span>,
+            <span class="inline-code">done --help</span>,
+            <span class="inline-code">split --help</span>,
+            <span class="inline-code">status --help</span>,
+            <span class="inline-code">show --help</span>,
+            <span class="inline-code">task --help</span>, and
+            <span class="inline-code">task add-dep --help</span>.
+          </p>
+          <p>
+            Commands listed only under <span class="inline-code">plandb task --help</span>
+            are included as discovered subcommands, but their individual flags
+            are not expanded here unless separately verified.
+          </p>
+        </article>
+      </section>
+
+      <section class="section prose" id="overview">
+        <div class="section-header">
+          <h2>CLI overview</h2>
+          <p>
+            The top-level help describes PlanDB as a task graph primitive for AI
+            agent orchestration with three interfaces: CLI, MCP server, and HTTP
+            API.
+          </p>
+        </div>
+        <pre class="code-block">Usage: plandb [OPTIONS] &lt;COMMAND&gt;
+
+Options:
+  --db &lt;DB&gt;     Path to SQLite database file
+  --json        Output as structured JSON
+  -c, --compact Compact output optimized for LLM context windows
+  -h, --help    Print help
+  -V, --version Print version</pre>
+        <div class="grid-2 section">
+          <article class="content-card">
+            <h3>Primary workflow commands</h3>
+            <ul>
+              <li><span class="inline-code">init</span> creates a project.</li>
+              <li><span class="inline-code">add</span> creates a task.</li>
+              <li><span class="inline-code">go</span> claims the next ready task.</li>
+              <li><span class="inline-code">done --next</span> completes and continues.</li>
+              <li><span class="inline-code">status</span> inspects progress.</li>
+              <li><span class="inline-code">split</span> decomposes a task into parts.</li>
+            </ul>
+          </article>
+          <article class="content-card">
+            <h3>Additional top-level commands surfaced by help</h3>
+            <ul>
+              <li><span class="inline-code">use</span>, <span class="inline-code">ahead</span>, and <span class="inline-code">what-if</span> support navigation and plan adaptation.</li>
+              <li><span class="inline-code">task</span> exposes deeper task-management operations.</li>
+              <li><span class="inline-code">project</span>, <span class="inline-code">serve</span>, and <span class="inline-code">agent</span> appear in the top-level command list.</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="workflow">
+        <div class="section-header page-intro">
+          <h2>Getting-started commands</h2>
+          <p>
+            These commands were individually verified with their own
+            <span class="inline-code">--help</span> output.
+          </p>
+        </div>
+
+        <div class="steps">
+          <article class="content-card step prose">
+            <h3><span class="inline-code">plandb init</span></h3>
+            <pre class="code-block">Create a project and set as default
+
+Usage: plandb init [OPTIONS] &lt;NAME&gt;</pre>
+            <p><strong>Arguments:</strong> <span class="inline-code">&lt;NAME&gt;</span> project name.</p>
+            <p>
+              <strong>Verified options:</strong>
+              <span class="inline-code">--description</span>,
+              <span class="inline-code">--db</span>,
+              <span class="inline-code">--json</span>,
+              <span class="inline-code">-c/--compact</span>.
+            </p>
+          </article>
+
+          <article class="content-card step prose">
+            <h3><span class="inline-code">plandb add</span></h3>
+            <pre class="code-block">Create a new task
+
+Usage: plandb add [OPTIONS] &lt;TITLE&gt;</pre>
+            <p>
+              <strong>Arguments:</strong> <span class="inline-code">&lt;TITLE&gt;</span> task title.
+            </p>
+            <p>
+              <strong>Verified task options:</strong>
+              <span class="inline-code">--project</span>,
+              <span class="inline-code">--as</span>,
+              <span class="inline-code">--kind</span>,
+              <span class="inline-code">--description</span>,
+              <span class="inline-code">--priority</span>,
+              <span class="inline-code">--dep</span>,
+              <span class="inline-code">--parent</span>,
+              <span class="inline-code">--max-retries</span>,
+              <span class="inline-code">--timeout</span>,
+              <span class="inline-code">--requires-approval</span>,
+              <span class="inline-code">--tag</span>,
+              plus the common <span class="inline-code">--db</span>,
+              <span class="inline-code">--json</span>, and
+              <span class="inline-code">-c/--compact</span> flags.
+            </p>
+            <pre class="code-block">$ plandb add "Implement parser" --as parser --kind code --description "Build the parser module"
+$ plandb add "Write docs" --dep t-parser --description "Document parser behavior"</pre>
+          </article>
+
+          <article class="content-card step prose">
+            <h3><span class="inline-code">plandb go</span></h3>
+            <pre class="code-block">Claim + start next ready task
+
+Usage: plandb go [OPTIONS]</pre>
+            <p>
+              <strong>Verified options:</strong>
+              <span class="inline-code">--agent</span>,
+              <span class="inline-code">--project</span>,
+              <span class="inline-code">--db</span>,
+              <span class="inline-code">--json</span>,
+              <span class="inline-code">-c/--compact</span>.
+            </p>
+          </article>
+
+          <article class="content-card step prose">
+            <h3><span class="inline-code">plandb done</span></h3>
+            <pre class="code-block">Complete a task, optionally claim next
+
+Usage: plandb done [OPTIONS] [TASK_ID]</pre>
+            <p>
+              <strong>Verified options:</strong>
+              <span class="inline-code">--result</span>,
+              <span class="inline-code">--files</span>,
+              <span class="inline-code">--next</span>,
+              <span class="inline-code">--agent</span>,
+              and the common output/database flags.
+            </p>
+          </article>
+
+          <article class="content-card step prose">
+            <h3><span class="inline-code">plandb split</span></h3>
+            <pre class="code-block">Split a task into sub-tasks
+
+Usage: plandb split [OPTIONS] --into &lt;INTO&gt; [TASK_ID]</pre>
+            <p>
+              The verified <span class="inline-code">--into</span> formats are:
+              comma-separated parts like
+              <span class="inline-code">"A, B, C"</span>, dependency chains like
+              <span class="inline-code">"A &gt; B &gt; C"</span>, or a JSON array.
+            </p>
+          </article>
+
+          <article class="content-card step prose">
+            <h3><span class="inline-code">plandb status</span></h3>
+            <pre class="code-block">Show project progress: done/total, ready tasks, running agents
+
+Usage: plandb status [OPTIONS]</pre>
+            <p>
+              <strong>Verified detail modes:</strong>
+              <span class="inline-code">status</span> for a summary,
+              <span class="inline-code">status --detail</span> for per-task
+              breakdown, and <span class="inline-code">status --full</span> for
+              all tasks plus dependency edges.
+            </p>
+          </article>
+
+          <article class="content-card step prose">
+            <h3><span class="inline-code">plandb show</span></h3>
+            <pre class="code-block">Show full details of a task
+
+Usage: plandb show [OPTIONS] &lt;TASK_ID&gt;</pre>
+            <p>
+              Use <span class="inline-code">show</span> to inspect the exact
+              task description, status, and metadata for a specific task.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section prose" id="task-namespace">
+        <div class="section-header">
+          <h2>Task namespace</h2>
+          <p>
+            <span class="inline-code">plandb task --help</span> exposes the
+            deeper task-management surface. Verified top-level usage:
+          </p>
+        </div>
+        <pre class="code-block">Usage: plandb task [OPTIONS] &lt;COMMAND&gt;</pre>
+        <div class="grid-2">
+          <article class="content-card">
+            <h3>Discovered task subcommands</h3>
+            <ul>
+              <li><span class="inline-code">create</span>, <span class="inline-code">create-batch</span>, <span class="inline-code">list</span>, <span class="inline-code">get</span></li>
+              <li><span class="inline-code">next</span>, <span class="inline-code">go</span>, <span class="inline-code">claim</span>, <span class="inline-code">start</span></li>
+              <li><span class="inline-code">heartbeat</span>, <span class="inline-code">progress</span>, <span class="inline-code">done</span>, <span class="inline-code">fail</span></li>
+              <li><span class="inline-code">cancel</span>, <span class="inline-code">approve</span>, <span class="inline-code">add-dep</span>, <span class="inline-code">remove-dep</span></li>
+              <li><span class="inline-code">update</span>, <span class="inline-code">insert</span>, <span class="inline-code">amend</span>, <span class="inline-code">pivot</span></li>
+              <li><span class="inline-code">split</span>, <span class="inline-code">decompose</span>, <span class="inline-code">replan</span>, <span class="inline-code">pause</span></li>
+              <li><span class="inline-code">note</span>, <span class="inline-code">notes</span>, <span class="inline-code">overview</span></li>
+            </ul>
+          </article>
+
+          <article class="content-card prose">
+            <h3>Verified dependency editing</h3>
+            <pre class="code-block">Usage: plandb task add-dep [OPTIONS] --after &lt;AFTER&gt; &lt;TO_TASK&gt;</pre>
+            <p>
+              The verified semantics are: <span class="inline-code">--after</span>
+              identifies the task that must finish first, and
+              <span class="inline-code">&lt;TO_TASK&gt;</span> is the downstream task
+              that receives the new dependency edge.
+            </p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-shell">
+        <span>PlanDB static documentation site.</span>
+        <span>&copy; <span data-year></span> PlanDB</span>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PlanDB — Task Graphs for AI Agents</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <a href="index.html">PlanDB</a>
+    <nav>
+      <ul>
+        <li><a href="guide.html">Getting Started</a></li>
+        <li><a href="arch.html">Architecture</a></li>
+        <li><a href="reference.html">CLI Reference</a></li>
+        <li><a href="playground.html">Playground</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h1>Task orchestration for AI agents.</h1>
+      <p>PlanDB is a <strong>compound graph</strong> tool that helps AI agents manage complex workflows through recursive containment and cross-cutting dependencies.</p>
+      <a href="guide.html" class="btn">Get Started</a>
+    </section>
+
+    <section>
+      <h2>Why PlanDB?</h2>
+      <p>Most task managers are either simple lists or rigid trees. PlanDB combines both into a single, powerful structure:</p>
+      <ul>
+        <li><strong>Containment (Place Graph):</strong> Tasks can contain subtasks recursively, to any depth. This provides a clean organizational structure.</li>
+        <li><strong>Dependencies (Link Graph):</strong> Tasks can depend on any other task, regardless of their position in the containment tree.</li>
+      </ul>
+      <p>This "Compound Graph" model reflects how complex work actually happens—tasks are nested for organization but linked for execution.</p>
+    </section>
+
+    <section>
+      <h2>Built for Agents</h2>
+      <p>PlanDB is designed to be the backbone of autonomous agent systems. With atomic <code>go</code> and <code>done</code> commands, it ensures coordination across multiple parallel workers without double-assignment.</p>
+      <pre><code>$ plandb init "my-project"
+$ plandb add "implement feature" --description "..."
+$ plandb go</code></pre>
+    </section>
+  </main>
+
+  <footer>
+    &copy; 2026 PlanDB. Built for the future of agentic workflows.
+  </footer>
+</body>
+</html>

@@ -96,6 +96,27 @@ When plandb list --status ready shows multiple tasks, parallelize them.
 
 See [examples/](examples/) for complete scripts running PlanDB with Codex, Claude Code, and Gemini CLI.
 
+## In Action: Automated ML Experimentation
+
+An AI agent used PlanDB to autonomously build a **GPT transformer from scratch in pure Rust** — then designed and ran a 7-method RL experiment suite comparing SFT, REINFORCE, DPO, rejection sampling, and more. No human wrote any code.
+
+The task graph evolved from 6 planned tasks to 20 through mid-flight adaptation:
+
+```
+Phase 1: Build GPT          tensor → model → training (linear chain)
+Phase 2: Debug               t-debug split into subtasks mid-flight
+Phase 3: Tool calling        SFT baseline (bottleneck — 6 tasks depend on it)
+Phase 4: RL experiments      3 methods in parallel (@worker-1, @worker-2)
+Phase 5: Pivot               REINFORCE failed → agent added 3 new experiments
+Phase 6: Compare & ship      fan-in from 6 branches → ranked results
+```
+
+**Result:** Rejection sampling beat all RL methods. REINFORCE catastrophically collapsed. The agent discovered this, adapted its plan, and iterated — exactly what PlanDB is designed for.
+
+3,769 lines of Rust, 91K-parameter model, 7 training methods, full experiment logs. See [experiments/mini-gpt-rust/](experiments/mini-gpt-rust/) for the complete project and results.
+
+Additional experiment outputs from docs-site builds with [Codex](experiments/docs-site-codex/), [Claude Code](experiments/docs-site-claude/), and [Gemini CLI](experiments/docs-site-gemini/) are also included.
+
 ## What Makes It Different
 
 ### Compound Graph
