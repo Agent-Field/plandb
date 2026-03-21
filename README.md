@@ -4,9 +4,9 @@
 
 # PlanDB
 
-### **Agent-native compound task graph.**
+### **The agent-native database for task planning.**
 
-*Agents plan, decompose, parallelize, and adapt — autonomously.*
+*Compound task graph. Recursive decomposition. Autonomous execution.*
 
 [![Stars](https://img.shields.io/github/stars/Agent-Field/plandb?style=flat&logo=github&logoColor=white&color=7c3aed&labelColor=1e1e2e)](https://github.com/Agent-Field/plandb/stargazers)
 [![License](https://img.shields.io/badge/license-Apache%202.0-7c3aed.svg?style=flat&labelColor=1e1e2e)](LICENSE)
