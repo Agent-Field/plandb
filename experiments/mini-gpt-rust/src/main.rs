@@ -87,6 +87,27 @@ fn main() {
         return;
     }
 
+    if args.iter().any(|a| a == "--demo") {
+        experiments::run_demo();
+        return;
+    }
+
+    if args.iter().any(|a| a == "--help" || a == "-h") {
+        println!("Mini GPT — Pure Rust Transformer + Tool Calling\n");
+        println!("Usage: mini-gpt [OPTIONS]\n");
+        println!("Options:");
+        println!("  (no args)         Train base language model on Shakespeare");
+        println!("  --demo            Run pre-trained tool-calling agent (instant, no training)");
+        println!("  --agent           Train + save tool-calling agent weights");
+        println!("  --experiments     Run full RL experiment suite (SFT + 3 RL methods)");
+        println!("  --sft-v2          SFT with larger model");
+        println!("  --sft-v3          SFT with data augmentation");
+        println!("  --reject-sample   Rejection sampling fine-tuning");
+        println!("  --compare         Compare all methods and rank results");
+        println!("  -h, --help        Show this help");
+        return;
+    }
+
     println!("=== Mini GPT - Pure Rust Transformer ===");
     println!("    Pure Rust, no ML frameworks, full backprop");
     println!("    Run with --experiments for tool calling RL experiments\n");

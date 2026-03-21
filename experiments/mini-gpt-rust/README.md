@@ -63,47 +63,47 @@ Four tools: `calc` (arithmetic), `search` (lookups), `weather` (forecasts), `tim
 
 ## Quick Start
 
+**Try the pre-trained model instantly (no training needed):**
+
 ```bash
-# Train base language model (generates Shakespeare-like text)
-cargo run
-
-# Run the optimized tool-calling agent (pretrain + SFT + rejection sampling → demo)
-cargo run -- --agent
-
-# Run full RL experiment suite (SFT → REINFORCE → DPO → Custom RL → compare)
-cargo run -- --experiments
-
-# Run individual experiments
-cargo run -- --sft-v2          # Larger model SFT
-cargo run -- --sft-v3          # Data augmentation SFT
-cargo run -- --reject-sample   # Rejection sampling (best method)
-cargo run -- --compare         # Compare all saved results
+cargo run --release -- --demo
 ```
 
-### Try the Tool-Calling Agent
+Pre-trained weights are included in `weights/`. The model loads in milliseconds and runs the tool-calling agent demo — processes 10 queries, deciding for each whether to call a tool or respond directly:
 
-The fastest way to see the trained model in action:
+```
+Q: what is 12 plus 7
+T [call] calc(12,7,add) [end]         ← model chose correct tool + params
+= 19
+
+Q: hello
+R [reply] hello how can i help [end]  ← direct response (no tool needed)
+
+Q: what time is it in utc
+T [call] time(utc) [end]              ← correct tool selection
+= 14:30 utc
+```
+
+**All commands:**
+
+```bash
+cargo run --release -- --demo            # Load pre-trained weights, run demo (instant)
+cargo run --release -- --agent           # Train from scratch + save weights (~5 min)
+cargo run --release                      # Train base language model (Shakespeare)
+cargo run --release -- --experiments     # Full RL experiment suite
+cargo run --release -- --compare         # Compare all methods, rank results
+cargo run --release -- -h                # Show all options
+```
+
+### Retrain from Scratch
+
+To regenerate the weights yourself:
 
 ```bash
 cargo run --release -- --agent
 ```
 
-This runs the full pipeline (pretrain → SFT → 3 rounds of rejection sampling → evaluation → live demo) in ~3 minutes on a laptop. The model trains from scratch each time — weights are deterministic from the embedded training data, so results are reproducible.
-
-The demo shows the agent processing 10 queries, deciding for each whether to call a tool or respond directly:
-
-```
-Query: what is 12 plus 7
-→ [call] calc(12,7,add)           ← model chose correct tool + params
-
-Query: hello
-→ [reply] hello how can i help    ← model chose direct response (no tool needed)
-
-Query: weather in tokyo
-→ [call] weather(tokyo)           ← correct tool selection
-```
-
-Pre-computed experiment results are in `experiments/` — you can inspect the CSVs without rerunning.
+This runs the full pipeline (pretrain on Shakespeare → SFT on tool-calling data → 3 rounds of rejection sampling → evaluation → live demo) in ~5 minutes on a laptop. Saves weights to `weights/tool-agent.mgpt` and vocabulary to `weights/vocab.txt`.
 
 ## Architecture
 

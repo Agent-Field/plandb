@@ -58,6 +58,29 @@ impl Tokenizer {
     pub fn vocab_size(&self) -> usize {
         self.idx_to_char.len()
     }
+
+    /// Save vocabulary to a file (one char per line, as unicode codepoints).
+    pub fn save_vocab(&self, path: &str) -> std::io::Result<()> {
+        let content: String = self.idx_to_char.iter()
+            .map(|c| format!("{}", *c as u32))
+            .collect::<Vec<_>>()
+            .join("\n");
+        std::fs::write(path, content)
+    }
+
+    /// Load vocabulary from a file.
+    pub fn load_vocab(path: &str) -> std::io::Result<Self> {
+        let content = std::fs::read_to_string(path)?;
+        let chars: Vec<char> = content.lines()
+            .filter(|l| !l.is_empty())
+            .map(|l| char::from_u32(l.parse::<u32>().unwrap()).unwrap())
+            .collect();
+        let char_to_idx: HashMap<char, usize> = chars.iter()
+            .enumerate()
+            .map(|(i, &c)| (c, i))
+            .collect();
+        Ok(Tokenizer { char_to_idx, idx_to_char: chars })
+    }
 }
 
 #[cfg(test)]

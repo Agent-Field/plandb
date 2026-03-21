@@ -1,4 +1,5 @@
 use rand::Rng;
+use std::io::{Read, Write};
 
 /// Configuration for the mini GPT model
 #[derive(Clone)]
@@ -1017,4 +1018,105 @@ fn gelu_backward(x: &[f32], dout: &[f32]) -> Vec<f32> {
     }
 
     dx
+}
+
+// ─── Weight serialization ──────────────────────────────────────
+
+impl GPT {
+    /// Save model weights to a binary file.
+    /// Format: [magic: 4 bytes] [config: 5 x u32] [n_floats: u64] [f32 data...]
+    pub fn save_weights(&self, path: &str) -> std::io::Result<()> {
+        let mut f = std::fs::File::create(path)?;
+        f.write_all(b"MGPT")?;
+        f.write_all(&(self.config.vocab_size as u32).to_le_bytes())?;
+        f.write_all(&(self.config.n_embd as u32).to_le_bytes())?;
+        f.write_all(&(self.config.n_head as u32).to_le_bytes())?;
+        f.write_all(&(self.config.n_layer as u32).to_le_bytes())?;
+        f.write_all(&(self.config.block_size as u32).to_le_bytes())?;
+
+        let mut all: Vec<f32> = Vec::new();
+        all.extend_from_slice(&self.token_emb);
+        all.extend_from_slice(&self.pos_emb);
+        for l in 0..self.config.n_layer {
+            all.extend_from_slice(&self.ln1_gamma[l]);
+            all.extend_from_slice(&self.ln1_beta[l]);
+            all.extend_from_slice(&self.qkv_w[l]);
+            all.extend_from_slice(&self.attn_proj[l]);
+            all.extend_from_slice(&self.ln2_gamma[l]);
+            all.extend_from_slice(&self.ln2_beta[l]);
+            all.extend_from_slice(&self.ff_w1[l]);
+            all.extend_from_slice(&self.ff_b1[l]);
+            all.extend_from_slice(&self.ff_w2[l]);
+            all.extend_from_slice(&self.ff_b2[l]);
+        }
+        all.extend_from_slice(&self.ln_f_gamma);
+        all.extend_from_slice(&self.ln_f_beta);
+        all.extend_from_slice(&self.lm_head);
+
+        f.write_all(&(all.len() as u64).to_le_bytes())?;
+        let bytes: &[u8] = unsafe {
+            std::slice::from_raw_parts(all.as_ptr() as *const u8, all.len() * 4)
+        };
+        f.write_all(bytes)?;
+        Ok(())
+    }
+
+    /// Load model weights from a binary file.
+    pub fn load_weights(path: &str) -> std::io::Result<Self> {
+        let mut f = std::fs::File::open(path)?;
+        let mut magic = [0u8; 4];
+        f.read_exact(&mut magic)?;
+        if &magic != b"MGPT" {
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "not a MGPT weight file"));
+        }
+
+        let read_u32 = |f: &mut std::fs::File| -> std::io::Result<u32> {
+            let mut buf = [0u8; 4];
+            f.read_exact(&mut buf)?;
+            Ok(u32::from_le_bytes(buf))
+        };
+
+        let vocab_size = read_u32(&mut f)? as usize;
+        let n_embd = read_u32(&mut f)? as usize;
+        let n_head = read_u32(&mut f)? as usize;
+        let n_layer = read_u32(&mut f)? as usize;
+        let block_size = read_u32(&mut f)? as usize;
+        let config = Config { vocab_size, n_embd, n_head, n_layer, block_size };
+
+        let mut n_buf = [0u8; 8];
+        f.read_exact(&mut n_buf)?;
+        let n_floats = u64::from_le_bytes(n_buf) as usize;
+
+        let mut raw = vec![0u8; n_floats * 4];
+        f.read_exact(&mut raw)?;
+        let data: Vec<f32> = raw.chunks_exact(4)
+            .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+            .collect();
+
+        let mut model = GPT::new(config.clone());
+        let mut i = 0;
+        let take = |d: &[f32], i: &mut usize, n: usize| -> Vec<f32> {
+            let s = d[*i..*i + n].to_vec(); *i += n; s
+        };
+
+        model.token_emb = take(&data, &mut i, vocab_size * n_embd);
+        model.pos_emb = take(&data, &mut i, block_size * n_embd);
+        let inner = 4 * n_embd;
+        for l in 0..n_layer {
+            model.ln1_gamma[l] = take(&data, &mut i, n_embd);
+            model.ln1_beta[l] = take(&data, &mut i, n_embd);
+            model.qkv_w[l] = take(&data, &mut i, n_embd * 3 * n_embd);
+            model.attn_proj[l] = take(&data, &mut i, n_embd * n_embd);
+            model.ln2_gamma[l] = take(&data, &mut i, n_embd);
+            model.ln2_beta[l] = take(&data, &mut i, n_embd);
+            model.ff_w1[l] = take(&data, &mut i, n_embd * inner);
+            model.ff_b1[l] = take(&data, &mut i, inner);
+            model.ff_w2[l] = take(&data, &mut i, inner * n_embd);
+            model.ff_b2[l] = take(&data, &mut i, n_embd);
+        }
+        model.ln_f_gamma = take(&data, &mut i, n_embd);
+        model.ln_f_beta = take(&data, &mut i, n_embd);
+        model.lm_head = take(&data, &mut i, n_embd * vocab_size);
+        Ok(model)
+    }
 }

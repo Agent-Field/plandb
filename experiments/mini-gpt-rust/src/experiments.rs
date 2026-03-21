@@ -1469,7 +1469,115 @@ pub fn run_agent() {
     println!("  {} generations of 30 tokens in {:.2}s", n_iters, elapsed);
     println!("  Speed: {:.0} tokens/sec on CPU\n", tokens_per_sec);
 
-    println!("=== Agent Ready ===");
+    // Save weights and vocab for instant loading
+    let _ = std::fs::create_dir_all("weights");
+    match model.save_weights("weights/tool-agent.mgpt") {
+        Ok(()) => println!("Weights saved to weights/tool-agent.mgpt"),
+        Err(e) => eprintln!("Warning: could not save weights: {e}"),
+    }
+    match tok.save_vocab("weights/vocab.txt") {
+        Ok(()) => println!("Vocabulary saved to weights/vocab.txt"),
+        Err(e) => eprintln!("Warning: could not save vocab: {e}"),
+    }
+
+    println!("\n=== Agent Ready ===");
+    println!("  Run with --demo to load pre-trained weights instantly (no training)");
+}
+
+/// Run the tool-calling agent from pre-trained weights (instant startup).
+pub fn run_demo() {
+    println!("=== Mini GPT Tool Calling Agent (pre-trained) ===\n");
+
+    let model = match GPT::load_weights("weights/tool-agent.mgpt") {
+        Ok(m) => m,
+        Err(_) => {
+            eprintln!("error: weights/tool-agent.mgpt not found");
+            eprintln!("Run `cargo run -- --agent` first to train and save weights,");
+            eprintln!("or download pre-trained weights from the repository.");
+            std::process::exit(1);
+        }
+    };
+    let tok = match Tokenizer::load_vocab("weights/vocab.txt") {
+        Ok(t) => t,
+        Err(_) => {
+            eprintln!("error: weights/vocab.txt not found");
+            std::process::exit(1);
+        }
+    };
+
+    println!("Model loaded: {} layers, {} embd, {} heads, block_size={}",
+             model.config.n_layer, model.config.n_embd, model.config.n_head, model.config.block_size);
+    println!("Vocabulary: {} tokens\n", tok.vocab_size());
+
+    // Evaluate on validation set
+    let mut rng = rand::thread_rng();
+    let (_, val_data) = tool_data::generate_dataset(&mut rng);
+    let metrics = evaluate_model(&model, &model.config, &val_data, &tok);
+    println!("Validation metrics:");
+    metrics.print("Pre-trained Agent");
+
+    // Interactive demo
+    println!("\n=== Agent Demo ===\n");
+    println!("The agent processes queries and decides whether to call a tool or respond directly.\n");
+
+    let demo_queries = [
+        "[user] what is 12 plus 7 [end] ",
+        "[user] what is the weather in london [end] ",
+        "[user] hello [end] ",
+        "[user] who wrote hamlet [end] ",
+        "[user] what time is it in utc [end] ",
+        "[user] calculate 8 times 6 [end] ",
+        "[user] thank you [end] ",
+        "[user] how many planets are there [end] ",
+        "[user] weather in tokyo [end] ",
+        "[user] 25 minus 13 [end] ",
+    ];
+
+    for query in &demo_queries {
+        let prompt_encoded = tok.encode(query);
+        if prompt_encoded.is_empty() || prompt_encoded.len() >= model.config.block_size { continue; }
+
+        let max_gen = (model.config.block_size - prompt_encoded.len()).min(80);
+        let gen_ids = model.generate(&prompt_encoded, max_gen);
+        let gen_text = tok.decode(&gen_ids);
+        let response = &gen_text[query.len()..];
+
+        let truncated = if let Some(end_pos) = response.find("[end]") {
+            &response[..end_pos + 5]
+        } else {
+            &response[..response.len().min(60)]
+        };
+
+        let is_tool_call = truncated.contains("[call]");
+        let icon = if is_tool_call { "T" } else { "R" };
+
+        println!("  Q: {}", query.replace("[user] ", "").replace(" [end] ", ""));
+        println!("  {} {}", icon, truncated.trim());
+
+        if is_tool_call {
+            if let Some(call_start) = truncated.find("[call] ") {
+                let after = &truncated[call_start + 7..];
+                if let Some(call_end) = after.find(" [end]") {
+                    let call = &after[..call_end];
+                    let result = simulate_tool(call);
+                    println!("  = {}", result);
+                }
+            }
+        }
+        println!();
+    }
+
+    // Speed benchmark
+    println!("=== Inference Speed ===");
+    let start = Instant::now();
+    let prompt = tok.encode("[user] what is 5 plus 3 [end] ");
+    let n_iters = 50;
+    for _ in 0..n_iters {
+        let _ = model.generate(&prompt, 30);
+    }
+    let elapsed = start.elapsed().as_secs_f32();
+    let tokens_per_sec = (n_iters * 30) as f32 / elapsed;
+    println!("  {:.0} tokens/sec on CPU\n", tokens_per_sec);
 }
 
 fn simulate_tool(call: &str) -> String {
