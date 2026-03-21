@@ -17,6 +17,7 @@ INSERT INTO tasks (
   max_retries, retry_count, retry_backoff, retry_delay_ms,
   timeout_seconds, heartbeat_interval, last_heartbeat,
   requires_approval, approval_status, approved_by, approval_comment,
+  pre_condition, post_condition,
   metadata, created_at, updated_at
 ) VALUES (
   ?1, ?2, ?3, ?4,
@@ -26,7 +27,8 @@ INSERT INTO tasks (
   ?18, ?19, ?20, ?21,
   ?22, ?23, ?24,
   ?25, ?26, ?27, ?28,
-  ?29, ?30, ?31
+  ?29, ?30,
+  ?31, ?32, ?33
 );
 "#;
 
@@ -41,6 +43,7 @@ result, error, progress, progress_note,
 max_retries, retry_count, retry_backoff, retry_delay_ms,
 timeout_seconds, heartbeat_interval, last_heartbeat,
 requires_approval, approval_status, approved_by, approval_comment,
+pre_condition, post_condition,
 metadata, created_at, updated_at
 FROM tasks
 WHERE id = ?1;
@@ -55,6 +58,7 @@ t.result, t.error, t.progress, t.progress_note,
 t.max_retries, t.retry_count, t.retry_backoff, t.retry_delay_ms,
 t.timeout_seconds, t.heartbeat_interval, t.last_heartbeat,
 t.requires_approval, t.approval_status, t.approved_by, t.approval_comment,
+t.pre_condition, t.post_condition,
 t.metadata, t.created_at, t.updated_at
 FROM tasks t
 WHERE (?1 IS NULL OR t.project_id = ?1)
@@ -84,6 +88,7 @@ result, error, progress, progress_note,
 max_retries, retry_count, retry_backoff, retry_delay_ms,
 timeout_seconds, heartbeat_interval, last_heartbeat,
 requires_approval, approval_status, approved_by, approval_comment,
+pre_condition, post_condition,
 metadata, created_at, updated_at;
 "#;
 
@@ -105,6 +110,7 @@ result, error, progress, progress_note,
 max_retries, retry_count, retry_backoff, retry_delay_ms,
 timeout_seconds, heartbeat_interval, last_heartbeat,
 requires_approval, approval_status, approved_by, approval_comment,
+pre_condition, post_condition,
 metadata, created_at, updated_at;
 "#;
 
@@ -217,6 +223,7 @@ result, error, progress, progress_note,
 max_retries, retry_count, retry_backoff, retry_delay_ms,
 timeout_seconds, heartbeat_interval, last_heartbeat,
 requires_approval, approval_status, approved_by, approval_comment,
+pre_condition, post_condition,
 metadata, created_at, updated_at
 FROM tasks
 WHERE agent_id = ?1
@@ -245,6 +252,7 @@ result, error, progress, progress_note,
 max_retries, retry_count, retry_backoff, retry_delay_ms,
 timeout_seconds, heartbeat_interval, last_heartbeat,
 requires_approval, approval_status, approved_by, approval_comment,
+pre_condition, post_condition,
 metadata, created_at, updated_at;
 "#;
 
@@ -277,6 +285,7 @@ t.result, t.error, t.progress, t.progress_note,
 t.max_retries, t.retry_count, t.retry_backoff, t.retry_delay_ms,
 t.timeout_seconds, t.heartbeat_interval, t.last_heartbeat,
 t.requires_approval, t.approval_status, t.approved_by, t.approval_comment,
+t.pre_condition, t.post_condition,
 t.metadata, t.created_at, t.updated_at
 FROM tasks t
 JOIN subtree s ON t.id = s.id
@@ -396,7 +405,7 @@ pub(crate) fn row_to_task(row: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {
     let completed_at: Option<String> = row.get(12)?;
     let result: Option<String> = row.get(13)?;
     let last_heartbeat: Option<String> = row.get(23)?;
-    let metadata: Option<String> = row.get(28)?;
+    let metadata: Option<String> = row.get(30)?;
     Ok(Task {
         id: row.get(0)?,
         project_id: row.get(1)?,
@@ -438,9 +447,11 @@ pub(crate) fn row_to_task(row: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {
         approval_status: row.get(25)?,
         approved_by: row.get(26)?,
         approval_comment: row.get(27)?,
-        metadata: parse_json(metadata).map_err(|e| conv(28, e))?,
-        created_at: parse_dt(row.get::<_, String>(29)?).map_err(|e| conv(29, e))?,
-        updated_at: parse_dt(row.get::<_, String>(30)?).map_err(|e| conv(30, e))?,
+        pre_condition: row.get(28)?,
+        post_condition: row.get(29)?,
+        metadata: parse_json(metadata).map_err(|e| conv(30, e))?,
+        created_at: parse_dt(row.get::<_, String>(31)?).map_err(|e| conv(31, e))?,
+        updated_at: parse_dt(row.get::<_, String>(32)?).map_err(|e| conv(32, e))?,
     })
 }
 
@@ -493,6 +504,8 @@ pub fn create_task(db: &Database, task: &Task, tags: &[String]) -> Result<Task> 
             &task_with_defaults.approval_status,
             &task_with_defaults.approved_by,
             &task_with_defaults.approval_comment,
+            &task_with_defaults.pre_condition,
+            &task_with_defaults.post_condition,
             &metadata,
             dt_to_sql(task_with_defaults.created_at),
             dt_to_sql(task_with_defaults.updated_at)
@@ -967,6 +980,8 @@ pub fn batch_create_tasks(db: &Database, tasks: &[Task]) -> Result<usize> {
                 &task.approval_status,
                 &task.approved_by,
                 &task.approval_comment,
+                &task.pre_condition,
+                &task.post_condition,
                 &metadata,
                 dt_to_sql(task.created_at),
                 dt_to_sql(task.updated_at)
@@ -1082,6 +1097,8 @@ pub fn insert_task_between(
         approval_status: None,
         approved_by: None,
         approval_comment: None,
+        pre_condition: None,
+        post_condition: None,
         metadata: None,
         created_at: now,
         updated_at: now,
@@ -1368,6 +1385,8 @@ pub fn pivot_subtree(
             approval_status: None,
             approved_by: None,
             approval_comment: None,
+            pre_condition: None,
+            post_condition: None,
             metadata: None,
             created_at: now,
             updated_at: now,
@@ -1472,6 +1491,8 @@ pub fn split_task(db: &Database, task_id: &str, parts: Vec<SplitPart>) -> Result
             approval_status: None,
             approved_by: None,
             approval_comment: None,
+            pre_condition: None,
+            post_condition: None,
             metadata: None,
             created_at: now,
             updated_at: now,
@@ -1610,4 +1631,117 @@ pub fn list_subtree(db: &Database, root_task_id: &str) -> Result<Vec<Task>> {
 pub fn count_children(db: &Database, task_id: &str) -> Result<i64> {
     let conn = db.lock()?;
     Ok(conn.query_row(COUNT_CHILDREN, params![task_id], |row| row.get(0))?)
+}
+
+const CRITICAL_PATH: &str = r#"
+WITH RECURSIVE
+  leaves AS (
+    SELECT t.id
+    FROM tasks t
+    WHERE t.project_id = ?1
+      AND t.status NOT IN ('done', 'done_partial', 'cancelled')
+      AND NOT EXISTS (
+        SELECT 1 FROM dependencies d WHERE d.from_task = t.id
+        AND EXISTS (SELECT 1 FROM tasks t2 WHERE t2.id = d.to_task AND t2.status NOT IN ('done', 'done_partial', 'cancelled'))
+      )
+  ),
+  paths(task_id, depth, path) AS (
+    SELECT id, 0, id FROM leaves
+    UNION ALL
+    SELECT d.from_task, p.depth + 1, d.from_task || ' > ' || p.path
+    FROM dependencies d
+    JOIN paths p ON d.to_task = p.task_id
+    JOIN tasks t ON t.id = d.from_task AND t.status NOT IN ('done', 'done_partial', 'cancelled')
+    WHERE d.kind IN ('feeds_into', 'blocks')
+    AND p.depth < 100
+  )
+SELECT path, depth + 1 as length
+FROM paths
+ORDER BY depth DESC
+LIMIT 1;
+"#;
+
+pub fn critical_path(db: &Database, project_id: &str) -> Result<Option<(String, i64)>> {
+    let conn = db.lock()?;
+    let mut stmt = conn.prepare(CRITICAL_PATH)?;
+    let result = stmt
+        .query_row(params![project_id], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+        })
+        .optional()?;
+    Ok(result)
+}
+
+const BOTTLENECKS: &str = r#"
+SELECT t.id, t.title, t.status, COUNT(d.to_task) as downstream_count
+FROM tasks t
+JOIN dependencies d ON d.from_task = t.id
+JOIN tasks downstream ON downstream.id = d.to_task AND downstream.status NOT IN ('done', 'done_partial', 'cancelled')
+WHERE t.project_id = ?1
+  AND t.status NOT IN ('done', 'done_partial', 'cancelled')
+  AND d.kind IN ('feeds_into', 'blocks')
+GROUP BY t.id
+ORDER BY downstream_count DESC
+LIMIT ?2;
+"#;
+
+pub struct Bottleneck {
+    pub task_id: String,
+    pub title: String,
+    pub status: String,
+    pub downstream_count: i64,
+}
+
+pub fn find_bottlenecks(db: &Database, project_id: &str, limit: i64) -> Result<Vec<Bottleneck>> {
+    let conn = db.lock()?;
+    let mut stmt = conn.prepare(BOTTLENECKS)?;
+    let mut rows = stmt.query(params![project_id, limit])?;
+    let mut results = Vec::new();
+    while let Some(row) = rows.next()? {
+        results.push(Bottleneck {
+            task_id: row.get(0)?,
+            title: row.get(1)?,
+            status: row.get(2)?,
+            downstream_count: row.get(3)?,
+        });
+    }
+    Ok(results)
+}
+
+const WHAT_UNLOCKS: &str = r#"
+SELECT t.id, t.title, t.status
+FROM dependencies d
+JOIN tasks t ON t.id = d.to_task
+WHERE d.from_task = ?1
+  AND t.status = 'pending'
+  AND d.kind IN ('feeds_into', 'blocks')
+  AND NOT EXISTS (
+    SELECT 1 FROM dependencies d2
+    JOIN tasks upstream ON upstream.id = d2.from_task
+    WHERE d2.to_task = t.id
+      AND d2.kind IN ('feeds_into', 'blocks')
+      AND upstream.status NOT IN ('done', 'done_partial')
+      AND upstream.id != ?1
+  );
+"#;
+
+pub struct UnlockedTask {
+    pub task_id: String,
+    pub title: String,
+    pub status: String,
+}
+
+pub fn what_unlocks(db: &Database, task_id: &str) -> Result<Vec<UnlockedTask>> {
+    let conn = db.lock()?;
+    let mut stmt = conn.prepare(WHAT_UNLOCKS)?;
+    let mut rows = stmt.query(params![task_id])?;
+    let mut results = Vec::new();
+    while let Some(row) = rows.next()? {
+        results.push(UnlockedTask {
+            task_id: row.get(0)?,
+            title: row.get(1)?,
+            status: row.get(2)?,
+        });
+    }
+    Ok(results)
 }

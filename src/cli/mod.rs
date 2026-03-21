@@ -181,6 +181,46 @@ pub enum Commands {
     Tasks(ListTasksArgs),
     #[command(hide = true, about = "Alias for 'task list'")]
     Ls(ListTasksArgs),
+    #[command(about = "Show the critical path — longest dependency chain to completion")]
+    CriticalPath {
+        #[arg(long, help = "Project ID (uses default if not set)")]
+        project: Option<String>,
+    },
+    #[command(about = "Find bottleneck tasks — tasks blocking the most downstream work")]
+    Bottlenecks {
+        #[arg(long, help = "Project ID (uses default if not set)")]
+        project: Option<String>,
+        #[arg(long, default_value_t = 5, help = "Number of bottlenecks to show")]
+        limit: i64,
+    },
+    #[command(about = "Show what tasks become ready when a specific task completes")]
+    WhatUnlocks {
+        #[arg(help = "Task ID to check")]
+        task_id: String,
+    },
+    #[command(about = "Export project graph as a reusable template (YAML)")]
+    Export {
+        #[arg(long, help = "Project ID (uses default if not set)")]
+        project: Option<String>,
+        #[arg(long, help = "Template name")]
+        name: Option<String>,
+        #[arg(long, help = "Template description")]
+        description: Option<String>,
+    },
+    #[command(about = "Import a template to create tasks from a saved graph pattern")]
+    Import {
+        #[arg(help = "Path to template YAML file")]
+        file: String,
+        #[arg(long, help = "Project ID (uses default if not set)")]
+        project: Option<String>,
+    },
+    #[command(about = "Live-watch project progress (refreshes every N seconds)")]
+    Watch {
+        #[arg(long, help = "Project ID (uses default if not set)")]
+        project: Option<String>,
+        #[arg(long, default_value_t = 2, help = "Refresh interval in seconds")]
+        interval: u64,
+    },
     #[command(hide = true, about = "Alias for 'status'")]
     Overview,
     #[command(hide = true, about = "Alias for 'task start'")]
@@ -335,6 +375,117 @@ pub fn run(db: &Database, command: Commands, json: bool, compact: bool) -> Resul
             task::done_cmd(db, args, json, compact)
         }
         Commands::Tasks(args) | Commands::Ls(args) => task::list_tasks_cmd(db, args, json, compact),
+        Commands::CriticalPath { project } => {
+            let project_id = resolve_project_id(db, project.as_deref())?;
+            if let Some((path, length)) = crate::db::critical_path(db, &project_id)? {
+                if json {
+                    print_json(&serde_json::json!({"path": path, "length": length}))?;
+                } else {
+                    println!("Critical path ({length} tasks):");
+                    for task_id in path.split(" > ") {
+                        if let Ok(task) = crate::db::get_task(db, task_id) {
+                            println!(
+                                "  {} {} {} [{}]",
+                                status_icon(&task.status),
+                                task.id,
+                                task.title,
+                                task.status
+                            );
+                        }
+                    }
+                }
+            } else if json {
+                print_json(&serde_json::json!({"path": null, "length": 0}))?;
+            } else {
+                println!("no critical path (all tasks done or none exist)");
+            }
+            Ok(())
+        }
+        Commands::Bottlenecks { project, limit } => {
+            let project_id = resolve_project_id(db, project.as_deref())?;
+            let bottlenecks = crate::db::find_bottlenecks(db, &project_id, limit)?;
+            if json {
+                print_json(
+                    &bottlenecks
+                        .iter()
+                        .map(|b| {
+                            serde_json::json!({
+                                "task_id": b.task_id,
+                                "title": b.title,
+                                "status": b.status,
+                                "downstream_count": b.downstream_count
+                            })
+                        })
+                        .collect::<Vec<_>>(),
+                )?;
+            } else if bottlenecks.is_empty() {
+                println!("no bottlenecks (nothing blocking downstream work)");
+            } else {
+                println!("Bottlenecks (tasks blocking the most downstream work):");
+                for b in &bottlenecks {
+                    println!(
+                        "  {} {} — blocks {} tasks [{}]",
+                        b.task_id, b.title, b.downstream_count, b.status
+                    );
+                }
+            }
+            Ok(())
+        }
+        Commands::WhatUnlocks { task_id } => {
+            let unlocked = crate::db::what_unlocks(db, &task_id)?;
+            if json {
+                print_json(
+                    &unlocked
+                        .iter()
+                        .map(|u| {
+                            serde_json::json!({
+                                "task_id": u.task_id,
+                                "title": u.title,
+                                "status": u.status
+                            })
+                        })
+                        .collect::<Vec<_>>(),
+                )?;
+            } else if unlocked.is_empty() {
+                println!("completing {} unlocks no pending tasks", task_id);
+            } else {
+                println!("Completing {} unlocks:", task_id);
+                for u in &unlocked {
+                    println!("  → {} {} [{}]", u.task_id, u.title, u.status);
+                }
+            }
+            Ok(())
+        }
+        Commands::Watch {
+            project,
+            interval,
+        } => {
+            let project_id = resolve_project_id(db, project.as_deref())?;
+            loop {
+                // Clear screen
+                print!("\x1b[2J\x1b[H");
+                let _ = project::status_cmd(db, Some(&project_id), true, false, json, compact);
+                // Show ready count for parallelization hint
+                let ready = crate::db::list_tasks(db, crate::db::TaskListFilters {
+                    project_id: Some(project_id.clone()),
+                    status: Some(crate::models::TaskStatus::Ready),
+                    ..Default::default()
+                })?;
+                if ready.len() > 1 {
+                    eprintln!();
+                    eprintln!("  {} tasks ready — parallelize!", ready.len());
+                }
+                // Check if done
+                let state = crate::db::project_state(db, &project_id)?;
+                if state.done == state.total && state.total > 0 {
+                    eprintln!();
+                    eprintln!("  all tasks complete!");
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_secs(interval));
+            }
+            Ok(())
+        }
         Commands::Overview => project::status_cmd(db, None, false, false, json, compact),
         Commands::Start(args) => {
             let task = crate::db::start_task(db, &args.task_id)?;
@@ -342,6 +493,47 @@ pub fn run(db: &Database, command: Commands, json: bool, compact: bool) -> Resul
                 print_json(&task)?;
             } else {
                 println!("started {}", task.id);
+            }
+            Ok(())
+        }
+        Commands::Export {
+            project,
+            name,
+            description,
+        } => {
+            let project_id = resolve_project_id(db, project.as_deref())?;
+            let proj = crate::db::get_project(db, &project_id)?;
+            let template_name = name.unwrap_or_else(|| proj.name.clone());
+            let template = crate::db::export_graph(
+                db,
+                &project_id,
+                &template_name,
+                description.as_deref(),
+            )?;
+            // Always output as YAML regardless of --json flag (it's a file format)
+            println!("{}", serde_yaml::to_string(&template)?);
+            Ok(())
+        }
+        Commands::Import { file, project } => {
+            let project_id = resolve_project_id(db, project.as_deref())?;
+            let content = std::fs::read_to_string(&file)?;
+            let template: crate::db::GraphTemplate = serde_yaml::from_str(&content)?;
+            let ref_to_id = crate::db::import_graph(db, &project_id, &template)?;
+            if json {
+                print_json(&serde_json::json!({
+                    "imported": ref_to_id.len(),
+                    "ref_to_id": ref_to_id,
+                    "template_name": template.name,
+                }))?;
+            } else {
+                println!(
+                    "imported {} tasks from template \"{}\"",
+                    ref_to_id.len(),
+                    template.name
+                );
+                for (ref_id, task_id) in &ref_to_id {
+                    println!("  {} -> {}", ref_id, task_id);
+                }
             }
             Ok(())
         }

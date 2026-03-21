@@ -257,11 +257,35 @@ Parallelism comes from the graph structure:
 PlanDB handles coordination: atomic claiming prevents double-assignment, dependency
 ordering enforced automatically. The graph tells you exactly what is safe to run concurrently.
 
+### Quality Gates
+```bash
+plandb add "Implement API" --dep t-schema \
+  --pre "t-schema must have endpoint definitions" \
+  --post "all routes return valid JSON" \
+  --description "..."
+```
+
+Pre-conditions shown on `go`. Post-conditions shown on `done`. Verify before moving on.
+
+### Graph Introspection
+```bash
+plandb critical-path                   # longest chain to completion — prioritize this
+plandb bottlenecks                     # tasks blocking the most downstream work
+plandb what-unlocks t-abc              # what becomes ready if t-abc completes
+plandb watch                           # live-updating dashboard
+```
+
+### Templates
+```bash
+plandb export > template.yaml          # save decomposition pattern
+plandb import template.yaml            # apply pattern to current project
+```
+
 ### Status
 ```bash
 plandb status              # progress summary
 plandb status --detail     # per-task breakdown with dependency tree
-plandb status --full       # all tasks + dependency edges
+plandb status --full       # containment tree + dependency edges (compound graph)
 plandb list --status ready # what can run now
 plandb show t-abc          # full task details + description
 plandb ahead               # what's next
@@ -277,6 +301,14 @@ plandb task pivot t-parent --file new-plan.yaml
 plandb what-if cancel t-abc                               # preview effects (safe, read-only)
 ```
 
+### Continuous Reassessment
+
+After completing each task, reassess the plan:
+1. `plandb status --detail` — does the remaining graph still make sense?
+2. `plandb critical-path` — has the critical path shifted?
+3. Consider: add new tasks, split complex ones, amend descriptions with discoveries
+4. Plans are hypotheses. Execution reveals reality. The graph should evolve.
+
 ### Reference
 - **States**: pending → ready (deps done) → claimed → running → done/failed/cancelled
 - **Dep types**: `feeds_into` (data flows), `blocks` (ordering), `suggests` (soft)
@@ -284,7 +316,8 @@ plandb what-if cancel t-abc                               # preview effects (saf
 - **IDs**: short (`t-k3m9`), fuzzy-matched on typos, custom via `--as`
 - **Output**: `--json` for structured, `-c` for compact, default human-readable
 - **Handoff**: `--result` on `done` passes data to downstream tasks via `go`
-- **Descriptions**: always use `--description` — it's the actual work spec, not the title"#
+- **Descriptions**: always use `--description` — it's the actual work spec, not the title
+- **Quality gates**: `--pre` and `--post` on tasks for explicit expectations"#
     );
 }
 

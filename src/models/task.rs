@@ -202,6 +202,8 @@ pub struct Task {
     pub approval_status: Option<String>,
     pub approved_by: Option<String>,
     pub approval_comment: Option<String>,
+    pub pre_condition: Option<String>,
+    pub post_condition: Option<String>,
     pub metadata: Option<serde_json::Value>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
