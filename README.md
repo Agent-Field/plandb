@@ -209,11 +209,11 @@ PLANDB_AGENT=w1 plandb done --next
 
 ## Part of the AgentField Ecosystem
 
-PlanDB is the task planning layer for [**AgentField**](https://github.com/Agent-Field/agentfield) — the open-source AI backend that makes agents callable, observable, and identity-aware like microservices. Use them together or independently.
+PlanDB is the task planning layer for [**AgentField**](https://github.com/Agent-Field/agentfield) — the open-source AI backend that lets you build and run AI agents like APIs. Use them together or independently.
 
 | Project | What it does | Link |
 |---------|-------------|------|
-| **AgentField** | AI backend — deploy and orchestrate agents as production infrastructure | [Agent-Field/agentfield](https://github.com/Agent-Field/agentfield) |
+| **AgentField** | AI backend — build and run AI agents like APIs | [Agent-Field/agentfield](https://github.com/Agent-Field/agentfield) |
 | **PlanDB** | Agent-native task planning — compound graph for decomposition and coordination | *you are here* |
 | **SWE-AF** | Autonomous software engineering — fleet of agents that plan, code, test, and ship PRs | [Agent-Field/SWE-AF](https://github.com/Agent-Field/SWE-AF) |
 | **PR-AF** | AI-native multi-agent pull request reviewer | [Agent-Field/pr-af](https://github.com/Agent-Field/pr-af) |
