@@ -8,7 +8,7 @@ FAIL=0
 ERRORS=""
 
 cleanup() {
-  rm -f "$DB" "$DB-wal" "$DB-shm" /tmp/plandb-batch-test.yaml /tmp/plandb-replan-test.yaml
+  rm -f "$DB" "$DB-wal" "$DB-shm" /tmp/plandb-batch-test.yaml /tmp/plandb-replan-test.yaml /tmp/plandb-template-test.yaml
 }
 
 assert_eq() {
@@ -617,6 +617,83 @@ SPLIT_OUT=$($PLANDB --db "$DB" --json task split "$SPLIT_PARENT_ID" --into '[{"t
 assert_contains "task split response has created list" '"created"' "$SPLIT_OUT"
 assert_contains "task split response has done list" '"done"' "$SPLIT_OUT"
 assert_contains "task split response has effect" '"effect"' "$SPLIT_OUT"
+
+echo ""
+
+# ─────────────────────────────────────────────
+echo "20. PRE/POST CONDITIONS"
+echo "─────────────────────────────────────────"
+
+PRE_POST_TASK=$($PLANDB --db "$DB" --json task create --project "$PROJ_ID" "Conditioned Task" --pre "upstream must have schema" --post "all endpoints return JSON" --description "test pre/post")
+PRE_POST_ID=$(jq_field "$PRE_POST_TASK" "id")
+assert_not_empty "pre/post task created" "$PRE_POST_ID"
+assert_eq "pre_condition set" "upstream must have schema" "$(jq_field "$PRE_POST_TASK" "pre_condition")"
+assert_eq "post_condition set" "all endpoints return JSON" "$(jq_field "$PRE_POST_TASK" "post_condition")"
+
+# Verify get returns conditions
+PRE_POST_GET=$($PLANDB --db "$DB" --json task get "$PRE_POST_ID")
+assert_eq "get returns pre_condition" "upstream must have schema" "$(jq_field "$PRE_POST_GET" "pre_condition")"
+assert_eq "get returns post_condition" "all endpoints return JSON" "$(jq_field "$PRE_POST_GET" "post_condition")"
+
+# Task without conditions should have null
+PLAIN_TASK=$($PLANDB --db "$DB" --json task create --project "$PROJ_ID" "No Conditions")
+assert_eq "no pre_condition is empty" "" "$(jq_field "$PLAIN_TASK" "pre_condition")"
+
+echo ""
+
+# ─────────────────────────────────────────────
+echo "21. CRITICAL PATH & BOTTLENECKS"
+echo "─────────────────────────────────────────"
+
+# Use JIT project which has a chain: JIT A → Inserted Between → JIT B → JIT C
+CP_OUT=$($PLANDB --db "$DB" --json critical-path --project "$JIT_PROJECT_ID" 2>&1 || true)
+# May return path or null depending on task states — just verify it runs without error
+assert_contains "critical-path runs" "path" "$CP_OUT"
+
+# Bottlenecks
+BN_OUT=$($PLANDB --db "$DB" --json bottlenecks --project "$JIT_PROJECT_ID" --limit 3 2>&1 || true)
+# Should return an array with task_id fields
+assert_contains "bottlenecks runs" "task_id" "$BN_OUT"
+
+# What-unlocks on a specific task
+WU_OUT=$($PLANDB --db "$DB" --json what-unlocks "$JIT_A_ID" 2>&1 || true)
+assert_contains "what-unlocks runs" "task_id" "$WU_OUT"
+
+echo ""
+
+# ─────────────────────────────────────────────
+echo "22. EXPORT/IMPORT TEMPLATES"
+echo "─────────────────────────────────────────"
+
+# Create a small project for export test
+TMPL_PROJ=$($PLANDB --db "$DB" --json project create "template-test")
+TMPL_PROJ_ID=$(jq_field "$TMPL_PROJ" "id")
+$PLANDB --db "$DB" --json task create --project "$TMPL_PROJ_ID" "Step A" --as step-a >/dev/null
+$PLANDB --db "$DB" --json task create --project "$TMPL_PROJ_ID" "Step B" --dep t-step-a >/dev/null
+
+# Export
+EXPORT_OUT=$($PLANDB --db "$DB" export --project "$TMPL_PROJ_ID")
+assert_contains "export contains template name" "template-test" "$EXPORT_OUT"
+assert_contains "export contains Step A" "Step A" "$EXPORT_OUT"
+assert_contains "export contains Step B" "Step B" "$EXPORT_OUT"
+assert_contains "export contains dependencies" "feeds_into" "$EXPORT_OUT"
+
+# Write to file and import into a new project
+TMPL_FILE="/tmp/plandb-template-test.yaml"
+echo "$EXPORT_OUT" > "$TMPL_FILE"
+
+IMPORT_PROJ=$($PLANDB --db "$DB" --json project create "import-target")
+IMPORT_PROJ_ID=$(jq_field "$IMPORT_PROJ" "id")
+IMPORT_OUT=$($PLANDB --db "$DB" --json import "$TMPL_FILE" --project "$IMPORT_PROJ_ID")
+IMPORT_COUNT=$(jq_field "$IMPORT_OUT" "imported")
+assert_eq "imported 2 tasks" "2" "$IMPORT_COUNT"
+
+# Verify imported tasks exist
+IMPORT_TASKS=$($PLANDB --db "$DB" --json task list --project "$IMPORT_PROJ_ID")
+IMPORT_TASK_COUNT=$(jq_len "$IMPORT_TASKS")
+assert_eq "imported project has 2 tasks" "2" "$IMPORT_TASK_COUNT"
+
+rm -f "$TMPL_FILE"
 
 echo ""
 
