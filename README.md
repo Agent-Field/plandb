@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="assets/hero.png" alt="PlanDB — Task graph primitive for AI agents" width="100%" />
+
 # PlanDB
 
 ### **SQLite for agent orchestration.**
