@@ -40,6 +40,13 @@ plandb status --full                                         # containment tree 
 plandb show <task-id>                                        # full task details + description
 plandb list --status ready                                   # all tasks that can run NOW
 plandb task add-dep --after t-upstream t-downstream          # add dependency (use --after flag, NOT positional)
+plandb add "task" --pre "precondition text" --post "postcondition text"  # quality gates
+plandb critical-path                                        # longest chain — prioritize this
+plandb bottlenecks                                          # tasks blocking the most work
+plandb what-unlocks <task-id>                               # what becomes ready on completion
+plandb watch                                                # live-updating dashboard
+plandb export > template.yaml                               # save decomposition as template
+plandb import template.yaml                                 # apply template to project
 ```
 
 ### Constraints
@@ -79,10 +86,14 @@ Composite tasks auto-complete when all children finish — this cascades up the 
 
 1. `plandb init` to create the project
 2. Decompose ALL work upfront into tasks with dependencies and detailed descriptions
-3. `plandb status --detail` to verify the graph
-4. Execute: `plandb go` → `plandb show <id>` → do the work → `plandb done --next`
-5. Split complex tasks mid-flight: `plandb split --into "Part A, Part B"`
-6. `plandb status --full` to see both containment tree and dependency edges
+3. Use `--pre` and `--post` on tasks where quality expectations matter
+4. `plandb status --detail` to verify the graph
+5. `plandb critical-path` to identify what to prioritize
+6. Execute: `plandb go` → `plandb show <id>` → do the work → `plandb done --next`
+7. Split complex tasks mid-flight: `plandb split --into "Part A, Part B"`
+8. After each completion, REASSESS: run `plandb status --detail` and `plandb critical-path`.
+   Does the plan still make sense? Add tasks, split, amend descriptions based on what you learned.
+   Plans are hypotheses — execution reveals reality. The graph should evolve.
 
 ## Parallelization
 

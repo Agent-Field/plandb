@@ -129,15 +129,50 @@ plandb use --clear   # back to project root
 
 Cross-level dependencies work transparently — a subtask at any depth can depend on any other task.
 
+## Quality Gates (Pre/Post Conditions)
+
+```bash
+plandb add "Implement API" --dep t-schema \
+  --pre "t-schema result must contain endpoint definitions" \
+  --post "all route handlers return valid JSON responses" \
+  --description "..."
+```
+
+Pre-conditions are shown when an agent claims a task (`plandb go`). Post-conditions are shown as a reminder when completing (`plandb done`). They make quality expectations explicit in the graph.
+
+## Graph Introspection
+
+```bash
+plandb critical-path                   # longest dependency chain to completion
+plandb bottlenecks                     # tasks blocking the most downstream work
+plandb what-unlocks t-abc              # what becomes ready when t-abc completes
+plandb watch                           # live-updating project status
+```
+
+These queries let agents reason about the graph structure itself — prioritize bottlenecks, focus on the critical path, and understand the impact of completing a task.
+
+## Templates (Export/Import)
+
+```bash
+# Export a project's structure as a reusable template
+plandb export > fullstack-feature.yaml
+
+# Import a template into a new project
+plandb import fullstack-feature.yaml
+```
+
+Templates capture the decomposition pattern (tasks, hierarchy, dependencies) without results. A successful project becomes a reusable blueprint.
+
 ## Status & Inspection
 
 ```bash
 plandb status              # progress summary
 plandb status --detail     # per-task breakdown
-plandb list                # all tasks
+plandb status --full       # containment tree + dependency edges
 plandb list --status ready # filter by status
 plandb show t-abc          # full task details + description
 plandb ahead               # what becomes ready next
+plandb watch               # live-updating dashboard
 ```
 
 ## Plan Adaptation
