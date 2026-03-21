@@ -109,6 +109,21 @@ plandb what-unlocks t-abc  # impact of completing a specific task
 plandb watch               # live dashboard
 ```
 
+### Dynamic Adaptation
+
+Plans are hypotheses. Agents discover reality during execution — new tasks emerge, dependencies shift, approaches change. PlanDB has six mid-flight primitives:
+
+```bash
+plandb split --into "A, B, C"                # decompose a task that turned out complex
+plandb task insert --after t-a --before t-b   # add a missed step, rewire deps automatically
+plandb task pivot t-abc --file new.yaml       # replace an entire subtree with a new approach
+plandb task amend t-abc --prepend "NOTE: ..."  # annotate future tasks with discoveries
+plandb task replan t-abc --file revised.yaml  # cancel + recreate subtasks
+plandb what-if cancel t-abc                   # preview effects before committing
+```
+
+The graph reshapes itself as agents learn. Dependencies rewire. Ready tasks recalculate. No replanning ceremony — just mutate and go.
+
 ### Quality Gates
 
 ```bash
@@ -191,6 +206,20 @@ PLANDB_AGENT=w1 plandb done --next
 | CLI | `plandb <command>` | Direct agent use |
 | MCP | `plandb mcp` | Claude Code, Cursor, Windsurf |
 | HTTP | `plandb serve --port 8484` | Custom agents, webhooks |
+
+## Part of the AgentField Ecosystem
+
+PlanDB is the task planning layer for [**AgentField**](https://github.com/Agent-Field/agentfield) — the open-source AI backend that makes agents callable, observable, and identity-aware like microservices. Use them together or independently.
+
+| Project | What it does | Link |
+|---------|-------------|------|
+| **AgentField** | AI backend — deploy and orchestrate agents as production infrastructure | [Agent-Field/agentfield](https://github.com/Agent-Field/agentfield) |
+| **PlanDB** | Agent-native task planning — compound graph for decomposition and coordination | *you are here* |
+| **SWE-AF** | Autonomous software engineering — fleet of agents that plan, code, test, and ship PRs | [Agent-Field/SWE-AF](https://github.com/Agent-Field/SWE-AF) |
+| **PR-AF** | AI-native multi-agent pull request reviewer | [Agent-Field/pr-af](https://github.com/Agent-Field/pr-af) |
+| **CloudSecurity-AF** | AI-native cloud security scanner — attack path analysis from IaC | [Agent-Field/cloudsecurity-af](https://github.com/Agent-Field/cloudsecurity-af) |
+
+> **SWE-AF** uses PlanDB internally to decompose engineering tasks into parallel agent workstreams — it's the reference implementation for PlanDB-driven multi-agent orchestration.
 
 ## Architecture
 
