@@ -18,37 +18,46 @@ pub use task::{CreateTaskArgs, DoneArgs, GetTaskArgs, GoArgs, ListTasksArgs, Spl
     name = "plandb",
     version,
     infer_subcommands = true,
-    about = "Task graph primitive for AI agent orchestration.\n\n\
-        Manages a dependency-aware task graph in SQLite. Three interfaces: CLI, MCP server, HTTP API.\n\
-        Agents decompose work into tasks with dependencies, then execute via a claim-and-complete loop.\n\n\
-        WORKFLOW:\n\
-        \x20 1. plandb init \"my-project\"                              Create a project\n\
-        \x20 2. plandb add \"Design API\" --dep t-xxx                   Add tasks (title is positional)\n\
-        \x20 3. plandb go                                              Claim next ready task\n\
-        \x20 4. plandb done --next                                     Complete + claim next\n\
-        \x20 5. plandb status                                          Check progress\n\n\
-        DECOMPOSITION:\n\
-        \x20 plandb split --into \"A, B, C\"     Split current task into parts\n\
+    about = "The agent-native database for task planning.\n\n\
+        PlanDB is a compound graph — two orthogonal structures:\n\
+        \x20 • Containment (place graph): tasks contain subtasks recursively, to any depth\n\
+        \x20 • Dependencies (link graph): edges between tasks at ANY level, crossing containment boundaries\n\
+        Dependencies do NOT follow the hierarchy. A subtask at depth 3 can depend on\n\
+        a task at depth 0 in a different branch. More general than a DAG or hypergraph.\n\n\
+        CORE LOOP:\n\
+        \x20 plandb go                                              Claim next ready task\n\
+        \x20 plandb done --next                                     Complete + claim next\n\n\
+        ADDING TASKS:\n\
+        \x20 plandb add \"title\" --description \"detailed spec\"        Every task needs a description\n\
+        \x20 plandb add \"title\" --dep t-xxx --as my-id               Dependencies + custom IDs\n\
+        \x20 plandb add \"title\" --pre \"precondition\" --post \"verify\" Quality gates\n\n\
+        RECURSIVE DECOMPOSITION:\n\
+        \x20 plandb split --into \"A, B, C\"     Split into independent subtasks (creates parallelism)\n\
         \x20 plandb split --into \"A > B > C\"   Split with dependency chain\n\
         \x20 plandb use <task-id>              Zoom into composite task scope\n\
-        \x20 plandb use ..                     Zoom out one level\n\n\
-        PLAN ADAPTATION:\n\
-        \x20 plandb ahead              See upcoming tasks in the lookahead buffer\n\
-        \x20 plandb what-if cancel     Preview effects of cancelling a task\n\
-        \x20 plandb task insert        Add a step between existing tasks\n\
-        \x20 plandb task amend         Annotate a future task with new context\n\
-        \x20 plandb task pivot         Replace a subtree with new tasks\n\
-        \x20 plandb task split         Decompose a task mid-execution\n\n\
-        MULTI-AGENT:\n\
-        \x20 Each agent runs: plandb go --agent <NAME> → work → plandb done --next --agent <NAME>\n\
-        \x20 The graph ensures no two agents claim the same task. Dependencies are enforced.\n\n\
+        \x20 plandb use ..                     Zoom out one level\n\
+        \x20 Subtasks can be split further — any depth. Composite tasks auto-complete when children finish.\n\n\
+        GRAPH INTROSPECTION:\n\
+        \x20 plandb critical-path              Longest dependency chain — prioritize this\n\
+        \x20 plandb bottlenecks                Tasks blocking the most downstream work\n\
+        \x20 plandb what-unlocks <task-id>     What becomes ready when a task completes\n\
+        \x20 plandb watch                      Live-updating dashboard\n\
+        \x20 plandb status --full              Compound graph view (containment + dependency edges)\n\n\
+        DYNAMIC PLAN ADAPTATION:\n\
+        \x20 plandb task insert                Add a step between existing tasks (rewires deps)\n\
+        \x20 plandb task amend                 Annotate a future task with new context\n\
+        \x20 plandb task pivot                 Replace a subtree with new tasks\n\
+        \x20 plandb what-if cancel             Preview effects before committing\n\
+        \x20 plandb export / import            Save and reuse decomposition patterns\n\n\
+        MULTI-AGENT PARALLELISM:\n\
+        \x20 When plandb list --status ready returns multiple tasks, they can run concurrently.\n\
+        \x20 Each agent: plandb go → work → plandb done --next. Atomic claiming prevents conflicts.\n\n\
         CONCEPTS:\n\
-        \x20 Task states: pending → ready (deps done) → claimed → running → done/failed\n\
-        \x20 Dep types:   feeds_into (default, passes result downstream), blocks, suggests\n\
-        \x20 Task kinds:  generic, code, research, review, test, shell\n\
-        \x20 IDs:         short (e.g. t-k3m9) or custom (--as api → t-api). Fuzzy-matched.\n\n\
-        OUTPUT MODES:\n\
-        \x20 Default human-readable. --json for structured JSON. -c/--compact for token-efficient output.\n\n\
+        \x20 States:      pending → ready (deps done) → claimed → running → done/failed\n\
+        \x20 Dep types:   feeds_into (data flows), blocks (ordering), suggests (soft)\n\
+        \x20 Kinds:       generic, code, research, review, test, shell\n\
+        \x20 IDs:         short (t-k3m9) or custom (--as api → t-api). Fuzzy-matched.\n\
+        \x20 Description: ALWAYS use --description. It's the work order, not the title.\n\n\
         ENVIRONMENT:\n\
         \x20 PLANDB_AGENT  Default agent ID (avoids --agent on every command)\n\
         \x20 PLANDB_DB     Path to SQLite database (default: .plandb.db)",
