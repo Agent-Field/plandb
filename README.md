@@ -22,14 +22,15 @@ A single binary. Zero infrastructure. PlanDB gives AI agents a compound task gra
 
 ## Why PlanDB
 
-| Without PlanDB | With PlanDB |
+| The problem | What PlanDB does |
 |---|---|
-| Agent works sequentially, loses track | Dependency graph enforces ordering |
-| Parallel agents step on each other | Atomic claiming prevents double-assignment |
-| Plans are rigid — break on contact with reality | Split, insert, pivot, replan mid-flight |
-| Flat task lists, no structure | Compound graph: recursive hierarchy + cross-level deps |
-| Quality is "hope the agent checks" | Pre/post conditions make expectations explicit |
-| No visibility into what's blocking what | Critical path, bottlenecks, what-unlocks queries |
+| **Your agent can't think beyond one step.** It finishes a task and forgets the big picture. | The graph IS the big picture. Every task knows what depends on it, what it depends on, and where it sits in the hierarchy. |
+| **You can't parallelize safely.** Two agents grab the same work, or one starts before its dependency finishes. | Atomic claiming + dependency enforcement. `plandb list --status ready` = exactly what's safe to parallelize right now. |
+| **Plans break on contact with reality.** Agent discovers something mid-flight, but the plan is frozen. | Split, insert, pivot, replan — six mid-flight adaptation primitives. The graph evolves as the agent learns. |
+| **Flat task lists can't model real work.** "Backend" depends on "Schema" but also on "Auth" from a different team. | Compound graph: containment (hierarchy) and dependencies (flow) are orthogonal. Cross-level deps just work. |
+| **You have no idea what's blocking everything.** Agent is busy, but is it on the critical path? | `plandb critical-path` shows the longest chain. `plandb bottlenecks` shows what's blocking the most work. `plandb what-unlocks` shows impact. |
+| **Agent output quality is hope-based.** You pray it checked its work. | Pre/post conditions on every task. Post-condition shown on completion: "verify this before moving on." |
+| **Every project starts from zero.** Same decomposition patterns reinvented every time. | `plandb export` saves a project's structure as a template. `plandb import` applies it. Best decompositions compound. |
 
 ## Install
 
