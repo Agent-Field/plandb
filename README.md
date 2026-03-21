@@ -54,6 +54,20 @@ plandb go                    # claim next ready task
 plandb done --next           # complete + claim next (no ID needed)
 ```
 
+## Part of the AgentField Ecosystem
+
+PlanDB is the task planning layer for [**AgentField**](https://github.com/Agent-Field/agentfield) — the open-source AI backend that lets you build and run AI agents like APIs. Use them together or independently.
+
+| Project | What it does | Link |
+|---------|-------------|------|
+| **AgentField** | AI backend — build and run AI agents like APIs | [Agent-Field/agentfield](https://github.com/Agent-Field/agentfield) |
+| **PlanDB** | Agent-native task planning — compound graph for decomposition and coordination | *you are here* |
+| **SWE-AF** | Autonomous software engineering — fleet of agents that plan, code, test, and ship PRs | [Agent-Field/SWE-AF](https://github.com/Agent-Field/SWE-AF) |
+| **PR-AF** | AI-native multi-agent pull request reviewer | [Agent-Field/pr-af](https://github.com/Agent-Field/pr-af) |
+| **CloudSecurity-AF** | AI-native cloud security scanner — attack path analysis from IaC | [Agent-Field/cloudsecurity-af](https://github.com/Agent-Field/cloudsecurity-af) |
+
+> **SWE-AF** uses PlanDB internally to decompose engineering tasks into parallel agent workstreams — it's the reference implementation for PlanDB-driven multi-agent orchestration.
+
 ## Copy-Paste Prompt for Your Agent
 
 Generate a ready-to-use system prompt for any AI agent:
@@ -206,20 +220,6 @@ PLANDB_AGENT=w1 plandb done --next
 | CLI | `plandb <command>` | Direct agent use |
 | MCP | `plandb mcp` | Claude Code, Cursor, Windsurf |
 | HTTP | `plandb serve --port 8484` | Custom agents, webhooks |
-
-## Part of the AgentField Ecosystem
-
-PlanDB is the task planning layer for [**AgentField**](https://github.com/Agent-Field/agentfield) — the open-source AI backend that lets you build and run AI agents like APIs. Use them together or independently.
-
-| Project | What it does | Link |
-|---------|-------------|------|
-| **AgentField** | AI backend — build and run AI agents like APIs | [Agent-Field/agentfield](https://github.com/Agent-Field/agentfield) |
-| **PlanDB** | Agent-native task planning — compound graph for decomposition and coordination | *you are here* |
-| **SWE-AF** | Autonomous software engineering — fleet of agents that plan, code, test, and ship PRs | [Agent-Field/SWE-AF](https://github.com/Agent-Field/SWE-AF) |
-| **PR-AF** | AI-native multi-agent pull request reviewer | [Agent-Field/pr-af](https://github.com/Agent-Field/pr-af) |
-| **CloudSecurity-AF** | AI-native cloud security scanner — attack path analysis from IaC | [Agent-Field/cloudsecurity-af](https://github.com/Agent-Field/cloudsecurity-af) |
-
-> **SWE-AF** uses PlanDB internally to decompose engineering tasks into parallel agent workstreams — it's the reference implementation for PlanDB-driven multi-agent orchestration.
 
 ## Architecture
 
