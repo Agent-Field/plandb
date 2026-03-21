@@ -1,257 +1,187 @@
+<div align="center">
+
 # PlanDB
 
-Task graph primitive for AI agents. Compound graph — two orthogonal structures (containment tree + dependency DAG) that cross boundaries freely — in SQLite with CLI, MCP, and HTTP interfaces.
+### **SQLite for agent orchestration.**
+
+*The task graph primitive that makes AI agents coordinate without infrastructure.*
+
+[![Stars](https://img.shields.io/github/stars/Agent-Field/plandb?style=flat&logo=github&logoColor=white&color=7c3aed&labelColor=1e1e2e)](https://github.com/Agent-Field/plandb/stargazers)
+[![License](https://img.shields.io/badge/license-Apache%202.0-7c3aed.svg?style=flat&labelColor=1e1e2e)](LICENSE)
+[![Last Commit](https://img.shields.io/github/last-commit/Agent-Field/plandb?style=flat&logo=git&logoColor=white&color=7c3aed&labelColor=1e1e2e)](https://github.com/Agent-Field/plandb/commits/main)
+
+**[Architecture](docs/ARCHITECTURE.md)** · **[Agent Prompt](#copy-paste-prompt-for-your-agent)** · **[Examples](examples/)** · **[CLI Reference](#cli-reference)**
+
+</div>
+
+---
+
+No daemon. No config. No network. A single binary creates a `.plandb.db` file — that file **is** the coordination layer: task graph, dependency engine, work queue, handoff protocol, and audit log.
+
+Agents decompose work, track dependencies, parallelize safely, and adapt plans mid-flight. The graph structure itself is the scheduling algorithm — `ready` tasks are what can run now, `pending` tasks are what's blocked, and the compound graph tells you exactly what's safe to parallelize.
+
+## Why PlanDB
+
+| Without PlanDB | With PlanDB |
+|---|---|
+| Agent works sequentially, loses track | Dependency graph enforces ordering |
+| Parallel agents step on each other | Atomic claiming prevents double-assignment |
+| Plans are rigid — break on contact with reality | Split, insert, pivot, replan mid-flight |
+| Flat task lists, no structure | Compound graph: recursive hierarchy + cross-level deps |
+| Quality is "hope the agent checks" | Pre/post conditions make expectations explicit |
+| No visibility into what's blocking what | Critical path, bottlenecks, what-unlocks queries |
 
 ## Install
 
 ```bash
+# macOS / Linux
+curl -fsSL https://github.com/Agent-Field/plandb/releases/latest/download/plandb-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m) -o /usr/local/bin/plandb && chmod +x /usr/local/bin/plandb
+
+# From source
 cargo install --path .
 ```
 
-## Quick Start
+## 30-Second Demo
 
 ```bash
 plandb init "my-project"
-plandb add "Design the API" --as design --description "Define REST endpoints, auth strategy, response schemas"
-plandb add "Implement backend" --dep t-design --description "Build Express server implementing the API spec from t-design"
-plandb add "Write tests" --dep t-design --description "Integration tests for all endpoints defined in t-design"
+plandb add "Design the API" --as design --description "Define REST endpoints and auth strategy"
+plandb add "Build backend" --dep t-design --description "Implement the API spec"
+plandb add "Write tests" --dep t-design --description "Integration tests for all endpoints"
 plandb go                    # claim next ready task
-plandb show t-design         # read the full description
-# ... do work ...
-plandb done --next           # complete + claim next
+# ... work ...
+plandb done --next           # complete + claim next (no ID needed)
 ```
 
-## Core Loop
+## Copy-Paste Prompt for Your Agent
 
-Two commands. No IDs to remember. No flags required.
+Generate a ready-to-use system prompt for any AI agent:
 
 ```bash
-plandb go          # claim + start next ready task
+plandb prompt --for cli    # system prompt for CLI agents (Codex, Claude Code, Gemini, Aider)
+plandb prompt --for mcp    # MCP config JSON for Claude Code / Cursor / Windsurf
+plandb prompt --for http   # REST API instructions for custom agents
+```
+
+Or copy this minimal prompt into your agent's instructions:
+
+```
+You have plandb installed for task planning. Use it to decompose work and track progress.
+
+Core loop:    plandb go → work → plandb done --next
+Add tasks:    plandb add "title" --description "detailed spec" --dep t-xxx
+Split:        plandb split --into "A, B, C" (independent) or "A > B > C" (chain)
+Introspect:   plandb critical-path | plandb bottlenecks | plandb what-unlocks <id>
+Status:       plandb status --detail
+
+After each completion, reassess: plandb status --detail + plandb critical-path.
+Plans are hypotheses — adapt as you learn.
+When plandb list --status ready shows multiple tasks, parallelize them.
+```
+
+See [examples/](examples/) for complete scripts running PlanDB with Codex, Claude Code, and Gemini CLI.
+
+## What Makes It Different
+
+### Compound Graph
+
+Two orthogonal structures composed together — more general than a DAG, hierarchical DAG, or hypergraph:
+
+- **Place graph** (containment): tasks contain subtasks recursively, to any depth
+- **Link graph** (dependencies): edges between tasks at ANY level, crossing containment boundaries
+
+A subtask at depth 3 can depend on a task at depth 0 in a different branch. Nesting doesn't constrain flow. Composite tasks auto-complete when all children finish.
+
+### Zero-Friction Core Loop
+
+```bash
+plandb go          # claim next ready task (no --agent needed, no IDs)
 plandb done --next # complete current + claim next
 ```
 
-- `done` without a task ID completes your current running task
-- `go` delivers upstream context automatically (results from completed dependencies)
-- Agent identity defaults to `"default"` — set `PLANDB_AGENT` env var for multi-agent
-
-## Adding Tasks
-
-Every task needs a `--description` — the detailed spec of what to do. The title is a short label. The description is the actual work order.
+### Graph-Aware Intelligence
 
 ```bash
-plandb add "Task title" --description "Full spec of what to build..."   # ALWAYS include description
-plandb add "Task title" --dep t-abc                                     # with dependency (upstream must exist first)
-plandb add "Task title" --as api                                        # custom ID → t-api
-plandb add "Task title" --kind code                                     # kind: generic, code, research, review, test, shell
-plandb add "Task title" --dep t-abc:blocks                              # dep type: feeds_into (default), blocks, suggests
-plandb add "Task title" --tag backend --tag auth                        # with tags
+plandb critical-path       # what to prioritize — longest chain to completion
+plandb bottlenecks         # what's blocking the most downstream work
+plandb what-unlocks t-abc  # impact of completing a specific task
+plandb watch               # live dashboard
 ```
 
-### Writing Good Descriptions
-
-Each description should be a self-contained work order — detailed enough that an agent can pick it up with `plandb go` + `plandb show <id>` and execute without any other context:
+### Quality Gates
 
 ```bash
-plandb add "Build landing page" --as landing --kind code \
-  --description "Create index.html with:
-- Hero section: h1 'PlanDB', tagline, brief description
-- Feature highlights: compound graph, recursive decomposition, zero-friction CLI
-- Code snippet showing the core loop (plandb go / plandb done --next)
-- Call-to-action linking to getting-started.html
-- Responsive layout, vanilla HTML/CSS only
-- Output: index.html"
+plandb add "Implement API" \
+  --pre "schema must define all endpoints" \
+  --post "all routes return valid JSON" \
+  --description "..."
+```
+
+### Reusable Decompositions
+
+```bash
+plandb export > fullstack.yaml    # save a successful project's structure
+plandb import fullstack.yaml      # apply pattern to new project
+```
+
+## CLI Reference
+
+### Task Lifecycle
+
+```bash
+plandb init "project"                                     # create project
+plandb add "title" --description "spec" --dep t-xxx       # add task
+plandb add "title" --as custom-id --kind code             # custom ID, typed
+plandb go                                                  # claim next ready
+plandb done --next                                         # complete + claim next
+plandb done --result '{"key": "value"}'                   # complete with data
+```
+
+### Decomposition
+
+```bash
+plandb split --into "A, B, C"                              # independent subtasks
+plandb split --into "A > B > C"                            # linear chain
+plandb task decompose t-abc --file subtasks.yaml           # from YAML
+plandb use t-abc                                           # scope into subtree
+plandb use ..                                              # scope out
+```
+
+### Introspection
+
+```bash
+plandb status --detail                                     # dependency tree
+plandb status --full                                       # compound graph view
+plandb critical-path                                       # longest chain
+plandb bottlenecks                                         # blocking tasks
+plandb what-unlocks t-abc                                  # downstream impact
+plandb watch                                               # live dashboard
+```
+
+### Plan Adaptation
+
+```bash
+plandb task insert --after t-a --before t-b --title "X"   # insert step
+plandb task amend t-abc --prepend "NOTE: ..."              # annotate
+plandb task pivot t-abc --file new-plan.yaml               # replace subtree
+plandb what-if cancel t-abc                                # preview effects
+plandb export > template.yaml                              # save pattern
+plandb import template.yaml                                # apply pattern
+```
+
+### Multi-Agent
+
+```bash
+PLANDB_AGENT=w1 plandb go          # atomic claim (no double-assignment)
+PLANDB_AGENT=w1 plandb done --next
 ```
 
 ### Constraints
 
-- `--kind` only accepts: `generic`, `code`, `research`, `review`, `test`, `shell`
-- `--dep` references must point to task IDs that already exist — create upstream tasks first
-- `--dep` can reference any task at any depth — dependencies cross containment boundaries freely
-- To add a dependency after both tasks exist: `plandb task add-dep --after t-upstream t-downstream`
-
-## When to Decompose
-
-Not every task needs subtasks. Use this decision framework:
-
-**Keep it a flat task when:**
-- A single agent can complete it in one pass
-- The work has no internal ordering constraints
-- The description fits comfortably in one prompt
-
-**Split into subtasks when:**
-- The task has multiple independent parts that could run in parallel (split creates parallelism — each subtask becomes separately claimable)
-- The task is too large for one agent to hold in context
-- The work has internal phases with dependencies (`plandb split --into "Design > Implement > Test"`)
-- You discover mid-execution that the task is more complex than expected
-
-**Go deeper (recursive split) when:**
-- A subtask itself has the same characteristics above
-- Different parts require different expertise or tools
-- You want to isolate failure — if one sub-subtask fails, siblings continue
-
-The hierarchy manages complexity. A well-decomposed graph means each leaf task is simple enough for any agent to execute from its description alone.
-
-## Decomposition
-
-Split any task into subtasks. Works at any depth (recursive — subtasks can be split further).
-
-```bash
-# Comma-separated (independent subtasks)
-plandb split t-abc --into "Design, Implement, Test"
-
-# Chain with > (linear dependencies: Design → Implement → Test)
-plandb split t-abc --into "Design > Implement > Test"
-
-# Omit task ID to split your current running task
-plandb split --into "Part A, Part B"
-
-# From YAML file (full control)
-plandb task decompose t-abc --file subtasks.yaml
-
-# Cancel pending subtasks and recreate
-plandb task replan t-abc --file revised.yaml
-```
-
-Composite tasks auto-complete when all children finish — this cascades recursively up the tree. Dependencies can cross containment boundaries: a subtask inside "Backend" can depend on a subtask inside "Frontend".
-
-## Scope
-
-Zoom into a composite task to work within its subtree.
-
-```bash
-plandb use t-abc     # scope into composite task
-plandb list          # shows children of t-abc only
-plandb go            # claims from this scope
-plandb add "Subtask" # creates as child of t-abc
-plandb use ..        # zoom out one level
-plandb use --clear   # back to project root
-```
-
-Cross-level dependencies work transparently — a subtask at any depth can depend on any other task.
-
-## Quality Gates (Pre/Post Conditions)
-
-```bash
-plandb add "Implement API" --dep t-schema \
-  --pre "t-schema result must contain endpoint definitions" \
-  --post "all route handlers return valid JSON responses" \
-  --description "..."
-```
-
-Pre-conditions are shown when an agent claims a task (`plandb go`). Post-conditions are shown as a reminder when completing (`plandb done`). They make quality expectations explicit in the graph.
-
-## Graph Introspection
-
-```bash
-plandb critical-path                   # longest dependency chain to completion
-plandb bottlenecks                     # tasks blocking the most downstream work
-plandb what-unlocks t-abc              # what becomes ready when t-abc completes
-plandb watch                           # live-updating project status
-```
-
-These queries let agents reason about the graph structure itself — prioritize bottlenecks, focus on the critical path, and understand the impact of completing a task.
-
-## Templates (Export/Import)
-
-```bash
-# Export a project's structure as a reusable template
-plandb export > fullstack-feature.yaml
-
-# Import a template into a new project
-plandb import fullstack-feature.yaml
-```
-
-Templates capture the decomposition pattern (tasks, hierarchy, dependencies) without results. A successful project becomes a reusable blueprint.
-
-## Status & Inspection
-
-```bash
-plandb status              # progress summary
-plandb status --detail     # per-task breakdown
-plandb status --full       # containment tree + dependency edges
-plandb list --status ready # filter by status
-plandb show t-abc          # full task details + description
-plandb ahead               # what becomes ready next
-plandb watch               # live-updating dashboard
-```
-
-## Plan Adaptation
-
-```bash
-plandb task insert --after t-a --before t-b --title "New step"   # insert between
-plandb task amend t-abc --prepend "NOTE: edge case found"        # annotate future task
-plandb task pivot t-abc --file new-plan.yaml                     # replace subtree
-plandb task add-dep --after t-upstream t-downstream              # add dependency edge
-plandb what-if cancel t-abc                                      # preview effects
-```
-
-## Parallelization
-
-When `plandb list --status ready` returns multiple tasks, they have no unmet dependencies and can run concurrently. **If you can spawn sub-agents, you should.**
-
-Each worker runs the same core loop independently — PlanDB coordinates via atomic claiming:
-
-```bash
-# Worker 1                                    # Worker 2
-PLANDB_AGENT=w1 plandb go                     PLANDB_AGENT=w2 plandb go
-# ... work ...                                # ... work ...
-PLANDB_AGENT=w1 plandb done --next            PLANDB_AGENT=w2 plandb done --next
-```
-
-The graph tells you exactly what is safe to run concurrently. No two agents claim the same task. Dependencies are enforced automatically — downstream tasks become `ready` only when upstream completes.
-
-## Batch Creation
-
-```yaml
-# tasks.yaml
-tasks:
-  - title: "Design API"
-    kind: code
-    priority: 10
-    description: "Define REST endpoints, auth strategy, response format"
-  - title: "Implement"
-    description: "Build the server implementing the API spec"
-    deps: [{ from: "Design API", kind: feeds_into }]
-  - title: "Write tests"
-    description: "Integration tests for all endpoints"
-    deps: [{ from: "Implement", kind: feeds_into }]
-```
-
-```bash
-plandb task create-batch --file tasks.yaml
-```
-
-## Task States
-
-```
-pending → ready → claimed → running → done
-                                    → failed
-                                    → cancelled
-```
-
-Tasks become `ready` when all `feeds_into` and `blocks` dependencies complete. `suggests` dependencies don't block.
-
-## Dependency Types
-
-| Type | Meaning | Blocks? |
-|------|---------|---------|
-| `feeds_into` | Result data flows downstream (default) | Yes |
-| `blocks` | Must complete first, no data flow | Yes |
-| `suggests` | Nice to have first, doesn't block | No |
-
-## IDs
-
-Short IDs: `t-k3m9` (tasks), `p-abcd` (projects). Fuzzy-matched on typos.
-
-Custom IDs: `plandb add "Design" --as design` → `t-design`
-
-## Output Modes
-
-```bash
-plandb status              # human-readable (default)
-plandb --json status       # structured JSON
-plandb --json -c status    # compact JSON (optimized for LLM context)
-```
+- `--kind`: `generic`, `code`, `research`, `review`, `test`, `shell`
+- `--dep`: upstream must exist first. Types: `feeds_into` (default), `blocks`, `suggests`
+- `--description`: always include — it's the work order, not the title
+- IDs: short (`t-k3m9`), custom (`--as api` → `t-api`), fuzzy-matched on typos
 
 ## Interfaces
 
@@ -261,26 +191,9 @@ plandb --json -c status    # compact JSON (optimized for LLM context)
 | MCP | `plandb mcp` | Claude Code, Cursor, Windsurf |
 | HTTP | `plandb serve --port 8484` | Custom agents, webhooks |
 
-Generate integration config: `plandb prompt --for mcp|cli|http`
-
-## Environment Variables
-
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `PLANDB_DB` | SQLite database path | `.plandb.db` (walks up dirs) |
-| `PLANDB_AGENT` | Agent identity | `default` |
-| `NO_COLOR` | Disable colored output | unset |
-
 ## Architecture
 
-PlanDB uses a **compound graph** — two orthogonal structures composed together:
-
-- **Place graph** (containment): tasks contain subtasks recursively — like a filesystem
-- **Link graph** (dependencies): DAG edges between tasks at any depth, crossing containment boundaries — like a build graph
-
-These are independent. A subtask at depth 3 can depend on a task at depth 0 in a different branch. This is more general than a hierarchical DAG — nesting doesn't constrain flow. Composite tasks auto-complete when all children finish, cascading up recursively.
-
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design: compound graph theory, comparison with flat DAGs/hypergraphs, cross-level dependency mechanics, and when each structure matters.
+PlanDB uses a **compound graph** — see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design: why two orthogonal structures, cross-level dependency mechanics, comparison with flat DAGs/hypergraphs, composite auto-completion, and when each structure matters.
 
 ## License
 
