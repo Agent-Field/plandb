@@ -3,6 +3,7 @@ pub mod dependencies;
 pub mod effects;
 pub mod events;
 pub mod files;
+pub mod learnings;
 pub mod meta;
 pub mod notes;
 pub mod projects;
@@ -26,6 +27,9 @@ pub use effects::{compute_effects, snapshot_task_statuses, MutationEffect};
 pub use events::{insert_event, list_events, EventFilters};
 pub use files::{add_task_files, check_file_conflicts, list_task_files, FileConflict};
 pub use meta::{delete_meta, get_meta, set_meta};
+pub use learnings::{
+    add_learning, delete_learning, list_learnings, recall, Learning, LearningKind, RecallResult,
+};
 pub use notes::{add_note, list_notes};
 pub use projects::{
     create_project, fuzzy_find_project, get_project, list_projects, update_project_status,

@@ -268,6 +268,52 @@ pub enum Commands {
         #[arg(long, help = "List available platforms")]
         list: bool,
     },
+    #[command(
+        about = "Attach context to the project graph — discoveries, decisions, patterns.\n\n\
+                  Context persists across sessions and is searchable via BM25.\n\
+                  Unlike notes (task-scoped), context is project-wide and queryable.\n\
+                  Types: discovery, decision, pattern, blocker, reference"
+    )]
+    Context {
+        #[arg(help = "The context content")]
+        content: String,
+        #[arg(long, default_value = "discovery", value_parser = ["discovery", "decision", "pattern", "blocker", "reference"],
+              help = "Kind of context")]
+        r#type: String,
+        #[arg(long, help = "Associated task ID (optional — context can be project-wide)")]
+        task: Option<String>,
+        #[arg(long, help = "Project ID (uses default if not set)")]
+        project: Option<String>,
+        #[arg(long, help = "Tags for categorization (comma-separated)")]
+        tags: Option<String>,
+    },
+    #[command(
+        about = "BM25-ranked search across the entire project graph.\n\n\
+                  Searches context entries, task titles, descriptions, and notes.\n\
+                  Returns results ranked by relevance — the project's knowledge base."
+    )]
+    Search {
+        #[arg(help = "Search query (BM25 ranked)")]
+        query: String,
+        #[arg(long, help = "Project ID (uses default if not set)")]
+        project: Option<String>,
+        #[arg(long, default_value_t = 10, help = "Max results")]
+        limit: usize,
+    },
+    #[command(about = "List context entries attached to the project graph")]
+    Contexts {
+        #[arg(long, help = "Project ID (uses default if not set)")]
+        project: Option<String>,
+        #[arg(long, help = "Filter by kind: discovery, decision, pattern, blocker, reference")]
+        kind: Option<String>,
+        #[arg(long, default_value_t = 50, help = "Max results")]
+        limit: usize,
+    },
+    #[command(about = "Remove a context entry from the project graph")]
+    Prune {
+        #[arg(help = "Context entry ID to remove")]
+        context_id: String,
+    },
 }
 
 pub fn run(db: &Database, command: Commands, json: bool, compact: bool) -> Result<()> {
@@ -567,6 +613,110 @@ pub fn run(db: &Database, command: Commands, json: bool, compact: bool) -> Resul
         }
         Commands::Version => {
             println!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
+            Ok(())
+        }
+        Commands::Context {
+            content,
+            r#type,
+            task,
+            project,
+            tags,
+        } => {
+            let project_id = resolve_project_id(db, project.as_deref())?;
+            let kind: crate::db::LearningKind = r#type.parse()?;
+            let agent_id = std::env::var("PLANDB_AGENT").ok();
+            let tag_list: Vec<String> = tags
+                .map(|t| t.split(',').map(|s| s.trim().to_string()).collect())
+                .unwrap_or_default();
+            let entry = crate::db::add_learning(
+                db,
+                &project_id,
+                task.as_deref(),
+                agent_id.as_deref(),
+                kind,
+                &content,
+                &tag_list,
+            )?;
+            if json {
+                print_json(&entry)?;
+            } else {
+                println!("{} [{}]", entry.id, entry.kind);
+                if compact {
+                    return Ok(());
+                }
+                if let Some(ref t) = entry.task_id {
+                    println!("  task: {t}");
+                }
+                if !entry.tags.is_empty() {
+                    println!("  tags: {}", entry.tags.join(", "));
+                }
+            }
+            Ok(())
+        }
+        Commands::Search {
+            query,
+            project,
+            limit,
+        } => {
+            let project_id = resolve_project_id(db, project.as_deref())?;
+            let results = crate::db::recall(db, &project_id, &query, limit)?;
+            if json {
+                print_json(&results)?;
+            } else if results.is_empty() {
+                println!("no results for \"{}\"", query);
+            } else {
+                for r in &results {
+                    let source_tag = match r.source.as_str() {
+                        "learning" => "ctx",
+                        "task" => "task",
+                        _ => "?",
+                    };
+                    let truncated = if r.content.len() > 120 {
+                        format!("{}...", &r.content[..120])
+                    } else {
+                        r.content.clone()
+                    };
+                    println!("  [{}] {} {} {}", source_tag, r.id, r.kind, truncated);
+                }
+            }
+            Ok(())
+        }
+        Commands::Contexts {
+            project,
+            kind,
+            limit,
+        } => {
+            let project_id = resolve_project_id(db, project.as_deref())?;
+            let entries =
+                crate::db::list_learnings(db, &project_id, kind.as_deref(), limit)?;
+            if json {
+                print_json(&entries)?;
+            } else if entries.is_empty() {
+                println!("no context entries yet");
+                if !compact {
+                    eprintln!("tip: plandb context \"what you discovered\" --type discovery");
+                }
+            } else {
+                for e in &entries {
+                    let truncated = if e.content.len() > 100 {
+                        format!("{}...", &e.content[..100])
+                    } else {
+                        e.content.clone()
+                    };
+                    println!("  {} [{}] {}", e.id, e.kind, truncated);
+                }
+            }
+            Ok(())
+        }
+        Commands::Prune { context_id } => {
+            let deleted = crate::db::delete_learning(db, &context_id)?;
+            if json {
+                print_json(&serde_json::json!({"deleted": deleted}))?;
+            } else if deleted > 0 {
+                println!("pruned {context_id}");
+            } else {
+                println!("context entry {context_id} not found");
+            }
             Ok(())
         }
         Commands::Mcp | Commands::Serve { .. } | Commands::Prompt { .. } => {
