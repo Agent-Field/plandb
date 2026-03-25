@@ -1,166 +1,118 @@
-name: PR Review Pipeline (Adaptive)
+name: PR Review Pipeline (Inline Comments)
 description: null
 tasks:
 - ref_id: task-1
   title: Parse PR diff
-  description: 'Read the PR diff and source files. Map: changed files, languages, line counts, affected modules. Identify the PR''s intent from commit messages and description.'
+  description: 'Read the PR diff and source files. Map changed files, languages, line counts, affected modules. Output: structured JSON with file list and change categories.'
   kind: research
   priority: 0
   parent_ref: null
   pre_condition: null
-  post_condition: diff summary documented with file list and change intent
-  pre_hook: echo "=== PR Review started at $(date) ==="
-  post_hook: echo "Parse complete. Starting parallel reviews."
-- ref_id: task-2
-  title: 'Review: injection vectors'
-  description: Check for SQL injection, command injection, XSS, template injection, path traversal. Look at all user input handling. Record each finding with plandb context --kind finding including file:line, severity, and remediation.
-  kind: review
-  priority: 0
-  parent_ref: null
-  pre_condition: null
-  post_condition: all injection findings documented
+  post_condition: diff summary with file list documented via --result
   pre_hook: null
-  post_hook: plandb search "injection" --kind finding 2>/dev/null | head -5
-- ref_id: task-3
-  title: 'Review: auth and access control'
-  description: Check authentication on all endpoints, authorization checks, IDOR, privilege escalation, session management. Record findings.
+  post_hook: null
+- ref_id: task-2
+  title: 'Review: injection and input safety'
+  description: |-
+    Check for SQL injection, command injection, XSS, template injection, path traversal, SSRF.
+
+    For EACH finding, post an inline review comment:
+      gh api repos/$PLANDB_PR_REPO/pulls/$PLANDB_PR_NUMBER/comments -f body='**[SEVERITY]** description' -f commit_id=$(git rev-parse HEAD) -f path='src/path/to/file.rs' -f line=42 -f side=RIGHT
+
+    Also record with: plandb context '[SEVERITY] file:line — desc' --kind finding
   kind: review
   priority: 0
   parent_ref: null
   pre_condition: null
-  post_condition: auth coverage verified for all endpoints
+  post_condition: all injection findings posted as inline comments
+  pre_hook: null
+  post_hook: null
+- ref_id: task-3
+  title: 'Review: auth, secrets, and crypto'
+  description: |-
+    Check authentication, authorization, IDOR, hardcoded secrets, weak hashing, session management.
+
+    For EACH finding, post inline:
+      gh api repos/$PLANDB_PR_REPO/pulls/$PLANDB_PR_NUMBER/comments -f body='**[SEVERITY]** description' -f commit_id=$(git rev-parse HEAD) -f path='file' -f line=N -f side=RIGHT
+
+    Record: plandb context '[SEVERITY] file:line — desc' --kind finding
+  kind: review
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: auth and secrets findings posted inline
   pre_hook: null
   post_hook: null
 - ref_id: task-4
-  title: 'Review: secrets and crypto'
-  description: Check for hardcoded secrets, weak hashing, insecure random, missing encryption. Check configs, env vars, default values. Record findings.
+  title: 'Review: data integrity and serialization'
+  description: Check unsafe deserialization (pickle, yaml.load), file uploads, CORS, data exposure. Post inline comments for findings.
   kind: review
   priority: 0
   parent_ref: null
   pre_condition: null
-  post_condition: no secrets in source, crypto choices documented
+  post_condition: data handling findings posted inline
   pre_hook: null
   post_hook: null
 - ref_id: task-5
-  title: 'Review: data integrity'
-  description: Check serialization safety (pickle, yaml.load, eval), file upload handling, SSRF, CORS config. Record findings.
+  title: 'Review: error handling and robustness'
+  description: Check for silently swallowed errors (.unwrap_or_default on fallible ops), missing error propagation, panics. Post inline comments.
   kind: review
   priority: 0
   parent_ref: null
   pre_condition: null
-  post_condition: data handling reviewed
+  post_condition: error handling findings posted inline
   pre_hook: null
   post_hook: null
 - ref_id: task-6
-  title: 'Review: error handling'
-  description: 'Check error handling: are errors silently swallowed? Are error messages informative? Are panics/unwraps used where Results should be? Record findings.'
+  title: 'Review: consistency and duplication'
+  description: Check API parity across CLI/MCP/HTTP, response shape drift, naming inconsistencies, duplicated logic. Post inline comments.
   kind: review
   priority: 0
   parent_ref: null
   pre_condition: null
-  post_condition: error handling patterns documented
+  post_condition: consistency findings posted inline
   pre_hook: null
   post_hook: null
 - ref_id: task-7
-  title: 'Review: naming and consistency'
-  description: Check naming conventions, consistent patterns across similar code, API consistency between CLI/MCP/HTTP interfaces. Flag drift. Record findings.
+  title: 'Review: test coverage gaps'
+  description: Identify new features without tests. For each gap, post inline comment on the untested code. Record findings.
   kind: review
   priority: 0
   parent_ref: null
   pre_condition: null
-  post_condition: naming issues documented
+  post_condition: test gaps posted inline
   pre_hook: null
   post_hook: null
 - ref_id: task-8
-  title: 'Review: code duplication'
-  description: Find duplicated logic that should be shared. Check if similar code in CLI/MCP/HTTP could be consolidated. Record findings.
+  title: 'Review: schema and migrations'
+  description: Check database schema changes, FTS sync, SQL parameter counts, migration safety. Post inline comments.
   kind: review
   priority: 0
   parent_ref: null
   pre_condition: null
-  post_condition: duplication issues documented
+  post_condition: schema findings posted inline
   pre_hook: null
   post_hook: null
 - ref_id: task-9
-  title: 'Review: complexity and performance'
-  description: Check for unnecessary DB queries, O(n^2) patterns, missing indexes, large allocations. Record findings.
+  title: 'Review: docs and prompt accuracy'
+  description: Check if README, --help, and prompts match actual code. Flag discrepancies with inline comments on the wrong docs.
   kind: review
   priority: 0
   parent_ref: null
   pre_condition: null
-  post_condition: performance concerns documented
+  post_condition: docs discrepancies posted inline
   pre_hook: null
   post_hook: null
 - ref_id: task-10
-  title: 'Review: test coverage'
-  description: Check which new features have tests and which don't. List untested code paths. Record findings as plandb context --kind finding.
-  kind: review
-  priority: 0
-  parent_ref: null
-  pre_condition: null
-  post_condition: test gaps documented
-  pre_hook: null
-  post_hook: null
-- ref_id: task-11
-  title: 'Review: test quality'
-  description: 'Check existing tests: are assertions meaningful? Are edge cases covered? Are mocks appropriate? Record findings.'
-  kind: review
-  priority: 0
-  parent_ref: null
-  pre_condition: null
-  post_condition: test quality issues documented
-  pre_hook: null
-  post_hook: null
-- ref_id: task-12
-  title: 'Review: API design'
-  description: 'Check API consistency: do CLI, MCP, and HTTP interfaces expose the same features? Are response shapes consistent? Flag missing features in any interface. Record findings.'
-  kind: review
-  priority: 0
-  parent_ref: null
-  pre_condition: null
-  post_condition: API parity issues documented
-  pre_hook: null
-  post_hook: null
-- ref_id: task-13
-  title: 'Review: schema and migrations'
-  description: 'Check database schema changes: are migrations safe? Are new columns nullable? Is FTS kept in sync? Record findings.'
-  kind: review
-  priority: 0
-  parent_ref: null
-  pre_condition: null
-  post_condition: schema issues documented
-  pre_hook: null
-  post_hook: null
-- ref_id: task-14
-  title: 'Review: docs accuracy'
-  description: Check if README, help text, and prompts match the actual code. Flag any discrepancy between documented and actual behavior. Record findings.
-  kind: review
-  priority: 0
-  parent_ref: null
-  pre_condition: null
-  post_condition: docs accuracy verified
-  pre_hook: null
-  post_hook: null
-- ref_id: task-15
-  title: Synthesize findings
-  description: 'Use plandb search to gather ALL findings. Deduplicate. Classify by severity (critical/high/medium/low). Prioritize by impact. Output: structured summary with counts per severity.'
-  kind: research
-  priority: 0
-  parent_ref: null
-  pre_condition: null
-  post_condition: findings deduplicated and prioritized
-  pre_hook: null
-  post_hook: null
-- ref_id: task-16
-  title: Post PR review comments
-  description: 'For EACH finding from synthesis: create a separate, focused comment. Group by severity. Each comment should include: severity, file:line reference, description, suggested fix. Use the structured result from synthesis to generate comments. The final comment should be a summary with verdict (approve/request-changes/comment).'
+  title: Submit PR review verdict
+  description: "Gather all findings via plandb search. Count by severity. Submit a GitHub PR review:\n\n  gh api repos/$PLANDB_PR_REPO/pulls/$PLANDB_PR_NUMBER/reviews -f event=COMMENT -f body='## PR Review Summary\n  \n  | Severity | Count |\n  |----------|-------|\n  | Critical | N |\n  | High | N |\n  | Medium | N |\n  | Low | N |\n  \n  **Verdict:** APPROVE / REQUEST_CHANGES / COMMENT\n  \n  *Reviewed by PlanDB PR Review Template*'\n\nUse event=REQUEST_CHANGES if any critical/high findings, COMMENT otherwise."
   kind: code
   priority: 0
   parent_ref: null
   pre_condition: null
-  post_condition: all findings posted as individual comments
+  post_condition: PR review submitted with verdict
   pre_hook: null
-  post_hook: echo "=== PR Review complete at $(date) ==="
+  post_hook: null
 dependencies:
 - from_ref: task-1
   to_ref: task-2
@@ -186,90 +138,57 @@ dependencies:
 - from_ref: task-1
   to_ref: task-9
   kind: feeds_into
-- from_ref: task-1
+- from_ref: task-2
   to_ref: task-10
   kind: feeds_into
-- from_ref: task-1
-  to_ref: task-11
-  kind: feeds_into
-- from_ref: task-1
-  to_ref: task-12
-  kind: feeds_into
-- from_ref: task-1
-  to_ref: task-13
-  kind: feeds_into
-- from_ref: task-1
-  to_ref: task-14
-  kind: feeds_into
-- from_ref: task-2
-  to_ref: task-15
-  kind: feeds_into
 - from_ref: task-3
-  to_ref: task-15
+  to_ref: task-10
   kind: feeds_into
 - from_ref: task-4
-  to_ref: task-15
+  to_ref: task-10
   kind: feeds_into
 - from_ref: task-5
-  to_ref: task-15
+  to_ref: task-10
   kind: feeds_into
 - from_ref: task-6
-  to_ref: task-15
+  to_ref: task-10
   kind: feeds_into
 - from_ref: task-7
-  to_ref: task-15
+  to_ref: task-10
   kind: feeds_into
 - from_ref: task-8
-  to_ref: task-15
+  to_ref: task-10
   kind: feeds_into
 - from_ref: task-9
-  to_ref: task-15
-  kind: feeds_into
-- from_ref: task-10
-  to_ref: task-15
-  kind: feeds_into
-- from_ref: task-11
-  to_ref: task-15
-  kind: feeds_into
-- from_ref: task-12
-  to_ref: task-15
-  kind: feeds_into
-- from_ref: task-13
-  to_ref: task-15
-  kind: feeds_into
-- from_ref: task-14
-  to_ref: task-15
-  kind: feeds_into
-- from_ref: task-15
-  to_ref: task-16
+  to_ref: task-10
   kind: feeds_into
 context:
 - kind: constraint
-  content: Post each finding as a SEPARATE comment, not one big dump. Include file:line, severity, and suggested fix.
-  tags: []
-  task_ref: null
-- kind: pattern
-  content: 'Check for silent error swallowing: .unwrap_or_default() on operations that should surface errors'
-  tags: []
-  task_ref: null
-- kind: pattern
-  content: 'API parity: if a feature exists in CLI, it should also work in MCP and HTTP'
-  tags: []
-  task_ref: null
-- kind: pattern
-  content: Hooks that execute shell commands from untrusted input are a security concern
-  tags: []
-  task_ref: null
-- kind: pattern
-  content: SQL parameter count must match INSERT statement after schema changes
-  tags: []
-  task_ref: null
-- kind: pattern
-  content: FTS indexes must be updated whenever the indexed columns change (INSERT, UPDATE, DELETE)
+  content: 'Post inline comments using: gh api repos/$PLANDB_PR_REPO/pulls/$PLANDB_PR_NUMBER/comments -f body=''text'' -f commit_id=$(git rev-parse HEAD) -f path=''file'' -f line=N -f side=RIGHT'
   tags: []
   task_ref: null
 - kind: constraint
-  content: Use plandb done --result with structured JSON so synthesis can aggregate programmatically
+  content: 'Set env vars before running: export PLANDB_PR_NUMBER=4 PLANDB_PR_REPO=Owner/repo'
+  tags: []
+  task_ref: null
+- kind: constraint
+  content: 'Severities: CRITICAL (must fix), HIGH (should fix), MEDIUM (consider), LOW (nitpick)'
+  tags: []
+  task_ref: null
+- kind: pattern
+  content: Check .unwrap_or_default() on fallible operations — silent error swallowing
+  tags: []
+  task_ref: null
+- kind: pattern
+  content: 'API parity: feature in CLI should also work in MCP and HTTP'
+  tags: []
+  task_ref: null
+- kind: pattern
+  content: Hooks executing shell from untrusted input = security concern
+  tags: []
+  task_ref: null
+- kind: pattern
+  content: SQL param count must match INSERT after schema changes
   tags: []
   task_ref: null
 
