@@ -49,6 +49,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   approval_comment   TEXT,
   pre_condition      TEXT,
   post_condition     TEXT,
+  pre_hook           TEXT,
+  post_hook          TEXT,
   metadata           JSON,
   created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -235,5 +237,10 @@ pub fn init_db(path: &str) -> Result<Database> {
     conn.execute_batch(INDEX_LEARNINGS_TASK)?;
     conn.execute_batch(INDEX_LEARNING_TAGS_TAG)?;
     conn.execute_batch(CREATE_TASK_READINESS_VIEW)?;
+
+    // Migrations for existing databases: add pre_hook/post_hook columns
+    let _ = conn.execute_batch("ALTER TABLE tasks ADD COLUMN pre_hook TEXT;");
+    let _ = conn.execute_batch("ALTER TABLE tasks ADD COLUMN post_hook TEXT;");
+
     Ok(Database::from_connection(conn))
 }
