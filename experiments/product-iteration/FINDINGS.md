@@ -49,6 +49,43 @@ All features validated: init, add, go, done, split, status, critical-path, bottl
 - Auto-link to current running task (no --task needed)
 - Freeform --kind (not a fixed enum — agent decides the taxonomy)
 
+### Lazy Recall (Context in `plandb go`)
+
+**Validation**: Manual testing with realistic multi-task project
+
+When an agent claims a task, BM25 automatically searches for relevant context entries
+using key terms extracted from the task title and description.
+
+Example: Claiming "Implement auth endpoints" auto-surfaced:
+- `[decision] Use argon2id for password hashing — bcrypt has 72-byte limit`
+
+Applied to all three interfaces: CLI, MCP, HTTP.
+
+### Task Lifecycle Hooks
+
+**Validation**: Manual testing
+
+- `--pre-hook` fires when task transitions to running (via `plandb go`)
+- `--post-hook` fires when task transitions to done (via `plandb done`)
+- Sets PLANDB_TASK_ID, PLANDB_PROJECT_ID, PLANDB_TASK_TITLE, PLANDB_AGENT_ID env vars
+- Hooks are advisory — failures warn but never block
+- Included in export/import templates for replayable procedures
+
+### Contextual Action Hints in CLI Output
+
+Every lifecycle response now teaches the agent what it can do:
+- `init`: dependency syntax, core loop
+- `go`: context recording, split, search, done commands
+- `done`: reassess, next task, insert, parallel options
+
+This makes the CLI self-documenting — agents auto-discover features without needing
+the full prompt reference.
+
+## Phase 4: Template Enhancement (in progress)
+
+Templates now include context entries (institutional knowledge), so imported templates
+carry not just the task structure but also the discoveries/decisions from the original run.
+
 ## Meta-Findings
 
 1. **The prompt IS the product** — agents' behavior is shaped entirely by the prompt quality
@@ -56,3 +93,7 @@ All features validated: init, add, go, done, split, status, critical-path, bottl
 3. **Smaller prompts > larger prompts** — 51% reduction produced better results
 4. **Freeform > fixed taxonomies** — agents are better judges of what types they need
 5. **Auto-detection > explicit flags** — auto-linking to running task reduces friction
+6. **Lazy > explicit** — auto-surfacing context in `go` is better than requiring search
+7. **CLI output is a teaching surface** — every response should hint at available actions
+8. **Templates are extracted, not written** — export from real runs, not hand-crafted YAML
+9. **The test IS the example** — real agent session output becomes the documentation
