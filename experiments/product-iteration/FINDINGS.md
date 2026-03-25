@@ -81,10 +81,43 @@ Every lifecycle response now teaches the agent what it can do:
 This makes the CLI self-documenting — agents auto-discover features without needing
 the full prompt reference.
 
-## Phase 4: Template Enhancement (in progress)
+### Session Continuity (plandb resume)
+
+**Validation**: Manual testing
+
+`plandb resume` provides everything an agent needs to pick up from a previous session:
+- Progress summary (done/total/running/ready/blocked)
+- Currently running tasks with agent IDs
+- Ready-to-claim tasks
+- Recent context entries (last 5)
+- Contextual action hints
+
+Replaces the need for a separate session start/end/resume system.
+
+### Search Quality (FTS5 on tasks)
+
+Tasks are now indexed via FTS5 with weighted fields:
+- Title matches weighted 10x over description matches
+- Proper BM25 ranking instead of LIKE search
+- Combined results: context entries + tasks, sorted by relevance
+
+## Phase 4: Templates with Institutional Knowledge
 
 Templates now include context entries (institutional knowledge), so imported templates
 carry not just the task structure but also the discoveries/decisions from the original run.
+
+Shipped two template recipes:
+- `templates/pr-review.yaml` — 7-task fan-out pipeline (parse → 4 parallel reviewers → synthesize → report)
+- `templates/epic-decomposition.yaml` — 7-task waterfall with parallel test/docs/edge-case phase
+
+### Agent Validation (Codex, Updated Prompt v2)
+
+Re-tested with the updated prompt (120 lines, includes all new features):
+- Agent created 4-task dependency chain for Flask URL shortener
+- 5 context entries: 3 decisions, 1 discovery, 1 constraint
+- Used structured `--result` JSON to hand off design decisions
+- Used custom IDs throughout
+- Completed 2/4 tasks before timeout
 
 ## Meta-Findings
 
