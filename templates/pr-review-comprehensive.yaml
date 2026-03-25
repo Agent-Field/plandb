@@ -1,1149 +1,275 @@
-name: Comprehensive PR Review Pipeline (50+ Tasks)
-description: >
-  A thorough, multi-phase PR review template with 53 tasks organized into 9 review phases.
-  Uses compound graph structure (3+ levels) with cross-phase dependencies, hooks, and
-  post-conditions on every review task. Designed for critical codebases where review quality
-  directly impacts production reliability.
+name: PR Review Pipeline (Adaptive)
+description: null
 tasks:
-# ============================================================
-# PHASE 1: Parse & Understand (5 tasks)
-# ============================================================
-- ref_id: parse
-  title: "Parse & Understand"
-  description: >
-    Phase 1: Parse the PR diff, understand intent, and map all changes.
-    This phase feeds into ALL downstream review phases. Every reviewer
-    depends on the structured output from this phase.
+- ref_id: task-1
+  title: Parse PR diff
+  description: 'Read the PR diff and source files. Map: changed files, languages, line counts, affected modules. Identify the PR''s intent from commit messages and description.'
   kind: research
-  priority: 10
+  priority: 0
   parent_ref: null
-  pre_condition: PR URL or diff is accessible
-  post_condition: structured change summary available for all downstream phases
-  pre_hook: 'echo "Reviewing PR $(git log --oneline -1)"'
-  post_hook: null
-
-- ref_id: parse-diff
-  title: "Parse PR diff"
-  description: >
-    Fetch and parse the raw diff. Extract: files changed, lines added/removed,
-    hunks per file, rename/copy detection. Output a structured diff summary
-    with per-file change counts and hunk boundaries.
-  kind: research
-  priority: 10
-  parent_ref: parse
   pre_condition: null
-  post_condition: diff summary includes every changed file with add/remove line counts and hunk ranges
-  pre_hook: null
-  post_hook: null
-
-- ref_id: parse-langs
-  title: "Identify languages and frameworks"
-  description: >
-    From the file list, identify all programming languages, frameworks, and
-    build systems touched. Note language-specific review concerns (e.g., Go
-    needs goroutine leak checks, Python needs type hint review, JS needs
-    prototype pollution checks).
-  kind: research
-  priority: 9
-  parent_ref: parse
-  pre_condition: null
-  post_condition: language list with per-language review checklist items identified
-  pre_hook: null
-  post_hook: null
-
-- ref_id: parse-map
-  title: "Map file change topology"
-  description: >
-    Classify each changed file: new, modified, deleted, renamed. Map which
-    modules/packages are affected. Identify cross-module changes that need
-    integration review. Build a dependency-aware change map showing which
-    changes might affect which other files.
-  kind: research
-  priority: 9
-  parent_ref: parse
-  pre_condition: null
-  post_condition: change topology map covers all files with module/package classification
-  pre_hook: null
-  post_hook: null
-
-- ref_id: parse-intent
-  title: "Understand PR intent"
-  description: >
-    Read the PR title, description, linked issues, and commit messages.
-    Determine: is this a feature, bugfix, refactor, dependency update,
-    or config change? Summarize the stated intent and verify it matches
-    the actual changes. Flag mismatches.
-  kind: research
-  priority: 9
-  parent_ref: parse
-  pre_condition: null
-  post_condition: stated intent documented and verified against actual changes
-  pre_hook: null
-  post_hook: null
-
-- ref_id: parse-desc
-  title: "Check PR description quality"
-  description: >
-    Verify PR description includes: what changed, why it changed, how to
-    test, breaking changes, migration steps (if any). Check for linked
-    issues, screenshots (for UI changes), and deployment notes.
+  post_condition: diff summary documented with file list and change intent
+  pre_hook: echo "=== PR Review started at $(date) ==="
+  post_hook: echo "Parse complete. Starting parallel reviews."
+- ref_id: task-2
+  title: 'Review: injection vectors'
+  description: Check for SQL injection, command injection, XSS, template injection, path traversal. Look at all user input handling. Record each finding with plandb context --kind finding including file:line, severity, and remediation.
   kind: review
-  priority: 8
-  parent_ref: parse
-  pre_condition: null
-  post_condition: PR description completeness score assigned with specific gaps listed
-  pre_hook: null
-  post_hook: null
-
-# ============================================================
-# PHASE 2: Security Review (10 tasks)
-# ============================================================
-- ref_id: security
-  title: "Security Review"
-  description: >
-    Phase 2: Comprehensive security analysis of all changed code.
-    Covers OWASP Top 10 categories, secrets detection, crypto review,
-    and dependency vulnerability scanning.
-  kind: review
-  priority: 9
+  priority: 0
   parent_ref: null
-  pre_condition: diff summary available from Parse phase
-  post_condition: all security findings classified by OWASP category and severity
-  pre_hook: null
-  post_hook: null
-
-- ref_id: sec-injection
-  title: "Check injection vectors"
-  description: >
-    Scan all changed code for injection vulnerabilities: SQL injection
-    (string concatenation in queries, missing parameterization), NoSQL
-    injection, LDAP injection, command injection (shell=True, exec, eval),
-    template injection (Jinja2, Handlebars). Check both new code and
-    modifications to existing query/command construction.
-  kind: review
-  priority: 10
-  parent_ref: security
   pre_condition: null
-  post_condition: every query/command construction in diff verified for parameterization
+  post_condition: all injection findings documented
   pre_hook: null
-  post_hook: null
-
-- ref_id: sec-auth
-  title: "Review auth and access control"
-  description: >
-    Verify: new endpoints have authentication, authorization checks match
-    business rules, no privilege escalation paths introduced, role checks
-    are server-side (not just UI), RBAC/ABAC policies are consistent.
-    Check for IDOR vulnerabilities in new resource access patterns.
+  post_hook: plandb search "injection" --kind finding 2>/dev/null | head -5
+- ref_id: task-3
+  title: 'Review: auth and access control'
+  description: Check authentication on all endpoints, authorization checks, IDOR, privilege escalation, session management. Record findings.
   kind: review
-  priority: 10
-  parent_ref: security
-  pre_condition: null
-  post_condition: all new endpoints verified for auth/authz, IDOR paths documented
-  pre_hook: null
-  post_hook: null
-
-- ref_id: sec-secrets
-  title: "Scan for hardcoded secrets"
-  description: >
-    Search diff for: API keys, passwords, tokens, connection strings,
-    private keys, AWS credentials, JWT secrets. Check not just source
-    files but also configs, Dockerfiles, CI definitions, test fixtures,
-    and documentation examples. Verify .gitignore covers sensitive files.
-  kind: review
-  priority: 10
-  parent_ref: security
-  pre_condition: null
-  post_condition: zero hardcoded secrets in diff, .gitignore verified for sensitive patterns
-  pre_hook: null
-  post_hook: null
-
-- ref_id: sec-crypto
-  title: "Review cryptographic usage"
-  description: >
-    Check for: weak hash algorithms (MD5, SHA1 for security), insecure
-    random number generation (math.random for tokens), missing salt,
-    hardcoded IVs, ECB mode, key derivation issues, certificate validation
-    disabled. Verify TLS configuration if changed.
-  kind: review
-  priority: 9
-  parent_ref: security
-  pre_condition: null
-  post_condition: all crypto operations use approved algorithms and secure parameters
-  pre_hook: null
-  post_hook: null
-
-- ref_id: sec-ssrf
-  title: "Check SSRF vectors"
-  description: >
-    Review any code that makes HTTP requests based on user input.
-    Check for: URL validation bypass, DNS rebinding, internal network
-    access via redirects, cloud metadata endpoint access (169.254.169.254).
-    Verify allowlists for outbound URLs if applicable.
-  kind: review
-  priority: 8
-  parent_ref: security
-  pre_condition: null
-  post_condition: all user-controlled URL usage validated against SSRF patterns
-  pre_hook: null
-  post_hook: null
-
-- ref_id: sec-xss
-  title: "Check XSS vectors"
-  description: >
-    Review HTML/template rendering for: unescaped user input, dangerouslySetInnerHTML,
-    innerHTML assignments, template literal injection, CSP header changes.
-    Check both stored and reflected XSS patterns. Verify output encoding
-    matches context (HTML, JS, URL, CSS).
-  kind: review
-  priority: 9
-  parent_ref: security
-  pre_condition: null
-  post_condition: all user-controlled output verified for context-appropriate encoding
-  pre_hook: null
-  post_hook: null
-
-- ref_id: sec-csrf
-  title: "Check CSRF protection"
-  description: >
-    Verify state-changing endpoints have CSRF tokens. Check: token
-    generation uses CSPRNG, tokens are bound to sessions, SameSite
-    cookie attribute is set, custom header requirements for APIs.
-    Flag any new POST/PUT/DELETE endpoint without CSRF protection.
-  kind: review
-  priority: 8
-  parent_ref: security
-  pre_condition: null
-  post_condition: all state-changing endpoints verified for CSRF protection
-  pre_hook: null
-  post_hook: null
-
-- ref_id: sec-files
-  title: "Review file handling"
-  description: >
-    Check file upload/download code for: path traversal (../),
-    unrestricted file types, missing size limits, symlink following,
-    TOCTOU race conditions, unsafe temp file creation. Verify
-    uploaded files are stored outside web root with randomized names.
-  kind: review
-  priority: 8
-  parent_ref: security
-  pre_condition: null
-  post_condition: all file operations verified for path traversal and type restrictions
-  pre_hook: null
-  post_hook: null
-
-- ref_id: sec-deser
-  title: "Check deserialization safety"
-  description: >
-    Review any deserialization of untrusted data: pickle, yaml.load
-    (vs safe_load), Java ObjectInputStream, PHP unserialize, JSON
-    parse with reviver functions. Flag any deserialization of user-controlled
-    input without schema validation.
-  kind: review
-  priority: 9
-  parent_ref: security
-  pre_condition: null
-  post_condition: no unsafe deserialization of untrusted input found
-  pre_hook: null
-  post_hook: null
-
-- ref_id: sec-deps
-  title: "Scan dependency CVEs"
-  description: >
-    Check new/updated dependencies against CVE databases. Run
-    appropriate scanner (npm audit, pip-audit, cargo audit, etc.).
-    Review lockfile changes for unexpected transitive dependency
-    updates. Check for typosquatting on new package names.
-  kind: review
-  priority: 8
-  parent_ref: security
-  pre_condition: null
-  post_condition: no known high/critical CVEs in new or updated dependencies
-  pre_hook: null
-  post_hook: null
-
-# ============================================================
-# PHASE 3: Code Quality (10 tasks)
-# ============================================================
-- ref_id: quality
-  title: "Code Quality Review"
-  description: >
-    Phase 3: Review code quality, readability, maintainability,
-    and adherence to project standards.
-  kind: review
-  priority: 8
+  priority: 0
   parent_ref: null
-  pre_condition: diff summary available from Parse phase
-  post_condition: all quality findings categorized by severity with specific locations
-  pre_hook: null
-  post_hook: null
-
-- ref_id: qual-naming
-  title: "Check naming conventions"
-  description: >
-    Verify: variable/function/class names are descriptive, follow
-    project conventions (camelCase, snake_case, etc.), no single-letter
-    variables outside loops, no misleading names, boolean names use
-    is/has/should prefixes, constants are UPPER_SNAKE_CASE.
-  kind: review
-  priority: 7
-  parent_ref: quality
   pre_condition: null
-  post_condition: all new names verified against project naming conventions
+  post_condition: auth coverage verified for all endpoints
   pre_hook: null
   post_hook: null
-
-- ref_id: qual-complexity
-  title: "Assess cyclomatic complexity"
-  description: >
-    Check for: deeply nested conditionals (>3 levels), functions >50
-    lines, classes >500 lines, complex boolean expressions, switch/match
-    with >10 cases. Suggest extraction or pattern improvements for
-    overly complex code. Flag cognitive complexity hotspots.
+- ref_id: task-4
+  title: 'Review: secrets and crypto'
+  description: Check for hardcoded secrets, weak hashing, insecure random, missing encryption. Check configs, env vars, default values. Record findings.
   kind: review
-  priority: 8
-  parent_ref: quality
-  pre_condition: null
-  post_condition: no function exceeds complexity threshold without documented justification
-  pre_hook: null
-  post_hook: null
-
-- ref_id: qual-coupling
-  title: "Evaluate coupling and cohesion"
-  description: >
-    Check for: tight coupling between modules, circular dependencies,
-    God objects/classes, feature envy, inappropriate intimacy between
-    classes. Verify new code follows existing module boundaries.
-    Flag violations of dependency inversion principle.
-  kind: review
-  priority: 7
-  parent_ref: quality
-  pre_condition: null
-  post_condition: no new circular dependencies or coupling violations introduced
-  pre_hook: null
-  post_hook: null
-
-- ref_id: qual-dead
-  title: "Detect dead code"
-  description: >
-    Look for: unreachable code paths, unused imports, commented-out
-    code blocks, unused variables/functions, feature flags for removed
-    features. Verify deletions don't leave orphaned code. Check for
-    TODO/FIXME/HACK comments that should be tracked as issues.
-  kind: review
-  priority: 6
-  parent_ref: quality
-  pre_condition: null
-  post_condition: no dead code or orphaned references in changed files
-  pre_hook: null
-  post_hook: null
-
-- ref_id: qual-errors
-  title: "Review error handling"
-  description: >
-    Verify: errors are handled at every level, no bare except/catch,
-    error messages are user-friendly where needed, errors include
-    context for debugging, no swallowed exceptions, retry logic has
-    backoff and max attempts, error types are specific not generic.
-  kind: review
-  priority: 8
-  parent_ref: quality
-  pre_condition: null
-  post_condition: all error paths handle failures explicitly with appropriate context
-  pre_hook: null
-  post_hook: null
-
-- ref_id: qual-logging
-  title: "Check logging and observability"
-  description: >
-    Verify: appropriate log levels (no INFO spam, errors at ERROR),
-    structured logging where applicable, no PII in logs, request IDs
-    for tracing, metrics for new endpoints/operations, no debug
-    logging left in production code paths.
-  kind: review
-  priority: 6
-  parent_ref: quality
-  pre_condition: null
-  post_condition: logging follows project conventions with no PII exposure
-  pre_hook: null
-  post_hook: null
-
-- ref_id: qual-magic
-  title: "Flag magic numbers and hardcoded values"
-  description: >
-    Look for: unexplained numeric literals, hardcoded URLs, hardcoded
-    timeouts, string literals that should be constants or config,
-    hardcoded limits (pagination, rate limits). Each should be a
-    named constant or config value with documentation.
-  kind: review
-  priority: 6
-  parent_ref: quality
-  pre_condition: null
-  post_condition: no unexplained magic numbers or hardcoded values in new code
-  pre_hook: null
-  post_hook: null
-
-- ref_id: qual-duplication
-  title: "Detect code duplication"
-  description: >
-    Check for: copy-pasted code blocks (>5 lines similar), repeated
-    patterns that should be extracted, duplicated business logic
-    across modules, redundant utility functions. Suggest shared
-    abstractions where appropriate.
-  kind: review
-  priority: 7
-  parent_ref: quality
-  pre_condition: null
-  post_condition: no significant code duplication (>5 lines) without documented reason
-  pre_hook: null
-  post_hook: null
-
-- ref_id: qual-style
-  title: "Check style consistency"
-  description: >
-    Verify: consistent formatting with project style (linter/formatter
-    compliance), consistent import ordering, consistent file structure,
-    consistent comment style, consistent use of language features
-    (async/await vs promises, etc.).
-  kind: review
-  priority: 5
-  parent_ref: quality
-  pre_condition: null
-  post_condition: new code passes all configured linters and formatters
-  pre_hook: null
-  post_hook: null
-
-- ref_id: qual-perf
-  title: "Spot performance issues"
-  description: >
-    Look for: N+1 queries, missing database indexes for new queries,
-    unbounded collections, synchronous I/O in async context, missing
-    pagination, O(n^2) algorithms on potentially large inputs, memory
-    leaks (event listeners, unclosed resources), excessive allocations.
-  kind: review
-  priority: 7
-  parent_ref: quality
-  pre_condition: null
-  post_condition: no O(n^2+) algorithms on unbounded input without documented justification
-  pre_hook: null
-  post_hook: null
-
-# ============================================================
-# PHASE 4: Architecture Review (5 tasks)
-# ============================================================
-- ref_id: arch
-  title: "Architecture Review"
-  description: >
-    Phase 4: Evaluate structural and design impact of the changes.
-    Check API contracts, schema changes, dependency graph, and
-    backward compatibility.
-  kind: review
-  priority: 8
+  priority: 0
   parent_ref: null
-  pre_condition: diff summary available from Parse phase
-  post_condition: architectural impact assessed with migration risks documented
-  pre_hook: null
-  post_hook: null
-
-- ref_id: arch-patterns
-  title: "Verify design pattern consistency"
-  description: >
-    Check that new code follows existing project patterns: repository
-    pattern for data access, factory pattern for object creation,
-    middleware/interceptor chains, error handling patterns, state
-    management patterns. Flag deviations and assess if they are
-    intentional improvements or inconsistencies.
-  kind: review
-  priority: 7
-  parent_ref: arch
   pre_condition: null
-  post_condition: new code follows or explicitly improves existing design patterns
+  post_condition: no secrets in source, crypto choices documented
   pre_hook: null
   post_hook: null
-
-- ref_id: arch-api
-  title: "Review API design"
-  description: >
-    For new/changed endpoints: verify RESTful conventions (or GraphQL
-    best practices), consistent naming, appropriate HTTP methods and
-    status codes, request/response schema documented, versioning
-    strategy, pagination for list endpoints, proper content types.
+- ref_id: task-5
+  title: 'Review: data integrity'
+  description: Check serialization safety (pickle, yaml.load, eval), file upload handling, SSRF, CORS config. Record findings.
   kind: review
-  priority: 8
-  parent_ref: arch
-  pre_condition: null
-  post_condition: all API changes follow project conventions with documented schemas
-  pre_hook: null
-  post_hook: null
-
-- ref_id: arch-schema
-  title: "Review schema and data model changes"
-  description: >
-    Check database migrations: reversibility, data preservation, index
-    impact, foreign key integrity, column type appropriateness, default
-    values, NOT NULL constraints. Verify migration runs on large tables
-    without locking issues. Check for backward-compatible schema evolution.
-  kind: review
-  priority: 9
-  parent_ref: arch
-  pre_condition: null
-  post_condition: schema changes are backward-compatible or migration path documented
-  pre_hook: null
-  post_hook: null
-
-- ref_id: arch-deps
-  title: "Analyze dependency graph impact"
-  description: >
-    Check new dependencies: license compatibility, maintenance status,
-    bundle size impact, transitive dependency count. Verify no circular
-    dependencies introduced. Check if existing internal libraries could
-    serve the same purpose. Assess supply chain risk.
-  kind: review
-  priority: 7
-  parent_ref: arch
-  pre_condition: null
-  post_condition: all new dependencies justified with license and maintenance assessment
-  pre_hook: null
-  post_hook: null
-
-- ref_id: arch-breaking
-  title: "Identify breaking changes"
-  description: >
-    Check for: removed/renamed public APIs, changed function signatures,
-    altered return types, removed config options, changed default behaviors,
-    removed environment variables, database schema changes requiring
-    migration. Verify any breaking change has a migration guide.
-  kind: review
-  priority: 9
-  parent_ref: arch
-  pre_condition: null
-  post_condition: all breaking changes documented with migration steps
-  pre_hook: null
-  post_hook: null
-
-# ============================================================
-# PHASE 5: Testing Review (8 tasks)
-# ============================================================
-- ref_id: testing
-  title: "Testing Review"
-  description: >
-    Phase 5: Verify test quality, coverage, and reliability
-    for all changed code.
-  kind: test
-  priority: 8
+  priority: 0
   parent_ref: null
-  pre_condition: diff summary available from Parse phase
-  post_condition: test coverage gaps identified with specific recommendations
-  pre_hook: null
-  post_hook: null
-
-- ref_id: test-unit
-  title: "Verify unit test coverage"
-  description: >
-    Check that new functions/methods have unit tests. Verify tests
-    cover: happy path, error cases, boundary values, null/empty inputs.
-    Calculate coverage delta. Flag any new code without tests that
-    exceeds trivial complexity.
-  kind: test
-  priority: 8
-  parent_ref: testing
   pre_condition: null
-  post_condition: all non-trivial new functions have corresponding unit tests
+  post_condition: data handling reviewed
   pre_hook: null
   post_hook: null
-
-- ref_id: test-integration
-  title: "Check integration test coverage"
-  description: >
-    For new API endpoints or service interactions: verify integration
-    tests exist covering request/response contracts, error responses,
-    authentication flows, and cross-service calls. Check test database
-    setup/teardown is clean.
-  kind: test
-  priority: 8
-  parent_ref: testing
-  pre_condition: null
-  post_condition: all new endpoints have integration tests for success and error cases
-  pre_hook: null
-  post_hook: null
-
-- ref_id: test-edge
-  title: "Verify edge case coverage"
-  description: >
-    Check tests for: empty inputs, maximum values, concurrent access,
-    timeout scenarios, network failures, disk full, invalid UTF-8,
-    very large payloads, race conditions. Flag high-risk code paths
-    without edge case tests.
-  kind: test
-  priority: 7
-  parent_ref: testing
-  pre_condition: null
-  post_condition: edge cases documented for all critical code paths with test coverage
-  pre_hook: null
-  post_hook: null
-
-- ref_id: test-error-paths
-  title: "Verify error path testing"
-  description: >
-    Check that error handling code is tested: exception paths, retry
-    logic, fallback behavior, circuit breaker states, timeout handling,
-    graceful degradation. Error paths are the most likely to have bugs
-    because they are the least exercised in development.
-  kind: test
-  priority: 8
-  parent_ref: testing
-  pre_condition: null
-  post_condition: all error handling branches have corresponding test cases
-  pre_hook: null
-  post_hook: null
-
-- ref_id: test-mocks
-  title: "Assess mock quality"
-  description: >
-    Review test mocks/stubs: do they accurately represent the real
-    service behavior? Are mocks too permissive (always returning
-    success)? Do mocks verify interaction contracts? Check for
-    over-mocking that hides integration bugs. Verify mock data
-    is realistic and covers edge cases.
-  kind: test
-  priority: 7
-  parent_ref: testing
-  pre_condition: null
-  post_condition: mocks accurately represent real service contracts and error modes
-  pre_hook: null
-  post_hook: null
-
-- ref_id: test-naming
-  title: "Review test naming and structure"
-  description: >
-    Verify tests follow naming conventions (test_should_X_when_Y,
-    describe/it blocks). Check test structure: arrange-act-assert,
-    one assertion per test (or logically grouped), descriptive failure
-    messages, no test interdependencies.
-  kind: test
-  priority: 5
-  parent_ref: testing
-  pre_condition: null
-  post_condition: test names clearly describe what is being tested and expected behavior
-  pre_hook: null
-  post_hook: null
-
-- ref_id: test-flaky
-  title: "Check for flaky test patterns"
-  description: >
-    Look for: time-dependent tests, order-dependent tests, tests
-    relying on external services, non-deterministic assertions,
-    race conditions in async tests, shared mutable state between
-    tests, hardcoded ports or file paths. These patterns cause
-    intermittent CI failures.
-  kind: test
-  priority: 7
-  parent_ref: testing
-  pre_condition: null
-  post_condition: no time-dependent or order-dependent test patterns in new tests
-  pre_hook: null
-  post_hook: null
-
-- ref_id: test-regression
-  title: "Verify regression test for bug fixes"
-  description: >
-    If this PR fixes a bug: verify a regression test exists that
-    reproduces the original bug and passes with the fix. The test
-    should fail if the fix is reverted. For features, verify tests
-    prevent known anti-patterns from the feature domain.
-  kind: test
-  priority: 8
-  parent_ref: testing
-  pre_condition: null
-  post_condition: bug fix PRs include regression test that fails without the fix
-  pre_hook: null
-  post_hook: null
-
-# ============================================================
-# PHASE 6: Documentation Review (5 tasks)
-# ============================================================
-- ref_id: docs
-  title: "Documentation Review"
-  description: >
-    Phase 6: Verify documentation is updated to reflect changes.
-    Covers README, API docs, inline comments, changelog, and
-    migration guides.
+- ref_id: task-6
+  title: 'Review: error handling'
+  description: 'Check error handling: are errors silently swallowed? Are error messages informative? Are panics/unwraps used where Results should be? Record findings.'
   kind: review
-  priority: 6
+  priority: 0
   parent_ref: null
-  pre_condition: diff summary available from Parse phase
-  post_condition: all documentation gaps identified with specific update recommendations
-  pre_hook: null
-  post_hook: null
-
-- ref_id: docs-readme
-  title: "Check README updates"
-  description: >
-    If new features, config options, or setup steps changed: verify
-    README is updated. Check for: outdated screenshots, wrong
-    version numbers, broken links, missing prerequisites, incorrect
-    installation steps.
-  kind: review
-  priority: 6
-  parent_ref: docs
   pre_condition: null
-  post_condition: README accurately reflects current setup and feature state
+  post_condition: error handling patterns documented
   pre_hook: null
   post_hook: null
-
-- ref_id: docs-api
-  title: "Verify API documentation"
-  description: >
-    For new/changed endpoints: verify OpenAPI/Swagger spec is updated,
-    request/response examples are accurate, error response codes are
-    documented, authentication requirements are noted. Check generated
-    docs match implementation.
+- ref_id: task-7
+  title: 'Review: naming and consistency'
+  description: Check naming conventions, consistent patterns across similar code, API consistency between CLI/MCP/HTTP interfaces. Flag drift. Record findings.
   kind: review
-  priority: 7
-  parent_ref: docs
-  pre_condition: null
-  post_condition: API docs match implementation for all changed endpoints
-  pre_hook: null
-  post_hook: null
-
-- ref_id: docs-inline
-  title: "Review inline comments"
-  description: >
-    Check for: outdated comments that no longer match code, missing
-    comments on complex logic, excessive obvious comments, proper
-    JSDoc/docstring/rustdoc on public APIs, TODO comments with
-    tracking issues.
-  kind: review
-  priority: 5
-  parent_ref: docs
-  pre_condition: null
-  post_condition: inline comments are accurate and present on complex or public code
-  pre_hook: null
-  post_hook: null
-
-- ref_id: docs-changelog
-  title: "Verify changelog entry"
-  description: >
-    Check CHANGELOG/release notes: entry exists for user-facing changes,
-    correct version section, accurate description, migration notes for
-    breaking changes, credit to contributors where applicable.
-  kind: review
-  priority: 6
-  parent_ref: docs
-  pre_condition: null
-  post_condition: changelog entry exists for user-facing changes with correct version
-  pre_hook: null
-  post_hook: null
-
-- ref_id: docs-migration
-  title: "Check migration guide"
-  description: >
-    For breaking changes: verify migration guide exists with step-by-step
-    instructions, before/after code examples, rollback procedure, and
-    timeline expectations. Cross-reference with arch-breaking findings.
-  kind: review
-  priority: 7
-  parent_ref: docs
-  pre_condition: null
-  post_condition: migration guide exists for all breaking changes with rollback steps
-  pre_hook: null
-  post_hook: null
-
-# ============================================================
-# PHASE 7: DevOps Review (5 tasks)
-# ============================================================
-- ref_id: devops
-  title: "DevOps Review"
-  description: >
-    Phase 7: Assess CI/CD, build, deployment, and infrastructure
-    impact of the changes.
-  kind: review
-  priority: 7
+  priority: 0
   parent_ref: null
-  pre_condition: diff summary available from Parse phase
-  post_condition: all CI/CD and deployment impacts documented
-  pre_hook: null
-  post_hook: null
-
-- ref_id: devops-ci
-  title: "Assess CI pipeline impact"
-  description: >
-    Check: CI config changes are valid, new test jobs are added for
-    new test suites, build matrix covers required platforms, CI
-    secrets are not exposed in logs, parallel job configuration
-    is optimal, timeout values are reasonable.
-  kind: review
-  priority: 7
-  parent_ref: devops
   pre_condition: null
-  post_condition: CI pipeline changes validated and test coverage maintained
+  post_condition: naming issues documented
   pre_hook: null
   post_hook: null
-
-- ref_id: devops-build
-  title: "Check build time impact"
-  description: >
-    Evaluate: new dependencies increasing build time, build cache
-    invalidation, unnecessary rebuild triggers, Dockerfile layer
-    ordering, tree-shaking effectiveness with new imports, compilation
-    time for new code volume.
+- ref_id: task-8
+  title: 'Review: code duplication'
+  description: Find duplicated logic that should be shared. Check if similar code in CLI/MCP/HTTP could be consolidated. Record findings.
   kind: review
-  priority: 6
-  parent_ref: devops
+  priority: 0
+  parent_ref: null
   pre_condition: null
-  post_condition: no significant build time regression without documented justification
+  post_condition: duplication issues documented
   pre_hook: null
   post_hook: null
-
-- ref_id: devops-image
-  title: "Review container image impact"
-  description: >
-    If Dockerfile changed: check multi-stage builds, minimal base
-    images, no unnecessary packages, .dockerignore updated, layer
-    caching optimized, no secrets baked into image, health checks
-    configured. Estimate image size delta.
+- ref_id: task-9
+  title: 'Review: complexity and performance'
+  description: Check for unnecessary DB queries, O(n^2) patterns, missing indexes, large allocations. Record findings.
   kind: review
-  priority: 6
-  parent_ref: devops
+  priority: 0
+  parent_ref: null
   pre_condition: null
-  post_condition: container image changes follow minimal-size and security best practices
+  post_condition: performance concerns documented
   pre_hook: null
   post_hook: null
-
-- ref_id: devops-env
-  title: "Verify environment variable changes"
-  description: >
-    Check for: new required env vars documented, defaults are safe,
-    .env.example updated, env validation at startup, no sensitive
-    values in default configs, feature flags properly gated,
-    environment-specific configs handled correctly.
+- ref_id: task-10
+  title: 'Review: test coverage'
+  description: Check which new features have tests and which don't. List untested code paths. Record findings as plandb context --kind finding.
   kind: review
-  priority: 7
-  parent_ref: devops
+  priority: 0
+  parent_ref: null
   pre_condition: null
-  post_condition: all new env vars documented with defaults and validation
+  post_condition: test gaps documented
   pre_hook: null
   post_hook: null
-
-- ref_id: devops-config
-  title: "Review configuration changes"
-  description: >
-    Check: config file format changes, backward compatibility of
-    config schema, config validation, sensible defaults, config
-    documentation, infrastructure-as-code changes (Terraform, K8s
-    manifests), deployment strategy changes (rolling, blue-green).
+- ref_id: task-11
+  title: 'Review: test quality'
+  description: 'Check existing tests: are assertions meaningful? Are edge cases covered? Are mocks appropriate? Record findings.'
   kind: review
-  priority: 6
-  parent_ref: devops
+  priority: 0
+  parent_ref: null
   pre_condition: null
-  post_condition: config changes are backward-compatible or migration documented
+  post_condition: test quality issues documented
   pre_hook: null
   post_hook: null
-
-# ============================================================
-# PHASE 8: Synthesis (3 tasks)
-# ============================================================
-- ref_id: synthesis
-  title: "Synthesis"
-  description: >
-    Phase 8: Merge all review findings, deduplicate, resolve
-    conflicts, and produce a prioritized verdict.
+- ref_id: task-12
+  title: 'Review: API design'
+  description: 'Check API consistency: do CLI, MCP, and HTTP interfaces expose the same features? Are response shapes consistent? Flag missing features in any interface. Record findings.'
+  kind: review
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: API parity issues documented
+  pre_hook: null
+  post_hook: null
+- ref_id: task-13
+  title: 'Review: schema and migrations'
+  description: 'Check database schema changes: are migrations safe? Are new columns nullable? Is FTS kept in sync? Record findings.'
+  kind: review
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: schema issues documented
+  pre_hook: null
+  post_hook: null
+- ref_id: task-14
+  title: 'Review: docs accuracy'
+  description: Check if README, help text, and prompts match the actual code. Flag any discrepancy between documented and actual behavior. Record findings.
+  kind: review
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: docs accuracy verified
+  pre_hook: null
+  post_hook: null
+- ref_id: task-15
+  title: Synthesize findings
+  description: 'Use plandb search to gather ALL findings. Deduplicate. Classify by severity (critical/high/medium/low). Prioritize by impact. Output: structured summary with counts per severity.'
   kind: research
-  priority: 7
+  priority: 0
   parent_ref: null
-  pre_condition: all review phases complete
-  post_condition: unified finding list with no duplicates and clear verdict
-  pre_hook: null
-  post_hook: null
-
-- ref_id: synth-dedup
-  title: "Deduplicate findings"
-  description: >
-    Merge overlapping findings from different review phases (e.g.,
-    security and code quality may flag the same issue). Preserve
-    the most detailed description. Consolidate severity ratings,
-    taking the highest. Link related findings that have a common
-    root cause.
-  kind: research
-  priority: 7
-  parent_ref: synthesis
   pre_condition: null
-  post_condition: no duplicate findings, related findings linked by root cause
+  post_condition: findings deduplicated and prioritized
   pre_hook: null
   post_hook: null
-
-- ref_id: synth-prioritize
-  title: "Prioritize findings"
-  description: >
-    Rank all findings by: severity (critical > high > medium > low),
-    exploitability, blast radius, fix complexity. Separate into:
-    must-fix-before-merge (blockers), should-fix (important), and
-    nice-to-have (suggestions). Assign actionable next steps.
-  kind: research
-  priority: 7
-  parent_ref: synthesis
-  pre_condition: null
-  post_condition: findings categorized as blocker/important/suggestion with next steps
-  pre_hook: null
-  post_hook: null
-
-- ref_id: synth-verdict
-  title: "Generate verdict"
-  description: >
-    Based on prioritized findings, determine: APPROVE (no blockers,
-    minor suggestions only), REQUEST CHANGES (blockers must be fixed),
-    or COMMENT (significant concerns but not blocking). Include
-    confidence level and key reasoning for the verdict.
-  kind: research
-  priority: 8
-  parent_ref: synthesis
-  pre_condition: null
-  post_condition: verdict is one of APPROVE/REQUEST_CHANGES/COMMENT with reasoning
-  pre_hook: null
-  post_hook: null
-
-# ============================================================
-# PHASE 9: Report (2 tasks)
-# ============================================================
-- ref_id: report
-  title: "Report"
-  description: >
-    Phase 9: Format and deliver the final review report as a
-    structured PR comment.
+- ref_id: task-16
+  title: Post PR review comments
+  description: 'For EACH finding from synthesis: create a separate, focused comment. Group by severity. Each comment should include: severity, file:line reference, description, suggested fix. Use the structured result from synthesis to generate comments. The final comment should be a summary with verdict (approve/request-changes/comment).'
   kind: code
-  priority: 6
+  priority: 0
   parent_ref: null
-  pre_condition: synthesis complete with verdict
-  post_condition: review report delivered as PR comment
-  pre_hook: null
-  post_hook: 'echo "Review complete"'
-
-- ref_id: report-format
-  title: "Format review report"
-  description: >
-    Structure the report as markdown: TL;DR with verdict, critical
-    findings (collapsible details), categorized findings by phase,
-    test coverage summary, approval recommendation. Use collapsible
-    sections for verbose details. Include inline code suggestions
-    where applicable.
-  kind: code
-  priority: 6
-  parent_ref: report
   pre_condition: null
-  post_condition: report is valid markdown under 65000 characters (GitHub comment limit)
+  post_condition: all findings posted as individual comments
   pre_hook: null
-  post_hook: null
-
-- ref_id: report-comment
-  title: "Generate PR comment"
-  description: >
-    Post the formatted report as a PR comment. Include: summary
-    badge (APPROVED/CHANGES_REQUESTED), finding count by severity,
-    inline review comments on specific lines for critical findings,
-    threaded replies for discussion items.
-  kind: code
-  priority: 6
-  parent_ref: report
-  pre_condition: null
-  post_condition: PR comment posted with inline annotations on critical findings
-  pre_hook: null
-  post_hook: null
-
-# ============================================================
-# DEPENDENCIES
-# ============================================================
+  post_hook: echo "=== PR Review complete at $(date) ==="
 dependencies:
-# Parse & Understand feeds into all review phases (fan-out)
-- from_ref: parse
-  to_ref: security
+- from_ref: task-1
+  to_ref: task-2
   kind: feeds_into
-- from_ref: parse
-  to_ref: quality
+- from_ref: task-1
+  to_ref: task-3
   kind: feeds_into
-- from_ref: parse
-  to_ref: arch
+- from_ref: task-1
+  to_ref: task-4
   kind: feeds_into
-- from_ref: parse
-  to_ref: testing
+- from_ref: task-1
+  to_ref: task-5
   kind: feeds_into
-- from_ref: parse
-  to_ref: docs
+- from_ref: task-1
+  to_ref: task-6
   kind: feeds_into
-- from_ref: parse
-  to_ref: devops
+- from_ref: task-1
+  to_ref: task-7
   kind: feeds_into
-
-# Internal parse dependencies
-- from_ref: parse-diff
-  to_ref: parse-langs
+- from_ref: task-1
+  to_ref: task-8
   kind: feeds_into
-- from_ref: parse-diff
-  to_ref: parse-map
+- from_ref: task-1
+  to_ref: task-9
   kind: feeds_into
-- from_ref: parse-diff
-  to_ref: parse-intent
+- from_ref: task-1
+  to_ref: task-10
   kind: feeds_into
-- from_ref: parse-intent
-  to_ref: parse-desc
+- from_ref: task-1
+  to_ref: task-11
   kind: feeds_into
-
-# All review phases feed into Synthesis (fan-in)
-- from_ref: security
-  to_ref: synthesis
+- from_ref: task-1
+  to_ref: task-12
   kind: feeds_into
-- from_ref: quality
-  to_ref: synthesis
+- from_ref: task-1
+  to_ref: task-13
   kind: feeds_into
-- from_ref: arch
-  to_ref: synthesis
+- from_ref: task-1
+  to_ref: task-14
   kind: feeds_into
-- from_ref: testing
-  to_ref: synthesis
+- from_ref: task-2
+  to_ref: task-15
   kind: feeds_into
-- from_ref: docs
-  to_ref: synthesis
+- from_ref: task-3
+  to_ref: task-15
   kind: feeds_into
-- from_ref: devops
-  to_ref: synthesis
+- from_ref: task-4
+  to_ref: task-15
   kind: feeds_into
-
-# Synthesis feeds into Report
-- from_ref: synthesis
-  to_ref: report
+- from_ref: task-5
+  to_ref: task-15
   kind: feeds_into
-
-# Internal synthesis chain
-- from_ref: synth-dedup
-  to_ref: synth-prioritize
+- from_ref: task-6
+  to_ref: task-15
   kind: feeds_into
-- from_ref: synth-prioritize
-  to_ref: synth-verdict
+- from_ref: task-7
+  to_ref: task-15
   kind: feeds_into
-
-# Internal report chain
-- from_ref: report-format
-  to_ref: report-comment
+- from_ref: task-8
+  to_ref: task-15
   kind: feeds_into
-
-# Cross-phase dependencies
-# Mock quality depends on coupling analysis (mocks reflect coupling decisions)
-- from_ref: qual-coupling
-  to_ref: test-mocks
+- from_ref: task-9
+  to_ref: task-15
   kind: feeds_into
-# Schema changes review depends on injection vector analysis
-- from_ref: sec-injection
-  to_ref: arch-schema
+- from_ref: task-10
+  to_ref: task-15
   kind: feeds_into
-# Migration guide depends on breaking changes analysis
-- from_ref: arch-breaking
-  to_ref: docs-migration
+- from_ref: task-11
+  to_ref: task-15
   kind: feeds_into
-# Error path tests depend on error handling review
-- from_ref: qual-errors
-  to_ref: test-error-paths
-  kind: suggests
-# API docs depend on API design review
-- from_ref: arch-api
-  to_ref: docs-api
-  kind: suggests
-# Container image review depends on dependency graph analysis
-- from_ref: arch-deps
-  to_ref: devops-image
-  kind: suggests
-# Performance spots feed into build time assessment
-- from_ref: qual-perf
-  to_ref: devops-build
-  kind: suggests
-
-# ============================================================
-# CONTEXT ENTRIES (15+)
-# ============================================================
+- from_ref: task-12
+  to_ref: task-15
+  kind: feeds_into
+- from_ref: task-13
+  to_ref: task-15
+  kind: feeds_into
+- from_ref: task-14
+  to_ref: task-15
+  kind: feeds_into
+- from_ref: task-15
+  to_ref: task-16
+  kind: feeds_into
 context:
-# Patterns from past reviews
-- kind: pattern
-  content: "SQL injection remains the #1 finding in PR reviews. Always check string concatenation in queries, f-strings in SQL, and template literals building queries. Parameterized queries are the only safe approach."
-  tags: [security, injection]
-  task_ref: sec-injection
-
-- kind: pattern
-  content: "Hardcoded secrets most commonly appear in: test fixtures (real API keys used for testing), Docker Compose files (database passwords), CI configs (.env values in YAML), and documentation (example configs with real values)."
-  tags: [security, secrets]
-  task_ref: sec-secrets
-
-- kind: pattern
-  content: "N+1 query patterns are the most common performance regression in PR reviews. Check any loop that makes database or API calls. Look for ORM lazy loading in list endpoints."
-  tags: [performance, quality]
-  task_ref: qual-perf
-
-- kind: pattern
-  content: "Test coverage: error paths are 3x more likely to have bugs than happy paths, but 5x less likely to be tested. Focus review on error handling test coverage first."
-  tags: [testing]
-  task_ref: test-error-paths
-
-- kind: pattern
-  content: "Breaking API changes often hide in: changed response shapes (field renamed/removed), new required request fields, changed error response codes, altered pagination behavior, and removed query parameters."
-  tags: [architecture, api]
-  task_ref: arch-breaking
-
-- kind: pattern
-  content: "Flaky test patterns to flag: sleep-based synchronization, fixed port numbers, tests depending on system time, shared database state between tests, non-deterministic ordering assertions on sets/maps."
-  tags: [testing, flaky]
-  task_ref: test-flaky
-
-- kind: pattern
-  content: "Common CSRF bypass attempts: GET requests for state changes, JSON content-type without CORS preflight, Flash-based cross-origin requests. Verify all state-changing operations use POST/PUT/DELETE with CSRF tokens."
-  tags: [security, csrf]
-  task_ref: sec-csrf
-
-# Common pitfalls per category
 - kind: constraint
-  content: "Never approve a PR that adds pickle.loads, yaml.load (without SafeLoader), or eval() on user-controlled input. These are always critical severity, no exceptions."
-  tags: [security, blocker]
-  task_ref: sec-deser
-
+  content: Post each finding as a SEPARATE comment, not one big dump. Include file:line, severity, and suggested fix.
+  tags: []
+  task_ref: null
+- kind: pattern
+  content: 'Check for silent error swallowing: .unwrap_or_default() on operations that should surface errors'
+  tags: []
+  task_ref: null
+- kind: pattern
+  content: 'API parity: if a feature exists in CLI, it should also work in MCP and HTTP'
+  tags: []
+  task_ref: null
+- kind: pattern
+  content: Hooks that execute shell commands from untrusted input are a security concern
+  tags: []
+  task_ref: null
+- kind: pattern
+  content: SQL parameter count must match INSERT statement after schema changes
+  tags: []
+  task_ref: null
+- kind: pattern
+  content: FTS indexes must be updated whenever the indexed columns change (INSERT, UPDATE, DELETE)
+  tags: []
+  task_ref: null
 - kind: constraint
-  content: "Schema migrations on large tables (>1M rows) must be evaluated for locking behavior. ALTER TABLE ADD COLUMN with DEFAULT in PostgreSQL <11 locks the table. Prefer nullable columns with backfill."
-  tags: [architecture, database]
-  task_ref: arch-schema
-
-- kind: constraint
-  content: "New dependencies must be justified. Check: last commit date (abandoned if >1 year), open issue count, download count, license compatibility (no GPL in MIT projects), and whether the functionality exists in the stdlib."
-  tags: [architecture, dependencies]
-  task_ref: arch-deps
-
-- kind: constraint
-  content: "GitHub PR comment limit is 65,535 characters. Reports must fit in a single comment. Use collapsible sections for verbose details and limit inline code suggestions to critical findings only."
-  tags: [report]
-  task_ref: report-format
-
-- kind: constraint
-  content: "CI pipeline changes should be tested in a separate PR first when possible. A broken CI pipeline blocks the entire team. Verify syntax with the CI provider's linter before merging."
-  tags: [devops, ci]
-  task_ref: devops-ci
-
-# Review priorities
-- kind: insight
-  content: "Review priority order: (1) Security blockers - exploitable vulnerabilities, (2) Data integrity - migrations, schema changes, (3) Correctness - logic bugs, missing error handling, (4) Performance - N+1 queries, unbounded operations, (5) Maintainability - naming, structure, docs."
-  tags: [review, priority]
-  task_ref: synth-prioritize
-
-- kind: insight
-  content: "The most impactful review comments are on architecture and API design, not code style. Style issues should be caught by linters. Focus reviewer time on structural decisions that are expensive to change later."
-  tags: [review, strategy]
+  content: Use plandb done --result with structured JSON so synthesis can aggregate programmatically
+  tags: []
   task_ref: null
 
-- kind: insight
-  content: "For large PRs (>500 lines changed), recommend splitting into smaller PRs if logically separable. Large PRs get superficial reviews. The ideal PR size is 200-400 lines of meaningful changes."
-  tags: [review, strategy]
-  task_ref: parse-desc
-
-- kind: insight
-  content: "When reviewing test code, verify tests actually assert meaningful behavior. Watch for: tests that only check 'no exception thrown', assertions on mock return values (testing the mock, not the code), and tests that pass with the implementation deleted."
-  tags: [testing, quality]
-  task_ref: test-unit
-
-- kind: discovery
-  content: "Cross-phase findings are highest value: a security issue that also affects performance (e.g., ReDoS), or an architecture issue that also creates testing difficulties (tight coupling making mocks unreliable)."
-  tags: [review, cross-phase]
-  task_ref: synth-dedup
