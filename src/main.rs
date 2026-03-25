@@ -194,7 +194,13 @@ plandb split --into "Design > Implement > Test"  # dependency chain (sequential)
 ```
 
 Split when: task has independent parts (parallel), is too large for one pass, or
-proves more complex than expected mid-execution.
+proves more complex than expected mid-execution. Subtasks can be split further (any depth).
+Use `plandb use t-xxx` to zoom into a subtree, `plandb use ..` to zoom out.
+
+Cross-level dependencies: a subtask can depend on ANY task at ANY level:
+```bash
+plandb task add-dep --after t-backend-api t-frontend   # subtask → top-level
+```
 
 ### Context Store (Project Knowledge)
 
