@@ -5,13 +5,14 @@ use serde_json::{json, Value};
 use std::str::FromStr;
 
 use crate::db::{
-    add_dependency, add_note, add_task_files, amend_task_description, check_file_conflicts,
-    claim_next_task, claim_task, complete_task, compute_effects, create_artifact, create_project,
-    create_task, fail_task, get_artifact, get_downstream_tasks, get_handoff_context, get_lookahead,
-    get_project, get_task, get_upstream_artifacts, insert_task_between, list_artifacts,
-    list_dependencies, list_notes, list_tasks, pause_task, pivot_subtree, project_state,
-    promote_ready_tasks, remove_dependency, run_sweep, snapshot_task_statuses, split_task,
-    start_task, update_task, Database, NewSubtask, SplitPart, TaskListFilters,
+    add_context, add_dependency, add_note, add_task_files, amend_task_description,
+    check_file_conflicts, claim_next_task, claim_task, complete_task, compute_effects,
+    create_artifact, create_project, create_task, fail_task, get_artifact, get_downstream_tasks,
+    get_handoff_context, get_lookahead, get_project, get_running_task_for_agent, get_task,
+    get_upstream_artifacts, insert_task_between, list_artifacts, list_context, list_dependencies,
+    list_notes, list_tasks, pause_task, pivot_subtree, project_state, promote_ready_tasks,
+    remove_dependency, run_sweep, search_graph, snapshot_task_statuses, split_task, start_task,
+    update_task, Database, NewSubtask, SplitPart, TaskListFilters,
 };
 use crate::models::{
     generate_id, Artifact, DependencyCondition, DependencyKind, RetryBackoff, Task, TaskKind,
@@ -252,6 +253,29 @@ struct DecomposeSubtask {
 struct TaskDecomposeArgs {
     task_id: String,
     subtasks: Vec<DecomposeSubtask>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ContextCreateArgs {
+    project_id: String,
+    content: String,
+    kind: Option<String>,
+    tags: Option<Vec<String>>,
+    agent_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ContextListArgs {
+    project_id: String,
+    kind: Option<String>,
+    limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SearchArgs {
+    project_id: String,
+    query: String,
+    limit: Option<usize>,
 }
 
 pub fn tool_schemas() -> Vec<Value> {
@@ -733,6 +757,51 @@ pub fn tool_schemas() -> Vec<Value> {
                 "required": ["task_id", "parts"]
             }
         }),
+        json!({
+            "name": "plandb_context_create",
+            "description": "Add a context entry (discovery, decision, note) to the project graph",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "project_id": { "type": "string" },
+                    "content": { "type": "string", "description": "The context content text" },
+                    "kind": { "type": "string", "description": "Entry kind (default: discovery)" },
+                    "tags": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "Optional tags for filtering"
+                    },
+                    "agent_id": { "type": "string", "description": "Agent creating the entry (default: mcp)" }
+                },
+                "required": ["project_id", "content"]
+            }
+        }),
+        json!({
+            "name": "plandb_search",
+            "description": "BM25 search across context entries and tasks",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "project_id": { "type": "string" },
+                    "query": { "type": "string", "description": "Search query" },
+                    "limit": { "type": "integer", "description": "Max results (default: 10)" }
+                },
+                "required": ["project_id", "query"]
+            }
+        }),
+        json!({
+            "name": "plandb_context_list",
+            "description": "List context entries, optionally filtered by kind",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "project_id": { "type": "string" },
+                    "kind": { "type": "string", "description": "Filter by kind" },
+                    "limit": { "type": "integer", "description": "Max entries (default: 50)" }
+                },
+                "required": ["project_id"]
+            }
+        }),
     ]
 }
 
@@ -774,6 +843,9 @@ pub fn call_tool(db: &Database, tool_name: &str, args: Value) -> ToolHandlerResu
         "plandb_task_amend" => plandb_task_amend(db, args),
         "plandb_task_pivot" => plandb_task_pivot(db, args),
         "plandb_task_split" => plandb_task_split(db, args),
+        "plandb_context_create" => plandb_context_create(db, args),
+        "plandb_search" => plandb_search(db, args),
+        "plandb_context_list" => plandb_context_list(db, args),
         _ => Err(anyhow!("unknown tool: {tool_name}")),
     }
 }
@@ -1847,4 +1919,83 @@ fn plandb_task_replan(db: &Database, args: Value) -> ToolHandlerResult {
             "subtasks": args.subtasks,
         }),
     )
+}
+
+fn plandb_context_create(db: &Database, args: Value) -> ToolHandlerResult {
+    let args: ContextCreateArgs = serde_json::from_value(args)?;
+    let kind = args.kind.as_deref().unwrap_or("discovery");
+    let agent_id = args.agent_id.as_deref().unwrap_or("mcp");
+    let tags = args.tags.unwrap_or_default();
+
+    // Auto-detect running task for this agent
+    let task_id = get_running_task_for_agent(db, agent_id)?
+        .map(|t| t.id);
+
+    let entry = add_context(
+        db,
+        &args.project_id,
+        task_id.as_deref(),
+        Some(agent_id),
+        kind,
+        &args.content,
+        &tags,
+    )?;
+
+    Ok(json!({
+        "id": entry.id,
+        "project_id": entry.project_id,
+        "task_id": entry.task_id,
+        "agent_id": entry.agent_id,
+        "kind": entry.kind,
+        "content": entry.content,
+        "tags": entry.tags,
+        "created_at": entry.created_at.to_string(),
+    }))
+}
+
+fn plandb_search(db: &Database, args: Value) -> ToolHandlerResult {
+    let args: SearchArgs = serde_json::from_value(args)?;
+    let limit = args.limit.unwrap_or(10);
+    let results = search_graph(db, &args.project_id, &args.query, limit)?;
+
+    let items: Vec<Value> = results
+        .into_iter()
+        .map(|r| {
+            json!({
+                "source": r.source,
+                "id": r.id,
+                "kind": r.kind,
+                "content": r.content,
+                "rank": r.rank,
+                "task_id": r.task_id,
+                "project_id": r.project_id,
+            })
+        })
+        .collect();
+
+    Ok(json!(items))
+}
+
+fn plandb_context_list(db: &Database, args: Value) -> ToolHandlerResult {
+    let args: ContextListArgs = serde_json::from_value(args)?;
+    let limit = args.limit.unwrap_or(50);
+    let entries = list_context(db, &args.project_id, args.kind.as_deref(), limit)?;
+
+    let items: Vec<Value> = entries
+        .into_iter()
+        .map(|e| {
+            json!({
+                "id": e.id,
+                "project_id": e.project_id,
+                "task_id": e.task_id,
+                "agent_id": e.agent_id,
+                "kind": e.kind,
+                "content": e.content,
+                "tags": e.tags,
+                "created_at": e.created_at.to_string(),
+            })
+        })
+        .collect();
+
+    Ok(json!(items))
 }
