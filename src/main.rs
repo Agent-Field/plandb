@@ -142,6 +142,19 @@ You have `plandb` (binary at PATH, DB: {db_path}) for dependency-aware task plan
 ALWAYS use plandb for task management — never track tasks ad-hoc.
 Every command shows hints about what you can do next — read them.
 
+### Getting Started
+
+```bash
+plandb init "my-project"
+plandb templates                  # check for available templates FIRST
+plandb import templates/X.yaml   # import a template if one fits
+plandb status --detail            # review the task graph
+plandb go                         # start working
+```
+
+If no template fits, create tasks manually. Templates provide guided autonomy —
+follow the structure, adapt as you discover reality.
+
 ### Example: Project with dependencies
 
 ```bash

@@ -812,6 +812,11 @@ pub fn go_cmd(db: &Database, args: &GoArgs, json: bool) -> Result<()> {
             task_id, title, done, total, ready, pending
         );
 
+        // Show template indicator if project was created from a template
+        if let Ok(Some(template_name)) = crate::db::get_meta(db, "imported_template") {
+            eprintln!("  (from template: {} — adapt as needed)", template_name);
+        }
+
         if let Some(handoff) = response["handoff"].as_array() {
             if !handoff.is_empty() {
                 eprintln!();

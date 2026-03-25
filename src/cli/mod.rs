@@ -593,21 +593,44 @@ pub fn run(db: &Database, command: Commands, json: bool, compact: bool) -> Resul
             let project_id = resolve_project_id(db, project.as_deref())?;
             let content = std::fs::read_to_string(&file)?;
             let template: crate::db::GraphTemplate = serde_yaml::from_str(&content)?;
+            let template_name = template.name.clone();
+            let context_count = template.context.len();
             let ref_to_id = crate::db::import_graph(db, &project_id, &template)?;
+
+            // Store template name so go/done can reference it
+            let _ = crate::db::set_meta(db, "imported_template", &template_name);
+
             if json {
                 print_json(&serde_json::json!({
                     "imported": ref_to_id.len(),
                     "ref_to_id": ref_to_id,
-                    "template_name": template.name,
+                    "template_name": template_name,
+                    "context_imported": context_count,
                 }))?;
             } else {
                 println!(
                     "imported {} tasks from template \"{}\"",
                     ref_to_id.len(),
-                    template.name
+                    template_name
                 );
+                if context_count > 0 {
+                    println!("  + {} context entries (institutional knowledge from previous runs)", context_count);
+                }
                 for (ref_id, task_id) in &ref_to_id {
                     println!("  {} -> {}", ref_id, task_id);
+                }
+                if !compact {
+                    eprintln!();
+                    eprintln!("template loaded — follow and adapt:");
+                    eprintln!("  plandb status --detail                      # review the task graph");
+                    eprintln!("  plandb go                                   # claim first ready task");
+                    eprintln!("  plandb search \"query\"                       # recall template knowledge");
+                    eprintln!();
+                    eprintln!("adapt as you work:");
+                    eprintln!("  plandb task insert --after <id> --before <id> --title \"...\"  # add missed steps");
+                    eprintln!("  plandb split --into \"A, B, C\"               # decompose complex tasks");
+                    eprintln!("  plandb context \"what you learned\" --kind discovery           # extend knowledge");
+                    eprintln!("  plandb export > evolved-template.yaml       # save improvements");
                 }
             }
             Ok(())
