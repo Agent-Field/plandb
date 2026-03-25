@@ -124,14 +124,26 @@ Validated end-to-end template workflow:
 Gemini CLI completed 4/4 tasks (100%) with proper dependencies, 3 context entries,
 and custom IDs. Validates PlanDB works across different AI agents.
 
-### Agent Validation (Codex, Updated Prompt v2)
+### Agent Validation Summary
 
-Re-tested with the updated prompt (120 lines, includes all new features):
-- Agent created 4-task dependency chain for Flask URL shortener
-- 5 context entries: 3 decisions, 1 discovery, 1 constraint
-- Used structured `--result` JSON to hand off design decisions
-- Used custom IDs throughout
-- Completed 2/4 tasks before timeout
+| Agent | Task | Tasks | Context | Dependencies | Completion |
+|-------|------|-------|---------|-------------|------------|
+| Codex | Fibonacci (Phase 1) | 3 | 0 | None | 100% |
+| Codex | URL shortener (Phase 3) | 4 | 6 | Linear | 100% |
+| Codex | Calculator (full test) | 3 | 3 | Linear | 33% |
+| Codex | URL shortener v2 | 4 | 5 | Linear | 50% |
+| Codex | Security review | 2 | 5 findings | None | 100% |
+| Gemini | Todo app | 4 | 3 | Linear | 100% |
+| Gemini | CSV converter | 5 | 5 | Linear | 20% |
+
+### Key Observation: Guided Autonomy
+
+When given a template to import, agents sometimes choose their own task structure
+instead. The security review agent was told to import the 7-task PR review pipeline
+but chose a simpler 2-task approach better suited for a single-file review.
+
+This validates the template philosophy: templates are **reference material for
+guided autonomy**, not rigid procedures. Agents absorb the patterns and adapt.
 
 ## Meta-Findings
 
