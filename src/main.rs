@@ -243,7 +243,8 @@ plandb add "Implement" --dep t-schema \
 ### Templates (Replayable Procedures)
 
 ```bash
-plandb export > template.yaml   # save structure + context as reusable template
+plandb templates                 # list available template recipes
+plandb export > template.yaml   # save current project as reusable template
 plandb import template.yaml     # apply template (tasks, deps, hooks, context)
 ```
 
