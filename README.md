@@ -137,7 +137,15 @@ See [examples/](examples/) for real agent sessions — each example is actual ou
 - [**URL shortener v2**](examples/codex-url-shortener-v2/) — structured handoff, 5 context entries, 4-task dependency chain
 - [**CLI calculator**](examples/codex-calculator/) — dependencies, custom IDs, proactive search
 
-Ready-to-import templates in [templates/](templates/): PR review pipeline, epic decomposition.
+Ready-to-import templates in [templates/](templates/) — from starter (5 tasks) to comprehensive (60+ tasks):
+
+| Template | Tasks | Dependencies | Context | Use case |
+|----------|-------|-------------|---------|----------|
+| [PR Review (Comprehensive)](templates/pr-review-comprehensive.yaml) | 62 | 27 | 17 | Multi-phase code review with parallel reviewers |
+| [Security Audit (Comprehensive)](templates/security-audit-50-tasks.yaml) | 60 | 30 | 16 | OWASP-informed audit with 9 testing phases |
+| [Security Audit (Battle-Tested)](templates/security-audit-comprehensive.yaml) | 10 | 15 | 27 | Agent-evolved from real audits (3 generations) |
+| [Feature Implementation](templates/feature-implementation.yaml) | 8 | 9 | 4 | Requirements → implement → test → ship |
+| [Code Review](templates/code-review.yaml) | 5 | 6 | 3 | Focused single-file review |
 
 ## What Makes It Different
 
