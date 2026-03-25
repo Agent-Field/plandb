@@ -350,6 +350,7 @@ pub fn go_payload(
                     "id": task.id,
                     "title": task.title,
                     "status": task.status,
+                    "kind": task.kind,
                     "description": task.description,
                     "pre_condition": task.pre_condition,
                     "post_condition": task.post_condition,
