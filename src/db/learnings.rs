@@ -5,63 +5,25 @@ use chrono::NaiveDateTime;
 use rusqlite::params;
 use serde::Serialize;
 
-/// A learning is a piece of knowledge discovered during project execution.
-/// Learnings persist across sessions and are searchable via BM25.
+/// A context entry attached to the project graph.
+/// Context persists across sessions and is searchable via BM25.
+/// The `kind` field is a freeform string — agents define their own types.
 #[derive(Debug, Clone, Serialize)]
-pub struct Learning {
+pub struct ContextEntry {
     pub id: String,
     pub project_id: String,
     pub task_id: Option<String>,
     pub agent_id: Option<String>,
-    pub kind: LearningKind,
+    pub kind: String,
     pub content: String,
     pub tags: Vec<String>,
     pub created_at: NaiveDateTime,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum LearningKind {
-    Discovery,
-    Decision,
-    Pattern,
-    Blocker,
-    Reference,
-}
-
-impl std::fmt::Display for LearningKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            LearningKind::Discovery => write!(f, "discovery"),
-            LearningKind::Decision => write!(f, "decision"),
-            LearningKind::Pattern => write!(f, "pattern"),
-            LearningKind::Blocker => write!(f, "blocker"),
-            LearningKind::Reference => write!(f, "reference"),
-        }
-    }
-}
-
-impl std::str::FromStr for LearningKind {
-    type Err = anyhow::Error;
-    fn from_str(s: &str) -> Result<Self> {
-        match s {
-            "discovery" => Ok(LearningKind::Discovery),
-            "decision" => Ok(LearningKind::Decision),
-            "pattern" => Ok(LearningKind::Pattern),
-            "blocker" => Ok(LearningKind::Blocker),
-            "reference" => Ok(LearningKind::Reference),
-            _ => Err(anyhow::anyhow!(
-                "unknown learning kind '{}'. Use: discovery, decision, pattern, blocker, reference",
-                s
-            )),
-        }
-    }
-}
-
 /// A search result from BM25-ranked recall.
 #[derive(Debug, Clone, Serialize)]
-pub struct RecallResult {
-    pub source: String, // "learning" or "task"
+pub struct SearchResult {
+    pub source: String, // "context" or "task"
     pub id: String,
     pub kind: String,
     pub content: String,
@@ -70,28 +32,27 @@ pub struct RecallResult {
     pub project_id: String,
 }
 
-pub fn add_learning(
+pub fn add_context(
     db: &Database,
     project_id: &str,
     task_id: Option<&str>,
     agent_id: Option<&str>,
-    kind: LearningKind,
+    kind: &str,
     content: &str,
     tags: &[String],
-) -> Result<Learning> {
+) -> Result<ContextEntry> {
     let conn = db.lock()?;
-    let id = generate_id("lrn");
-    let kind_str = kind.to_string();
+    let id = generate_id("ctx");
 
     conn.execute(
         "INSERT INTO learnings (id, project_id, task_id, agent_id, kind, content) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-        params![id, project_id, task_id, agent_id, kind_str, content],
+        params![id, project_id, task_id, agent_id, kind, content],
     )?;
 
     // Insert into FTS index
     conn.execute(
         "INSERT INTO learnings_fts (rowid, content, kind) VALUES (last_insert_rowid(), ?1, ?2)",
-        params![content, kind_str],
+        params![content, kind],
     )?;
 
     // Insert tags
@@ -109,26 +70,26 @@ pub fn add_learning(
     )?;
     let created_at = parse_dt(created_at_raw)?;
 
-    Ok(Learning {
+    Ok(ContextEntry {
         id,
         project_id: project_id.to_string(),
         task_id: task_id.map(|s| s.to_string()),
         agent_id: agent_id.map(|s| s.to_string()),
-        kind,
+        kind: kind.to_string(),
         content: content.to_string(),
         tags: tags.to_vec(),
         created_at,
     })
 }
 
-pub fn list_learnings(
+pub fn list_context(
     db: &Database,
     project_id: &str,
     kind_filter: Option<&str>,
     limit: usize,
-) -> Result<Vec<Learning>> {
+) -> Result<Vec<ContextEntry>> {
     let conn = db.lock()?;
-    let mut learnings = if let Some(kind) = kind_filter {
+    let mut entries = if let Some(kind) = kind_filter {
         let mut stmt = conn.prepare(
             "SELECT id, project_id, task_id, agent_id, kind, content, created_at \
              FROM learnings WHERE project_id = ?1 AND kind = ?2 ORDER BY created_at DESC LIMIT ?3",
@@ -136,7 +97,7 @@ pub fn list_learnings(
         let mut rows = stmt.query(params![project_id, kind, limit as i64])?;
         let mut result = Vec::new();
         while let Some(row) = rows.next()? {
-            result.push(row_to_learning(row)?);
+            result.push(row_to_entry(row)?);
         }
         result
     } else {
@@ -147,38 +108,37 @@ pub fn list_learnings(
         let mut rows = stmt.query(params![project_id, limit as i64])?;
         let mut result = Vec::new();
         while let Some(row) = rows.next()? {
-            result.push(row_to_learning(row)?);
+            result.push(row_to_entry(row)?);
         }
         result
     };
 
     // Attach tags
-    for learning in &mut learnings {
+    for entry in &mut entries {
         let mut stmt = conn.prepare(
             "SELECT tag FROM learning_tags WHERE learning_id = ?1 ORDER BY tag",
         )?;
         let tags: Vec<String> = stmt
-            .query_map(params![learning.id], |row| row.get(0))?
+            .query_map(params![entry.id], |row| row.get(0))?
             .filter_map(|r| r.ok())
             .collect();
-        learning.tags = tags;
+        entry.tags = tags;
     }
 
-    Ok(learnings)
+    Ok(entries)
 }
 
-/// BM25-ranked search across learnings AND task descriptions/titles.
-/// Returns ranked results from both sources.
-pub fn recall(
+/// BM25-ranked search across context entries AND task descriptions/titles.
+pub fn search_graph(
     db: &Database,
     project_id: &str,
     query: &str,
     limit: usize,
-) -> Result<Vec<RecallResult>> {
+) -> Result<Vec<SearchResult>> {
     let conn = db.lock()?;
     let mut results = Vec::new();
 
-    // Search learnings via FTS5 with BM25 ranking
+    // Search context via FTS5 with BM25 ranking
     {
         let mut stmt = conn.prepare(
             "SELECT l.id, l.kind, l.content, l.task_id, l.project_id, f.rank \
@@ -190,8 +150,8 @@ pub fn recall(
         )?;
         let mut rows = stmt.query(params![query, project_id, limit as i64])?;
         while let Some(row) = rows.next()? {
-            results.push(RecallResult {
-                source: "learning".to_string(),
+            results.push(SearchResult {
+                source: "context".to_string(),
                 id: row.get(0)?,
                 kind: row.get(1)?,
                 content: row.get(2)?,
@@ -202,7 +162,7 @@ pub fn recall(
         }
     }
 
-    // Also search task titles and descriptions via LIKE (simpler but still useful)
+    // Also search task titles and descriptions via LIKE
     {
         let pattern = format!("%{}%", query);
         let mut stmt = conn.prepare(
@@ -220,7 +180,7 @@ pub fn recall(
             } else {
                 title
             };
-            results.push(RecallResult {
+            results.push(SearchResult {
                 source: "task".to_string(),
                 id: row.get(0)?,
                 kind: row.get(1)?,
@@ -239,13 +199,12 @@ pub fn recall(
     Ok(results)
 }
 
-pub fn delete_learning(db: &Database, learning_id: &str) -> Result<usize> {
+pub fn delete_context(db: &Database, context_id: &str) -> Result<usize> {
     let conn = db.lock()?;
-    // Get rowid for FTS cleanup
     let rowid: Option<i64> = conn
         .query_row(
             "SELECT rowid FROM learnings WHERE id = ?1",
-            params![learning_id],
+            params![context_id],
             |row| row.get(0),
         )
         .ok();
@@ -259,18 +218,18 @@ pub fn delete_learning(db: &Database, learning_id: &str) -> Result<usize> {
 
     conn.execute(
         "DELETE FROM learning_tags WHERE learning_id = ?1",
-        params![learning_id],
+        params![context_id],
     )?;
 
     let deleted = conn.execute(
         "DELETE FROM learnings WHERE id = ?1",
-        params![learning_id],
+        params![context_id],
     )?;
 
     Ok(deleted)
 }
 
-fn row_to_learning(row: &rusqlite::Row<'_>) -> rusqlite::Result<Learning> {
+fn row_to_entry(row: &rusqlite::Row<'_>) -> rusqlite::Result<ContextEntry> {
     let created_at_raw: String = row.get(6)?;
     let created_at = parse_dt(created_at_raw).map_err(|e| {
         rusqlite::Error::FromSqlConversionFailure(
@@ -282,24 +241,13 @@ fn row_to_learning(row: &rusqlite::Row<'_>) -> rusqlite::Result<Learning> {
             )),
         )
     })?;
-    let kind_str: String = row.get(4)?;
-    let kind: LearningKind = kind_str.parse().map_err(|e: anyhow::Error| {
-        rusqlite::Error::FromSqlConversionFailure(
-            4,
-            rusqlite::types::Type::Text,
-            Box::new(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                e.to_string(),
-            )),
-        )
-    })?;
 
-    Ok(Learning {
+    Ok(ContextEntry {
         id: row.get(0)?,
         project_id: row.get(1)?,
         task_id: row.get(2)?,
         agent_id: row.get(3)?,
-        kind,
+        kind: row.get(4)?,
         content: row.get(5)?,
         tags: Vec::new(), // Filled in by caller
         created_at,

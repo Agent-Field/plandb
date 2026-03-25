@@ -269,16 +269,17 @@ pub enum Commands {
         list: bool,
     },
     #[command(
-        about = "Attach context to the project graph — discoveries, decisions, patterns.\n\n\
+        about = "Attach context to the project graph.\n\n\
                   Context persists across sessions and is searchable via BM25.\n\
                   Unlike notes (task-scoped), context is project-wide and queryable.\n\
-                  Types: discovery, decision, pattern, blocker, reference"
+                  The --type flag is freeform — use any label that fits your domain.\n\
+                  Common types: discovery, decision, pattern, blocker, reference, constraint, insight"
     )]
     Context {
         #[arg(help = "The context content")]
         content: String,
-        #[arg(long, default_value = "discovery", value_parser = ["discovery", "decision", "pattern", "blocker", "reference"],
-              help = "Kind of context")]
+        #[arg(long, short = 't', default_value = "note",
+              help = "Freeform type label (e.g. discovery, decision, constraint, insight, etc.)")]
         r#type: String,
         #[arg(long, help = "Associated task ID (optional — context can be project-wide)")]
         task: Option<String>,
@@ -304,7 +305,7 @@ pub enum Commands {
     Contexts {
         #[arg(long, help = "Project ID (uses default if not set)")]
         project: Option<String>,
-        #[arg(long, help = "Filter by kind: discovery, decision, pattern, blocker, reference")]
+        #[arg(long, help = "Filter by type (freeform — matches the --type used when adding)")]
         kind: Option<String>,
         #[arg(long, default_value_t = 50, help = "Max results")]
         limit: usize,
@@ -623,17 +624,16 @@ pub fn run(db: &Database, command: Commands, json: bool, compact: bool) -> Resul
             tags,
         } => {
             let project_id = resolve_project_id(db, project.as_deref())?;
-            let kind: crate::db::LearningKind = r#type.parse()?;
             let agent_id = std::env::var("PLANDB_AGENT").ok();
             let tag_list: Vec<String> = tags
                 .map(|t| t.split(',').map(|s| s.trim().to_string()).collect())
                 .unwrap_or_default();
-            let entry = crate::db::add_learning(
+            let entry = crate::db::add_context(
                 db,
                 &project_id,
                 task.as_deref(),
                 agent_id.as_deref(),
-                kind,
+                &r#type,
                 &content,
                 &tag_list,
             )?;
@@ -659,7 +659,7 @@ pub fn run(db: &Database, command: Commands, json: bool, compact: bool) -> Resul
             limit,
         } => {
             let project_id = resolve_project_id(db, project.as_deref())?;
-            let results = crate::db::recall(db, &project_id, &query, limit)?;
+            let results = crate::db::search_graph(db, &project_id, &query, limit)?;
             if json {
                 print_json(&results)?;
             } else if results.is_empty() {
@@ -667,7 +667,7 @@ pub fn run(db: &Database, command: Commands, json: bool, compact: bool) -> Resul
             } else {
                 for r in &results {
                     let source_tag = match r.source.as_str() {
-                        "learning" => "ctx",
+                        "context" => "ctx",
                         "task" => "task",
                         _ => "?",
                     };
@@ -688,7 +688,7 @@ pub fn run(db: &Database, command: Commands, json: bool, compact: bool) -> Resul
         } => {
             let project_id = resolve_project_id(db, project.as_deref())?;
             let entries =
-                crate::db::list_learnings(db, &project_id, kind.as_deref(), limit)?;
+                crate::db::list_context(db, &project_id, kind.as_deref(), limit)?;
             if json {
                 print_json(&entries)?;
             } else if entries.is_empty() {
@@ -709,7 +709,7 @@ pub fn run(db: &Database, command: Commands, json: bool, compact: bool) -> Resul
             Ok(())
         }
         Commands::Prune { context_id } => {
-            let deleted = crate::db::delete_learning(db, &context_id)?;
+            let deleted = crate::db::delete_context(db, &context_id)?;
             if json {
                 print_json(&serde_json::json!({"deleted": deleted}))?;
             } else if deleted > 0 {
