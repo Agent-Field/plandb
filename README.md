@@ -64,6 +64,8 @@ Full source, experiment logs, and analysis: **[experiments/mini-gpt-rust/](exper
 | **Agent output quality is hope-based.** You pray it checked its work. | Pre/post conditions on every task. Post-condition shown on completion: "verify this before moving on." |
 | **Every project starts from zero.** Same decomposition patterns reinvented every time. | `plandb export` saves a project's structure as a template. `plandb import` applies it. Best decompositions compound. |
 | **Knowledge dies with each session.** Agent discovers something important, restarts, forgets. | Graph-native context store with BM25 search. `plandb context` records discoveries. `plandb search` recalls them. Persists in the same `.plandb.db`. |
+| **Resuming work means re-reading everything.** New session, no idea where you left off. | `plandb resume` — one command gives progress, running tasks, recent context, and action hints. `plandb go` auto-surfaces relevant context (lazy recall). |
+| **Automation requires glue code.** Want to run linting after each task? Write a wrapper. | Task lifecycle hooks: `--pre-hook` and `--post-hook` fire shell commands at task start/completion. Templates with hooks = replayable automated workflows. |
 
 ## Install
 
@@ -130,7 +132,12 @@ Plans are hypotheses — adapt as you learn.
 When plandb list --status ready shows multiple tasks, parallelize them.
 ```
 
-See [examples/](examples/) for complete scripts running PlanDB with Codex, Claude Code, and Gemini CLI.
+See [examples/](examples/) for real agent sessions — each example is actual output from an agent using PlanDB:
+- [**Parallel API with context**](examples/parallel-api-with-context/) — fan-out/fan-in, lazy recall, multi-agent, mid-flight adaptation
+- [**URL shortener v2**](examples/codex-url-shortener-v2/) — structured handoff, 5 context entries, 4-task dependency chain
+- [**CLI calculator**](examples/codex-calculator/) — dependencies, custom IDs, proactive search
+
+Ready-to-import templates in [templates/](templates/): PR review pipeline, epic decomposition.
 
 ## What Makes It Different
 
@@ -286,6 +293,7 @@ plandb search "query"                                       # BM25 search (conte
 plandb contexts                                             # list all context entries
 plandb contexts --kind decision                             # filter by kind
 plandb prune c-xxx                                          # remove context entry
+plandb resume                                               # session continuity: progress + context + hints
 ```
 
 ### Multi-Agent
