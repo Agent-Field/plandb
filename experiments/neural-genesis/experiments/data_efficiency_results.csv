@@ -1,0 +1,5 @@
+model,params,full_composite,half_composite,efficiency_gap
+Baseline GPT,96720,0.5194,0.4965,0.0230
+RG GPT,41448,0.4865,0.4856,0.0009
+Hamiltonian GPT,99027,0.4998,0.5081,-0.0083
+Hybrid GPT,43779,0.5026,0.5009,0.0017

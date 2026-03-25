@@ -1,0 +1,5 @@
+method,params,effective_params,composite,format_acc,tool_acc,param_acc,reply_quality
+Full Baseline,96720,96720,0.5502,0.6625,0.6500,0.2375,0.6471
+RG Weight Sharing,41448,41448,0.5595,0.6750,0.6500,0.2750,0.6216
+Magnitude Pruning,96720,41448,0.5674,0.6750,0.6625,0.2875,0.6286
+Naive Tied Layers,41448,41448,0.5386,0.6750,0.6375,0.2125,0.6112

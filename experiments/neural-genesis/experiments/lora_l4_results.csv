@@ -1,0 +1,4 @@
+model,params,composite,format_acc,tool_acc,param_acc,reply_quality,final_loss,train_time
+Standard_GPT,124800,0.4808,0.5500,0.5375,0.2250,0.6550,0.1460,339.7
+Scalar_RG,41888,0.4668,0.5375,0.5125,0.2125,0.6581,0.2574,381.6
+LoRA_RG_r4,54144,0.4645,0.5500,0.5000,0.2250,0.6217,0.2495,563.1

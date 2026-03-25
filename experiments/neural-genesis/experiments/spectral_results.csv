@@ -1,0 +1,10 @@
+metric,value
+format_acc,0.6375
+tool_acc,0.6375
+param_acc,0.3750
+reply_quality,0.7476
+composite,0.5884
+params,101328
+baseline_params,96720
+inference_speed,416.4
+training_time,37.7

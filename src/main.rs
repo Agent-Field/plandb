@@ -212,6 +212,18 @@ PLANDB_AGENT=worker-1 plandb go && PLANDB_AGENT=worker-2 plandb go
 ```
 Atomic claiming prevents double-assignment. The graph IS the coordination layer.
 
+### Context Store (Project Knowledge)
+
+```bash
+plandb context "discovered JWT expiry conflicts with session cache" --kind discovery
+plandb context "use token bucket for rate limiting" --kind decision
+plandb search "rate limiting"                      # BM25 search across context + tasks
+plandb contexts --kind decision                    # list decisions
+```
+
+Context is auto-linked to your current running task. --kind is freeform.
+Use `plandb search` before starting tasks to recall relevant knowledge.
+
 ### Quality Gates
 
 ```bash

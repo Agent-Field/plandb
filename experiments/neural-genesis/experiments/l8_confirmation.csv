@@ -1,0 +1,3 @@
+model,params,composite,format_acc,tool_acc,param_acc,reply_quality,final_loss,train_time_s,gap_pct,thesis
+standard_l8,237120,0.5895,0.6500,0.6250,0.3875,0.7344,0.1524,340.4,,
+rg_l8,43648,0.5006,0.5625,0.5375,0.2875,0.6579,0.2150,358.1,15.1,DENIED

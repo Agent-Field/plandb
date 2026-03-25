@@ -1,0 +1,6 @@
+prediction,r2,status
+std_param_scaling,0.9997,VALIDATED
+rg_param_scaling,1.0000,VALIDATED
+param_savings,0.9997,VALIDATED
+alpha_divergence_constant,-31.6075,FALSIFIED
+ff_w1_fixed_point,-25.0612,FALSIFIED

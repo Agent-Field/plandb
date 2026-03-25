@@ -63,6 +63,7 @@ Full source, experiment logs, and analysis: **[experiments/mini-gpt-rust/](exper
 | **You have no idea what's blocking everything.** Agent is busy, but is it on the critical path? | `plandb critical-path` shows the longest chain. `plandb bottlenecks` shows what's blocking the most work. `plandb what-unlocks` shows impact. |
 | **Agent output quality is hope-based.** You pray it checked its work. | Pre/post conditions on every task. Post-condition shown on completion: "verify this before moving on." |
 | **Every project starts from zero.** Same decomposition patterns reinvented every time. | `plandb export` saves a project's structure as a template. `plandb import` applies it. Best decompositions compound. |
+| **Knowledge dies with each session.** Agent discovers something important, restarts, forgets. | Graph-native context store with BM25 search. `plandb context` records discoveries. `plandb search` recalls them. Persists in the same `.plandb.db`. |
 
 ## Install
 
@@ -118,10 +119,13 @@ You have plandb installed for task planning. Use it to decompose work and track 
 Core loop:    plandb go → work → plandb done --next
 Add tasks:    plandb add "title" --description "detailed spec" --dep t-xxx
 Split:        plandb split --into "A, B, C" (independent) or "A > B > C" (chain)
+Context:      plandb context "what you learned" --kind discovery
+Search:       plandb search "query" (BM25 across context + tasks)
 Introspect:   plandb critical-path | plandb bottlenecks | plandb what-unlocks <id>
 Status:       plandb status --detail
 
 After each completion, reassess: plandb status --detail + plandb critical-path.
+Record discoveries: plandb context "what you found" --kind discovery
 Plans are hypotheses — adapt as you learn.
 When plandb list --status ready shows multiple tasks, parallelize them.
 ```
@@ -179,6 +183,20 @@ plandb add "Implement API" \
   --description "..."
 ```
 
+### Graph-Native Context Store
+
+Agents discover things while working. PlanDB captures these discoveries in the same database, searchable via BM25:
+
+```bash
+plandb context "Use token bucket for rate limiting, not sliding window" --kind decision
+plandb context "GPU memory leak after 10k frames in lidar processing" --kind bug
+plandb context "See arxiv:2024.12345 for improved SLAM" --kind reference --tags "slam,papers"
+plandb search "rate limiting"                     # BM25-ranked results across context + tasks
+plandb contexts --kind decision                   # filter by type
+```
+
+Context is auto-linked to your current running task — no `--task` flag needed. The `--kind` flag is freeform: use whatever labels fit your domain (`discovery`, `constraint`, `hypothesis`, `api-change`, etc.).
+
 ### Reusable Decompositions
 
 ```bash
@@ -229,6 +247,17 @@ plandb task pivot t-abc --file new-plan.yaml               # replace subtree
 plandb what-if cancel t-abc                                # preview effects
 plandb export > template.yaml                              # save pattern
 plandb import template.yaml                                # apply pattern
+```
+
+### Context & Search
+
+```bash
+plandb context "text" --kind discovery                      # add context (freeform --kind)
+plandb context "text" --kind decision --tags "auth,jwt"     # with tags
+plandb search "query"                                       # BM25 search (context + tasks)
+plandb contexts                                             # list all context entries
+plandb contexts --kind decision                             # filter by kind
+plandb prune c-xxx                                          # remove context entry
 ```
 
 ### Multi-Agent

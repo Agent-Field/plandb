@@ -1,0 +1,5 @@
+method,format_acc,tool_acc,param_acc,reply_quality,composite
+SFT Baseline,0.6625,0.6375,0.2750,0.6616,0.5580
+REINFORCE,0.0000,0.0000,0.0000,0.4479,0.0672
+DPO,0.6500,0.6250,0.2875,0.6501,0.5519
+Custom RL,0.6500,0.5500,0.2000,0.5238,0.4886

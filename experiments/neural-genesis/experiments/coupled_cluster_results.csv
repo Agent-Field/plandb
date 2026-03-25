@@ -1,0 +1,4 @@
+method,composite,cos_similarity,train_time
+backprop,0.2989,1.0000,29.57
+ccs,0.0194,0.0093,57.47
+ccsd,0.0088,-0.1086,97.67
