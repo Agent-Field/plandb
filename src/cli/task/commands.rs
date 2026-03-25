@@ -1108,6 +1108,12 @@ pub fn done_cmd(db: &Database, args: DoneArgs, json: bool, compact: bool) -> Res
             if state.pending > 0 {
                 eprintln!("  plandb task insert --after {} --before <id> --title \"...\"  # add missed step", task.id);
             }
+            // When all tasks are done, suggest exporting as evolved template
+            if state.done == state.total && state.total > 0 && state.ready == 0 && state.pending == 0 {
+                eprintln!();
+                eprintln!("all tasks complete!");
+                eprintln!("  plandb export > evolved-template.yaml    # save as reusable template (carries all context)");
+            }
         }
     }
     if let Some(post) = &task.post_condition {
