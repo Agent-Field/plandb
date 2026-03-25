@@ -985,6 +985,23 @@ pub fn done_cmd(db: &Database, args: DoneArgs, json: bool, compact: bool) -> Res
         }
     }
 
+    // Capture context atomically with completion (--context flag)
+    if let Some(ref context_text) = args.context {
+        let project_id = get_task(db, &task_id)?.project_id;
+        let entry = crate::db::add_context(
+            db,
+            &project_id,
+            Some(&task_id),
+            Some(&agent_id),
+            &args.context_kind,
+            context_text,
+            &[],
+        )?;
+        if !json {
+            eprintln!("{} [{}]", entry.id, entry.kind);
+        }
+    }
+
     let result_provided = args.result.is_some();
     let result = match args.result {
         Some(text) => match serde_json::from_str(&text) {

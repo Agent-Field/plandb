@@ -275,6 +275,17 @@ pub struct DoneArgs {
     pub next: bool,
     #[arg(long, default_value = "default", help = "Agent ID (default: 'default' or PLANDB_AGENT env var)")]
     pub agent: Option<String>,
+    #[arg(
+        long,
+        help = "Record a context entry atomically with completion (e.g. --context 'decided to use JWT')"
+    )]
+    pub context: Option<String>,
+    #[arg(
+        long = "context-kind",
+        default_value = "discovery",
+        help = "Kind for the --context entry (discovery, decision, pattern, etc.)"
+    )]
+    pub context_kind: String,
 }
 
 #[derive(Args, Debug)]
