@@ -197,11 +197,38 @@ plandb contexts --kind decision                   # filter by type
 
 Context is auto-linked to your current running task — no `--task` flag needed. The `--kind` flag is freeform: use whatever labels fit your domain (`discovery`, `constraint`, `hypothesis`, `api-change`, etc.).
 
-### Reusable Decompositions
+### Lazy Recall
+
+Relevant context is automatically surfaced when an agent claims a task:
 
 ```bash
-plandb export > fullstack.yaml    # save a successful project's structure
-plandb import fullstack.yaml      # apply pattern to new project
+plandb go
+# → t-auth "Implement auth endpoints" [1/4 · 1 ready · 1 blocked]
+# relevant context:
+#   [decision] Use argon2id for password hashing — bcrypt has 72-byte limit
+```
+
+No explicit search needed — PlanDB extracts key terms from the task and matches against the context store via BM25. Agents receive relevant project knowledge proactively.
+
+### Task Lifecycle Hooks
+
+Shell commands that fire at task state transitions:
+
+```bash
+plandb add "Run linter" \
+  --pre-hook 'echo "starting: $PLANDB_TASK_TITLE"' \
+  --post-hook 'eslint src/ --fix'
+```
+
+Hooks enable replayable procedures: templates with hooks become automated workflows. Environment variables set: `PLANDB_TASK_ID`, `PLANDB_PROJECT_ID`, `PLANDB_TASK_TITLE`, `PLANDB_AGENT_ID`.
+
+### Reusable Decompositions
+
+Templates capture the full project state — tasks, dependencies, context entries, and hooks:
+
+```bash
+plandb export > fullstack.yaml    # save structure + institutional knowledge
+plandb import fullstack.yaml      # apply pattern to new project (context included)
 ```
 
 ## CLI Reference
@@ -212,7 +239,8 @@ plandb import fullstack.yaml      # apply pattern to new project
 plandb init "project"                                     # create project
 plandb add "title" --description "spec" --dep t-xxx       # add task
 plandb add "title" --as custom-id --kind code             # custom ID, typed
-plandb go                                                  # claim next ready
+plandb add "title" --pre-hook 'cmd' --post-hook 'cmd'    # with lifecycle hooks
+plandb go                                                  # claim next ready (+ lazy recall)
 plandb done --next                                         # complete + claim next
 plandb done --result '{"key": "value"}'                   # complete with data
 ```
