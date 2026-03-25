@@ -876,6 +876,21 @@ pub fn go_cmd(db: &Database, args: &GoArgs, json: bool) -> Result<()> {
             eprintln!();
             eprintln!("pre-condition: {}", pre);
         }
+
+        // Contextual action hints — teach the agent what it can do while working
+        if !json {
+            let ready = response["remaining"]["ready"].as_u64().unwrap_or(0);
+            eprintln!();
+            eprintln!("while working:");
+            eprintln!("  plandb context \"what you discovered\" --kind discovery   # record findings");
+            eprintln!("  plandb split --into \"A, B, C\"                           # decompose if complex");
+            eprintln!("  plandb search \"query\"                                   # recall project knowledge");
+            eprintln!("when done:");
+            eprintln!("  plandb done --next                                       # complete + claim next");
+            if ready > 0 {
+                eprintln!("  ({} other task(s) ready — can parallelize with PLANDB_AGENT=worker-N plandb go)", ready);
+            }
+        }
     }
     Ok(())
 }
@@ -1034,10 +1049,21 @@ pub fn done_cmd(db: &Database, args: DoneArgs, json: bool, compact: bool) -> Res
                 eprintln!("  → {} \"{}\"  (now ready)", id, title);
             }
         }
-        if !has_downstream && !compact {
+        if !compact {
             eprintln!();
-            eprintln!("hint: no downstream tasks depend on this result. create one?");
-            eprintln!("      plandb add --title \"...\" --dep {}", task.id);
+            if !has_downstream {
+                eprintln!("hint: no downstream tasks. options:");
+                eprintln!("  plandb add \"...\" --dep {}   # add dependent task", task.id);
+            }
+            eprintln!("next steps:");
+            eprintln!("  plandb status --detail              # reassess — does the plan still make sense?");
+            eprintln!("  plandb go                           # claim next ready task");
+            if state.ready > 1 {
+                eprintln!("  ({} tasks ready — parallelize with PLANDB_AGENT=worker-N plandb go)", state.ready);
+            }
+            if state.pending > 0 {
+                eprintln!("  plandb task insert --after {} --before <id> --title \"...\"  # add missed step", task.id);
+            }
         }
     }
     if let Some(post) = &task.post_condition {

@@ -606,8 +606,10 @@ pub fn run(db: &Database, command: Commands, json: bool, compact: bool) -> Resul
                 println!("created {} ({})", project.id, project.name);
                 if !compact {
                     eprintln!();
-                    eprintln!("next: plandb add \"First task\"");
-                    eprintln!("tip:  start with 1-2 tasks. add more as you learn things.");
+                    eprintln!("next: plandb add \"title\" --description \"detailed spec\" [--dep t-upstream] [--as custom-id]");
+                    eprintln!("tip:  create tasks in dependency order. use --dep to chain them.");
+                    eprintln!("      plandb add \"A\" --as a && plandb add \"B\" --dep t-a --as b");
+                    eprintln!("      plandb go → work → plandb done --next → repeat");
                 }
             }
             Ok(())
