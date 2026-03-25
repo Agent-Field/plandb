@@ -52,6 +52,8 @@ struct TaskCreateArgs {
     max_retries: Option<i32>,
     timeout_seconds: Option<i64>,
     requires_approval: Option<bool>,
+    pre_hook: Option<String>,
+    post_hook: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -295,7 +297,9 @@ pub fn tool_schemas() -> Vec<Value> {
                     },
                     "max_retries": { "type": "integer" },
                     "timeout_seconds": { "type": "integer" },
-                    "requires_approval": { "type": "boolean" }
+                    "requires_approval": { "type": "boolean" },
+                    "pre_hook": { "type": "string", "description": "Shell command to run when task starts" },
+                    "post_hook": { "type": "string", "description": "Shell command to run when task completes" }
                 },
                 "required": ["project_id", "title"]
             }
@@ -862,6 +866,8 @@ fn make_task(project_id: &str, title: &str, description: Option<String>) -> Task
         approval_comment: None,
         pre_condition: None,
         post_condition: None,
+        pre_hook: None,
+        post_hook: None,
         metadata: None,
         created_at: now,
         updated_at: now,
@@ -883,6 +889,8 @@ fn plandb_task_create(db: &Database, args: Value) -> ToolHandlerResult {
     task.max_retries = args.max_retries.unwrap_or(0);
     task.timeout_seconds = args.timeout_seconds;
     task.requires_approval = args.requires_approval.unwrap_or(false);
+    task.pre_hook = args.pre_hook;
+    task.post_hook = args.post_hook;
     let deps = args.deps.unwrap_or_default();
     if deps.is_empty() {
         task.status = TaskStatus::Ready;

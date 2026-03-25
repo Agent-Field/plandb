@@ -185,6 +185,10 @@ pub struct CreateTaskArgs {
     pub pre_condition: Option<String>,
     #[arg(long = "post", help = "Post-condition: what must be verified after completion")]
     pub post_condition: Option<String>,
+    #[arg(long = "pre-hook", help = "Shell command to execute when task transitions to running (advisory, non-blocking)")]
+    pub pre_hook: Option<String>,
+    #[arg(long = "post-hook", help = "Shell command to execute when task transitions to done (advisory, non-blocking)")]
+    pub post_hook: Option<String>,
 }
 
 #[derive(Args, Debug)]

@@ -5,11 +5,21 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct TemplateContext {
+    pub kind: String,
+    pub content: String,
+    pub tags: Vec<String>,
+    pub task_ref: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct GraphTemplate {
     pub name: String,
     pub description: Option<String>,
     pub tasks: Vec<TemplateTask>,
     pub dependencies: Vec<TemplateDep>,
+    #[serde(default)]
+    pub context: Vec<TemplateContext>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -22,6 +32,8 @@ pub struct TemplateTask {
     pub parent_ref: Option<String>,
     pub pre_condition: Option<String>,
     pub post_condition: Option<String>,
+    pub pre_hook: Option<String>,
+    pub post_hook: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -66,6 +78,8 @@ pub fn export_graph(
                 .and_then(|pid| id_to_ref.get(pid).cloned()),
             pre_condition: t.pre_condition.clone(),
             post_condition: t.post_condition.clone(),
+            pre_hook: t.pre_hook.clone(),
+            post_hook: t.post_hook.clone(),
         })
         .collect();
 
@@ -90,11 +104,27 @@ pub fn export_graph(
         }
     }
 
+    // Collect context entries
+    let context_entries = crate::db::list_context(db, project_id, None, 1000)?;
+    let template_context: Vec<TemplateContext> = context_entries
+        .iter()
+        .map(|c| TemplateContext {
+            kind: c.kind.clone(),
+            content: c.content.clone(),
+            tags: c.tags.clone(),
+            task_ref: c
+                .task_id
+                .as_ref()
+                .and_then(|tid| id_to_ref.get(tid).cloned()),
+        })
+        .collect();
+
     Ok(GraphTemplate {
         name: name.to_string(),
         description: description.map(|s| s.to_string()),
         tasks: template_tasks,
         dependencies: template_deps,
+        context: template_context,
     })
 }
 
@@ -161,6 +191,8 @@ pub fn import_graph(
                 approval_comment: None,
                 pre_condition: tt.pre_condition.clone(),
                 post_condition: tt.post_condition.clone(),
+                pre_hook: tt.pre_hook.clone(),
+                post_hook: tt.post_hook.clone(),
                 metadata: None,
                 created_at: now,
                 updated_at: now,
@@ -184,6 +216,16 @@ pub fn import_graph(
                 .unwrap_or(DependencyKind::FeedsInto);
             crate::db::add_dependency(db, from_id, to_id, kind, DependencyCondition::All, None)?;
         }
+    }
+
+    // Import context entries
+    for tc in &template.context {
+        let task_id = tc
+            .task_ref
+            .as_ref()
+            .and_then(|r| ref_to_id.get(r))
+            .map(|s| s.as_str());
+        crate::db::add_context(db, project_id, task_id, None, &tc.kind, &tc.content, &tc.tags)?;
     }
 
     // Promote ready tasks

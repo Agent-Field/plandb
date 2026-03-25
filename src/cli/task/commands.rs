@@ -27,6 +27,39 @@ use super::{
     TaskSubcommand, WhatIfCommand, WhatIfSubcommand,
 };
 
+/// Execute a task lifecycle hook (pre_hook or post_hook).
+/// Sets environment variables and runs the shell command.
+/// Prints output to stderr. Never blocks the operation on failure.
+fn execute_hook(hook: &str, task: &Task, agent_id: &str) {
+    let mut cmd = std::process::Command::new("sh");
+    cmd.arg("-c").arg(hook);
+    cmd.env("PLANDB_TASK_ID", &task.id);
+    cmd.env("PLANDB_PROJECT_ID", &task.project_id);
+    cmd.env("PLANDB_TASK_TITLE", &task.title);
+    cmd.env("PLANDB_AGENT_ID", agent_id);
+    match cmd.output() {
+        Ok(output) => {
+            if !output.stdout.is_empty() {
+                let text = String::from_utf8_lossy(&output.stdout);
+                eprint!("{}", text);
+            }
+            if !output.stderr.is_empty() {
+                let text = String::from_utf8_lossy(&output.stderr);
+                eprint!("{}", text);
+            }
+            if !output.status.success() {
+                eprintln!(
+                    "warning: hook exited with status {} for task {}",
+                    output.status, task.id
+                );
+            }
+        }
+        Err(e) => {
+            eprintln!("warning: failed to execute hook for task {}: {}", task.id, e);
+        }
+    }
+}
+
 pub fn run_subcommand(
     db: &Database,
     subcommand: TaskSubcommand,
@@ -517,6 +550,8 @@ pub fn create_task_cmd(
         approval_comment: None,
         pre_condition: args.pre_condition,
         post_condition: args.post_condition,
+        pre_hook: args.pre_hook,
+        post_hook: args.post_hook,
         metadata: None,
         created_at: now,
         updated_at: now,
@@ -627,6 +662,8 @@ fn create_batch_cmd(db: &Database, args: CreateBatchArgs, json: bool) -> Result<
             approval_comment: None,
             pre_condition: None,
             post_condition: None,
+            pre_hook: None,
+            post_hook: None,
             metadata: None,
             created_at: now,
             updated_at: now,
@@ -747,6 +784,16 @@ pub fn list_tasks_cmd(
 pub fn go_cmd(db: &Database, args: &GoArgs, json: bool) -> Result<()> {
     let agent = resolve_agent(&args.agent);
     let response = go_payload(db, args.project.as_deref(), &agent)?;
+
+    // Execute pre_hook if the task has one
+    if let Some(task_id) = response["task"]["id"].as_str() {
+        if let Ok(task) = get_task(db, task_id) {
+            if let Some(ref hook) = task.pre_hook {
+                execute_hook(hook, &task, &agent);
+            }
+        }
+    }
+
     if json {
         print_json(&response)?;
     } else if response["task"].is_null() {
@@ -893,6 +940,13 @@ pub fn done_cmd(db: &Database, args: DoneArgs, json: bool, compact: bool) -> Res
             }
         }
     };
+
+    // Execute post_hook before completing the task
+    if let Ok(running_task) = get_task(db, &task_id) {
+        if let Some(ref hook) = running_task.post_hook {
+            execute_hook(hook, &running_task, &agent_id);
+        }
+    }
 
     let result_provided = args.result.is_some();
     let result = match args.result {

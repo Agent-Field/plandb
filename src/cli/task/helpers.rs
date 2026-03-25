@@ -141,6 +141,12 @@ pub fn print_task_detail(task: &Task) {
     if let Some(post) = &task.post_condition {
         println!("post-condition: {post}");
     }
+    if let Some(hook) = &task.pre_hook {
+        println!("pre-hook: {hook}");
+    }
+    if let Some(hook) = &task.post_hook {
+        println!("post-hook: {hook}");
+    }
 }
 
 pub(crate) fn enrich_transition_error(
@@ -471,6 +477,8 @@ pub(crate) fn decompose_or_replan(
             approval_comment: None,
             pre_condition: None,
             post_condition: None,
+            pre_hook: None,
+            post_hook: None,
             metadata: None,
             created_at: now,
             updated_at: now,

@@ -47,6 +47,8 @@ fn make_task(project_id: &str, title: &str, status: TaskStatus) -> Task {
         approval_comment: None,
         pre_condition: None,
         post_condition: None,
+        pre_hook: None,
+        post_hook: None,
         metadata: None,
         created_at: t,
         updated_at: t,
