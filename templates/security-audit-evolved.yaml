@@ -1,0 +1,114 @@
+name: Security Audit (Agent-Evolved)
+description: null
+tasks:
+- ref_id: task-1
+  title: Review Flask app entrypoints
+  description: 'Inspect app.py to identify all HTTP routes, imported modules, configuration values, and trust boundaries. Record high-risk areas that need focused review. Acceptance criteria: route inventory is complete and any suspicious constructs are noted before deeper endpoint analysis.'
+  kind: review
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: null
+  pre_hook: null
+  post_hook: null
+- ref_id: task-2
+  title: Review command execution route
+  description: Analyze the /exec POST handler in app.py for command execution, input validation, privilege, and output exposure issues. Record each confirmed finding with impact and exploitability using plandb context entries of kind finding.
+  kind: review
+  priority: 0
+  parent_ref: null
+  pre_condition: Entry points and data flow are understood.
+  post_condition: Confirmed command-execution issues are documented as findings.
+  pre_hook: null
+  post_hook: null
+- ref_id: task-3
+  title: Review file access route
+  description: Analyze the /file GET handler in app.py for path traversal, arbitrary file read, input validation, and response handling weaknesses. Record each confirmed finding with impact and exploitability using plandb context entries of kind finding.
+  kind: review
+  priority: 0
+  parent_ref: null
+  pre_condition: Entry points and data flow are understood.
+  post_condition: Confirmed file access issues are documented as findings.
+  pre_hook: null
+  post_hook: null
+- ref_id: task-4
+  title: Review database search route
+  description: Analyze the /search GET handler in app.py for SQL injection, database error handling, data exposure, and unsafe query construction. Record each confirmed finding with impact and exploitability using plandb context entries of kind finding.
+  kind: review
+  priority: 0
+  parent_ref: null
+  pre_condition: Entry points and data flow are understood.
+  post_condition: Confirmed database query issues are documented as findings.
+  pre_hook: null
+  post_hook: null
+- ref_id: task-5
+  title: Summarize audit results
+  description: 'Consolidate all recorded findings from the review tasks into a clear audit summary for app.py, including severity, vulnerable route, and brief remediation guidance. Acceptance criteria: all findings are accounted for and any newly discovered review gap has been inserted into the task graph before completion.'
+  kind: review
+  priority: 0
+  parent_ref: null
+  pre_condition: Route-specific reviews are complete.
+  post_condition: Final audit summary is ready.
+  pre_hook: null
+  post_hook: null
+- ref_id: task-6
+  title: Review configuration secrets
+  description: Analyze app.py configuration constants and secret handling for hardcoded credentials, unsafe defaults, and exposure risks. Record each confirmed finding with impact and exploitability using plandb context entries of kind finding.
+  kind: generic
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: null
+  pre_hook: null
+  post_hook: null
+dependencies:
+- from_ref: task-1
+  to_ref: task-2
+  kind: feeds_into
+- from_ref: task-1
+  to_ref: task-3
+  kind: feeds_into
+- from_ref: task-1
+  to_ref: task-4
+  kind: feeds_into
+- from_ref: task-1
+  to_ref: task-6
+  kind: feeds_into
+- from_ref: task-2
+  to_ref: task-5
+  kind: feeds_into
+- from_ref: task-3
+  to_ref: task-5
+  kind: feeds_into
+- from_ref: task-4
+  to_ref: task-5
+  kind: feeds_into
+- from_ref: task-6
+  to_ref: task-5
+  kind: feeds_into
+context:
+- kind: finding
+  content: 'Finding: Medium-severity secret management issue in app.py:6. The application hardcodes SECRET = ''super-secret-key-123'' directly in source instead of loading it from environment-specific secret storage. Any source leak, repository exposure, or local file disclosure immediately leaks the secret and prevents safe rotation practices.'
+  tags: []
+  task_ref: task-6
+- kind: finding
+  content: 'Finding: Medium-severity secret management issue in app.py:6. The application hardcodes SECRET = ''super-secret-key-123'' directly in source instead of loading it from environment-specific secret storage. Any source leak, repository exposure, or local file disclosure immediately leaks the secret and prevents safe rotation practices.'
+  tags: []
+  task_ref: task-5
+- kind: finding
+  content: 'Finding: High-severity SQL injection in app.py:22-24. The /search endpoint interpolates the attacker-controlled q parameter into a SQL statement using an f-string instead of parameter binding. An attacker can alter the query logic to dump data, bypass intended filtering, and potentially modify or destroy database contents depending on SQLite permissions.'
+  tags: []
+  task_ref: null
+- kind: finding
+  content: 'Finding: High-severity arbitrary file read in app.py:16-18. The /file endpoint trusts the path query parameter and opens it directly without normalization, sandboxing, or an allowlist. An attacker can request absolute paths or traversal targets to read sensitive files such as application source, SSH keys, environment files, or system configuration from the server.'
+  tags: []
+  task_ref: task-3
+- kind: finding
+  content: 'Finding: Critical remote code execution in app.py:10-12. The /exec endpoint accepts attacker-controlled JSON field cmd and passes it directly to subprocess.check_output with shell=True, allowing arbitrary shell command execution. Because the route has no authentication or allowlist and returns stdout in the HTTP response, exploitation can lead to full server compromise and immediate data exfiltration.'
+  tags: []
+  task_ref: task-2
+- kind: discovery
+  content: 'Route inventory: app.py defines three unauthenticated routes (/exec POST, /file GET, /search GET). Trust boundary is raw user input flowing directly into subprocess, filesystem, and SQL sinks. Global configuration includes DB path app.db and a hardcoded SECRET constant.'
+  tags: []
+  task_ref: task-1
+
