@@ -882,40 +882,13 @@ pub fn go_cmd(db: &Database, args: &GoArgs, json: bool) -> Result<()> {
             eprintln!("pre-condition: {}", pre);
         }
 
-        // Contextual action hints — teach the agent what it can do while working
-        // Hints are tailored to the task kind for maximum relevance
+        // Concise action hints — just the essentials
         if !json {
             let ready = response["remaining"]["ready"].as_u64().unwrap_or(0);
-            let kind = response["task"]["kind"].as_str().unwrap_or("generic");
             eprintln!();
-            eprintln!("while working:");
-            match kind {
-                "research" => {
-                    eprintln!("  plandb context \"what you discovered\" --kind discovery   # record findings");
-                    eprintln!("  plandb context \"decision: X because Y\" --kind decision  # record decisions");
-                }
-                "code" => {
-                    eprintln!("  plandb context \"approach: ...\" --kind decision           # record design choices");
-                    eprintln!("  plandb split --into \"A, B, C\"                           # decompose if complex");
-                }
-                "test" => {
-                    eprintln!("  plandb context \"test gap: ...\" --kind bug               # record failures/gaps");
-                    eprintln!("  plandb search \"query\"                                   # check known issues");
-                }
-                "review" => {
-                    eprintln!("  plandb context \"finding: ...\" --kind finding             # record review findings");
-                    eprintln!("  plandb task amend <id> --prepend \"NOTE: ...\"             # annotate tasks with feedback");
-                }
-                _ => {
-                    eprintln!("  plandb context \"what you discovered\" --kind discovery   # record findings");
-                    eprintln!("  plandb split --into \"A, B, C\"                           # decompose if complex");
-                }
-            }
-            eprintln!("  plandb search \"query\"                                   # recall project knowledge");
-            eprintln!("when done:");
-            eprintln!("  plandb done --next                                       # complete + claim next");
+            eprintln!("actions: context \"...\" --kind discovery | search \"query\" | split --into \"A, B\" | done --next");
             if ready > 0 {
-                eprintln!("  ({} other task(s) ready — can parallelize with PLANDB_AGENT=worker-N plandb go)", ready);
+                eprintln!("  {} other task(s) ready — parallelize with PLANDB_AGENT=worker-N plandb go", ready);
             }
         }
     }
@@ -1094,25 +1067,12 @@ pub fn done_cmd(db: &Database, args: DoneArgs, json: bool, compact: bool) -> Res
             }
         }
         if !compact {
-            eprintln!();
-            if !has_downstream {
-                eprintln!("hint: no downstream tasks. options:");
-                eprintln!("  plandb add \"...\" --dep {}   # add dependent task", task.id);
-            }
-            eprintln!("next steps:");
-            eprintln!("  plandb status --detail              # reassess — does the plan still make sense?");
-            eprintln!("  plandb go                           # claim next ready task");
-            if state.ready > 1 {
-                eprintln!("  ({} tasks ready — parallelize with PLANDB_AGENT=worker-N plandb go)", state.ready);
-            }
-            if state.pending > 0 {
-                eprintln!("  plandb task insert --after {} --before <id> --title \"...\"  # add missed step", task.id);
-            }
-            // When all tasks are done, suggest exporting as evolved template
             if state.done == state.total && state.total > 0 && state.ready == 0 && state.pending == 0 {
                 eprintln!();
-                eprintln!("all tasks complete!");
-                eprintln!("  plandb export > evolved-template.yaml    # save as reusable template (carries all context)");
+                eprintln!("all tasks complete! plandb export > template.yaml");
+            } else {
+                eprintln!();
+                eprintln!("next: plandb go | status --detail | task insert --after {} --before <id>", task.id);
             }
         }
     }

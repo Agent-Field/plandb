@@ -285,14 +285,14 @@ pub enum Commands {
         about = "Attach context to the project graph.\n\n\
                   Context persists across sessions and is searchable via BM25.\n\
                   Unlike notes (task-scoped), context is project-wide and queryable.\n\
-                  The --type flag is freeform — use any label that fits your domain.\n\
+                  The --kind flag is freeform — use any label that fits your domain.\n\
                   Common types: discovery, decision, pattern, blocker, reference, constraint, insight"
     )]
     Context {
         #[arg(help = "The context content")]
         content: String,
-        #[arg(long, default_value = "note",
-              help = "Freeform kind label (e.g. discovery, decision, constraint, insight, etc.)")]
+        #[arg(long, default_value = "discovery",
+              help = "Freeform kind label (e.g. discovery, decision, constraint, pattern, finding, etc.)")]
         kind: String,
         #[arg(long, help = "Task ID to link to (auto-detects current running task if omitted)")]
         task: Option<String>,
@@ -318,7 +318,7 @@ pub enum Commands {
     Contexts {
         #[arg(long, help = "Project ID (uses default if not set)")]
         project: Option<String>,
-        #[arg(long, help = "Filter by type (freeform — matches the --type used when adding)")]
+        #[arg(long, help = "Filter by kind (freeform — matches the --kind used when adding)")]
         kind: Option<String>,
         #[arg(long, default_value_t = 50, help = "Max results")]
         limit: usize,
@@ -789,7 +789,7 @@ pub fn run(db: &Database, command: Commands, json: bool, compact: bool) -> Resul
             } else if entries.is_empty() {
                 println!("no context entries yet");
                 if !compact {
-                    eprintln!("tip: plandb context \"what you discovered\" --type discovery");
+                    eprintln!("tip: plandb context \"what you discovered\" --kind discovery");
                 }
             } else {
                 for e in &entries {

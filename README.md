@@ -132,20 +132,20 @@ Plans are hypotheses — adapt as you learn.
 When plandb list --status ready shows multiple tasks, parallelize them.
 ```
 
-See [examples/](examples/) for real agent sessions — each example is actual output from an agent using PlanDB:
-- [**Parallel API with context**](examples/parallel-api-with-context/) — fan-out/fan-in, lazy recall, multi-agent, mid-flight adaptation
-- [**URL shortener v2**](examples/codex-url-shortener-v2/) — structured handoff, 5 context entries, 4-task dependency chain
-- [**CLI calculator**](examples/codex-calculator/) — dependencies, custom IDs, proactive search
+See [examples/](examples/) for real agent sessions — each is actual output from an agent using PlanDB:
+- [**Security audit with adaptation**](examples/codex-security-audit-adapted/) — guided autonomy, mid-flight task insertion, 20 findings
+- [**Parallel API with context**](examples/parallel-api-with-context/) — fan-out/fan-in, lazy recall, multi-agent
+- [**URL shortener**](examples/codex-url-shortener-v2/) — structured handoff, 5 context entries
+- [**Clean e2e**](examples/codex-markdown-converter/) — just the prompt, agent does everything
 
-Ready-to-import templates in [templates/](templates/) — from starter (5 tasks) to comprehensive (60+ tasks):
+Ready-to-import templates in [templates/](templates/):
 
-| Template | Tasks | Dependencies | Context | Use case |
-|----------|-------|-------------|---------|----------|
-| [PR Review (Comprehensive)](templates/pr-review-comprehensive.yaml) | 62 | 27 | 17 | Multi-phase code review with parallel reviewers |
-| [Security Audit (Comprehensive)](templates/security-audit-50-tasks.yaml) | 60 | 30 | 16 | OWASP-informed audit with 9 testing phases |
-| [Security Audit (Battle-Tested)](templates/security-audit-comprehensive.yaml) | 10 | 15 | 27 | Agent-evolved from real audits (3 generations) |
-| [Feature Implementation](templates/feature-implementation.yaml) | 8 | 9 | 4 | Requirements → implement → test → ship |
-| [Code Review](templates/code-review.yaml) | 5 | 6 | 3 | Focused single-file review |
+| Template | Tasks | Use case |
+|----------|-------|----------|
+| [PR Review (Comprehensive)](templates/pr-review-comprehensive.yaml) | 62 | Multi-phase code review with parallel reviewers |
+| [Security Audit (Comprehensive)](templates/security-audit-50-tasks.yaml) | 60 | OWASP-informed audit with 9 testing phases |
+| [Feature Implementation](templates/feature-implementation.yaml) | 8 | Requirements → implement → test → ship |
+| [Code Review](templates/code-review.yaml) | 5 | Focused single-file review |
 
 ## What Makes It Different
 
