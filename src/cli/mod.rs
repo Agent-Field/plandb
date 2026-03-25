@@ -621,7 +621,22 @@ pub fn run(db: &Database, command: Commands, json: bool, compact: bool) -> Resul
                 println!("created {} ({})", project.id, project.name);
                 if !compact {
                     eprintln!();
-                    eprintln!("next: plandb add \"title\" --description \"detailed spec\" [--dep t-upstream] [--as custom-id]");
+                    // Check for available templates
+                    let template_dirs = vec![
+                        std::path::PathBuf::from("templates"),
+                        std::path::PathBuf::from(
+                            std::env::var("HOME").unwrap_or_default()
+                        ).join(".plandb").join("templates"),
+                    ];
+                    let has_templates = template_dirs.iter().any(|d| d.is_dir());
+
+                    if has_templates {
+                        eprintln!("start: plandb templates                        # browse available templates");
+                        eprintln!("       plandb import templates/<name>.yaml     # import a template");
+                        eprintln!("  or:  plandb add \"title\" --description \"spec\" [--dep t-xxx]");
+                    } else {
+                        eprintln!("next: plandb add \"title\" --description \"detailed spec\" [--dep t-upstream] [--as custom-id]");
+                    }
                     eprintln!("tip:  create tasks in dependency order. use --dep to chain them.");
                     eprintln!("      plandb add \"A\" --as a && plandb add \"B\" --dep t-a --as b");
                     eprintln!("      plandb go → work → plandb done --next → repeat");
