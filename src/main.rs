@@ -247,6 +247,13 @@ plandb export > template.yaml   # save structure + context as reusable template
 plandb import template.yaml     # apply template (tasks, deps, hooks, context)
 ```
 
+### Session Continuity
+
+```bash
+plandb resume                    # everything needed to pick up from last session:
+                                 # progress, running tasks, ready tasks, recent context, hints
+```
+
 ### Reference
 - **States**: pending → ready (deps done) → claimed → running → done/failed/cancelled
 - **Handoff**: `--result '{{"key":"val"}}'` on `done` passes data to downstream via `go`

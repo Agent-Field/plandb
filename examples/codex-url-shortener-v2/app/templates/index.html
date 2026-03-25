@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>URL Shortener</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        margin: 2rem auto;
+        max-width: 40rem;
+        padding: 0 1rem;
+      }
+      form {
+        display: grid;
+        gap: 0.75rem;
+      }
+      input, button {
+        font: inherit;
+        padding: 0.75rem;
+      }
+      .error {
+        color: #b42318;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Shorten a URL</h1>
+    <form action="/shorten" method="post">
+      <label for="url">Long URL</label>
+      <input id="url" name="url" type="url" placeholder="https://example.com" value="{{ original_url }}" required>
+      <button type="submit">Create short link</button>
+    </form>
+    {% if error %}
+      <p class="error">{{ error }}</p>
+    {% endif %}
+    {% if short_url %}
+      <p>Short URL: <a href="{{ short_url }}">{{ short_url }}</a></p>
+    {% endif %}
+  </body>
+  </html>
