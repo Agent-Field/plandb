@@ -1,0 +1,86 @@
+name: Code Review
+description: null
+tasks:
+- ref_id: task-1
+  title: Read and understand
+  description: Read the target code thoroughly. Understand its purpose, inputs, outputs, error handling, and integration points. Map the call graph.
+  kind: research
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: code purpose and structure documented
+  pre_hook: null
+  post_hook: null
+- ref_id: task-2
+  title: Correctness review
+  description: Check for logic errors, off-by-one bugs, null handling, race conditions, resource leaks. Verify edge cases.
+  kind: review
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: all correctness issues documented
+  pre_hook: null
+  post_hook: null
+- ref_id: task-3
+  title: Security review
+  description: Check for injection, auth bypasses, data exposure, insecure defaults. Apply OWASP Top 10.
+  kind: review
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: security findings classified by severity
+  pre_hook: null
+  post_hook: null
+- ref_id: task-4
+  title: Maintainability review
+  description: Check naming, complexity, coupling, cohesion, test coverage, documentation. Suggest simplifications.
+  kind: review
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: maintainability issues with suggested fixes
+  pre_hook: null
+  post_hook: null
+- ref_id: task-5
+  title: Write review summary
+  description: 'Synthesize all findings into a structured review: must-fix (blockers), should-fix (important), nice-to-have (suggestions). Include code examples.'
+  kind: code
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: review summary with actionable items
+  pre_hook: null
+  post_hook: null
+dependencies:
+- from_ref: task-1
+  to_ref: task-2
+  kind: feeds_into
+- from_ref: task-1
+  to_ref: task-3
+  kind: feeds_into
+- from_ref: task-1
+  to_ref: task-4
+  kind: feeds_into
+- from_ref: task-2
+  to_ref: task-5
+  kind: feeds_into
+- from_ref: task-3
+  to_ref: task-5
+  kind: feeds_into
+- from_ref: task-4
+  to_ref: task-5
+  kind: feeds_into
+context:
+- kind: pattern
+  content: Focus on correctness first — security issues are obvious, logic bugs are not
+  tags: []
+  task_ref: null
+- kind: pattern
+  content: 'For maintainability: suggest, don''t mandate. Developers know their context better.'
+  tags: []
+  task_ref: null
+- kind: pattern
+  content: Always include code examples in suggestions — abstract feedback is ignored
+  tags: []
+  task_ref: null
+
