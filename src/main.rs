@@ -109,6 +109,12 @@ prerequisites are complete.
 4. Complete + advance: `plandb_done` marks complete, `plandb_go` gets the next one
 5. Check progress: `plandb_status` shows done/total/ready/running counts
 
+### Context Store (Project Knowledge)
+- Record discoveries: `plandb_context_create` with kind (discovery, decision, pattern, etc.)
+- Search knowledge: `plandb_search` — BM25 across context entries and task descriptions
+- Context is auto-linked to your running task and auto-recalled when claiming related tasks
+- Kind is freeform — use whatever labels fit (discovery, decision, constraint, bug, etc.)
+
 ### Plan Adaptation (mid-flight)
 - `plandb_task_insert` — add a missed step between existing tasks
 - `plandb_task_amend` — prepend notes to a future task ("use JWT not sessions")
@@ -119,8 +125,9 @@ prerequisites are complete.
 - Tasks flow: pending → ready (when deps done) → claimed → running → done/failed
 - Dependency types: `feeds_into` (default), `blocks`, `suggests`
 - Task kinds: `generic`, `code`, `research`, `review`, `test`, `shell`
-- IDs are short 8-char strings (e.g. `t-a1b2c3d4`)
-- Fuzzy matching: misspell a task ID and plandb suggests the closest match
+- `plandb_go` returns relevant context entries automatically (lazy recall)
+- Tasks can have `pre_hook`/`post_hook` — shell commands at start/completion
+- Templates (`plandb export/import`) carry context entries as institutional knowledge
 - Use `--compact` flag on tools for token-efficient output"#
     );
 }
