@@ -305,6 +305,11 @@ PLAN ADAPTATION:
   POST   /what-if/cancel/:id         Preview cancel effects (read-only)
   GET    /ahead?project_id=X&depth=2 Lookahead buffer
 
+CONTEXT STORE (project knowledge):
+  POST   /context                    Add context entry. Body: {{"project_id": "...", "content": "...", "kind": "discovery"}}
+  GET    /contexts?project_id=X      List context entries (filter: kind, limit)
+  GET    /search?project_id=X&q=Q    BM25 search across context + tasks
+
 STATUS:
   GET    /status?project_id=X        Project progress summary
   GET    /tasks/:id/notes            List notes on task
@@ -318,8 +323,9 @@ EVENTS (real-time):
 - Dependency types: `feeds_into` (default), `blocks`, `suggests`
 - Task kinds: `generic`, `code`, `research`, `review`, `test`, `shell`
 - IDs are short 8-char strings (e.g. `t-a1b2c3d4`)
-- Add `?compact=true` to any GET for token-efficient responses
-- POST /go is the preferred agent entry point — returns task + upstream context
-- POST /tasks/:id/done with result data enables handoff to downstream tasks"#
+- POST /go returns task + relevant context (lazy recall) + upstream handoff
+- POST /tasks/:id/done with result data enables handoff to downstream tasks
+- Context auto-links to running task — no task_id needed
+- Add `?compact=true` to any GET for token-efficient responses"#
     );
 }
