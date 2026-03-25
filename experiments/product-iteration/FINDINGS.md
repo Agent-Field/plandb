@@ -110,6 +110,20 @@ Shipped two template recipes:
 - `templates/pr-review.yaml` — 7-task fan-out pipeline (parse → 4 parallel reviewers → synthesize → report)
 - `templates/epic-decomposition.yaml` — 7-task waterfall with parallel test/docs/edge-case phase
 
+### Template Import + Execution Flow
+
+Validated end-to-end template workflow:
+1. `plandb import templates/pr-review.yaml` creates 7-task fan-out graph
+2. Template context entries available via `plandb search`
+3. `plandb go` shows downstream tasks and research-specific hints
+4. Post-conditions from template preserved on tasks
+5. Template context surfaces in lazy recall for relevant tasks
+
+### Gemini CLI Cross-Agent Validation
+
+Gemini CLI completed 4/4 tasks (100%) with proper dependencies, 3 context entries,
+and custom IDs. Validates PlanDB works across different AI agents.
+
 ### Agent Validation (Codex, Updated Prompt v2)
 
 Re-tested with the updated prompt (120 lines, includes all new features):
