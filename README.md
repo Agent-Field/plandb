@@ -246,11 +246,18 @@ plandb import templates/security-audit-evolved.yaml
 plandb go    # → lazy recall surfaces findings from previous run
 ```
 
-Templates compound: original (hand-seeded patterns) → evolved (real findings) → distributed (community knowledge).
+Templates compound — proven across 3 generations of security audits:
+
+| Generation | Tasks | Findings | Context | What happened |
+|-----------|-------|----------|---------|---------------|
+| Original | 7 | 0 | 5 patterns | Hand-seeded structure |
+| 1st evolution | 10 | 20 | 27 entries | Agent added 3 tasks, found 20 vulns |
+| 2nd evolution | 14 | 39 | 52 entries | Different app, agent added 4 more tasks |
 
 ```bash
 plandb templates                     # browse available templates
 plandb import templates/X.yaml      # follow the template, adapt as needed
+plandb import https://url/tmpl.yaml # import from URL (distributed templates)
 plandb export > evolved.yaml        # save improvements for next run
 ```
 
