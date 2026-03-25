@@ -878,12 +878,34 @@ pub fn go_cmd(db: &Database, args: &GoArgs, json: bool) -> Result<()> {
         }
 
         // Contextual action hints — teach the agent what it can do while working
+        // Hints are tailored to the task kind for maximum relevance
         if !json {
             let ready = response["remaining"]["ready"].as_u64().unwrap_or(0);
+            let kind = response["task"]["kind"].as_str().unwrap_or("generic");
             eprintln!();
             eprintln!("while working:");
-            eprintln!("  plandb context \"what you discovered\" --kind discovery   # record findings");
-            eprintln!("  plandb split --into \"A, B, C\"                           # decompose if complex");
+            match kind {
+                "research" => {
+                    eprintln!("  plandb context \"what you discovered\" --kind discovery   # record findings");
+                    eprintln!("  plandb context \"decision: X because Y\" --kind decision  # record decisions");
+                }
+                "code" => {
+                    eprintln!("  plandb context \"approach: ...\" --kind decision           # record design choices");
+                    eprintln!("  plandb split --into \"A, B, C\"                           # decompose if complex");
+                }
+                "test" => {
+                    eprintln!("  plandb context \"test gap: ...\" --kind bug               # record failures/gaps");
+                    eprintln!("  plandb search \"query\"                                   # check known issues");
+                }
+                "review" => {
+                    eprintln!("  plandb context \"finding: ...\" --kind finding             # record review findings");
+                    eprintln!("  plandb task amend <id> --prepend \"NOTE: ...\"             # annotate tasks with feedback");
+                }
+                _ => {
+                    eprintln!("  plandb context \"what you discovered\" --kind discovery   # record findings");
+                    eprintln!("  plandb split --into \"A, B, C\"                           # decompose if complex");
+                }
+            }
             eprintln!("  plandb search \"query\"                                   # recall project knowledge");
             eprintln!("when done:");
             eprintln!("  plandb done --next                                       # complete + claim next");
