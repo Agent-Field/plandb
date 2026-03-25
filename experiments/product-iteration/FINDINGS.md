@@ -130,6 +130,33 @@ mid-execution. The summary task result tracked this: `{"inserted_task": "t-20dc"
 
 This proves agents can self-correct using PlanDB's adaptation primitives.
 
+### Comprehensive Security Audit (Battle-Tested)
+
+**Agent**: Codex | **Status**: PASS (10/10 complete) | **Findings**: 20
+
+Codex audited a 120-line Flask app with 11 routes:
+- Imported security audit template (7 tasks) and adapted to 10 tasks
+- Added 3 domain-specific tasks: serialization, file handling, session/CSRF
+- Found 20 vulnerabilities: 6 critical, 12 high, 2 medium
+- 27 context entries in the exported template (most valuable template)
+
+### Complex Multi-Step Task (Codex)
+
+**Agent**: Codex | **Status**: 9/11 complete (82%) | **Context**: 15 entries
+
+Agent built a Flask REST API with auth, CRUD, and rate limiting:
+- Created 11 tasks with non-linear dependency graph
+- Parallel branches: auth, todo, rate limiting all fan-in to features
+- Some tasks cancelled mid-flight (agent self-corrected redundant work)
+
+### Template Evolution Validation
+
+Demonstrated template compounding:
+1. Imported 8-task feature template
+2. Split "Implement core" into 3 parallel subtasks (compound graph)
+3. Evolved template has 11 tasks with containment hierarchy
+4. Cross-level dependencies work correctly
+
 ### Template Import + Execution Flow
 
 Validated end-to-end template workflow:
