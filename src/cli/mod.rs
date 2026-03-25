@@ -278,10 +278,10 @@ pub enum Commands {
     Context {
         #[arg(help = "The context content")]
         content: String,
-        #[arg(long, short = 't', default_value = "note",
-              help = "Freeform type label (e.g. discovery, decision, constraint, insight, etc.)")]
-        r#type: String,
-        #[arg(long, help = "Associated task ID (optional — context can be project-wide)")]
+        #[arg(long, default_value = "note",
+              help = "Freeform kind label (e.g. discovery, decision, constraint, insight, etc.)")]
+        kind: String,
+        #[arg(long, help = "Task ID to link to (auto-detects current running task if omitted)")]
         task: Option<String>,
         #[arg(long, help = "Project ID (uses default if not set)")]
         project: Option<String>,
@@ -618,22 +618,33 @@ pub fn run(db: &Database, command: Commands, json: bool, compact: bool) -> Resul
         }
         Commands::Context {
             content,
-            r#type,
+            kind,
             task,
             project,
             tags,
         } => {
             let project_id = resolve_project_id(db, project.as_deref())?;
-            let agent_id = std::env::var("PLANDB_AGENT").ok();
+            let agent_id = std::env::var("PLANDB_AGENT")
+                .unwrap_or_else(|_| "default".to_string());
+
+            // Auto-link to current running task if --task not specified
+            let task_id = match task {
+                Some(t) => Some(t),
+                None => {
+                    crate::db::get_running_task_for_agent(db, &agent_id)?
+                        .map(|t| t.id)
+                }
+            };
+
             let tag_list: Vec<String> = tags
                 .map(|t| t.split(',').map(|s| s.trim().to_string()).collect())
                 .unwrap_or_default();
             let entry = crate::db::add_context(
                 db,
                 &project_id,
-                task.as_deref(),
-                agent_id.as_deref(),
-                &r#type,
+                task_id.as_deref(),
+                Some(&agent_id),
+                &kind,
                 &content,
                 &tag_list,
             )?;
