@@ -1,0 +1,93 @@
+name: Fullstack Feature (Compound Graph)
+description: null
+tasks:
+- ref_id: task-1
+  title: Backend
+  description: 'Server-side: API, database, business logic'
+  kind: code
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: null
+  pre_hook: null
+  post_hook: null
+- ref_id: task-2
+  title: Frontend
+  description: 'Client-side: UI components, state, API integration'
+  kind: code
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: null
+  pre_hook: null
+  post_hook: null
+- ref_id: task-3
+  title: Integration
+  description: 'End-to-end testing: frontend ↔ backend ↔ database'
+  kind: test
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: null
+  pre_hook: null
+  post_hook: null
+- ref_id: task-4
+  title: Design schema
+  description: null
+  kind: generic
+  priority: 0
+  parent_ref: task-1
+  pre_condition: null
+  post_condition: null
+  pre_hook: null
+  post_hook: null
+- ref_id: task-5
+  title: Implement endpoints
+  description: null
+  kind: generic
+  priority: 0
+  parent_ref: task-1
+  pre_condition: null
+  post_condition: null
+  pre_hook: null
+  post_hook: null
+- ref_id: task-6
+  title: Unit tests
+  description: null
+  kind: generic
+  priority: 0
+  parent_ref: task-1
+  pre_condition: null
+  post_condition: null
+  pre_hook: null
+  post_hook: null
+dependencies:
+- from_ref: task-1
+  to_ref: task-3
+  kind: feeds_into
+- from_ref: task-2
+  to_ref: task-3
+  kind: feeds_into
+- from_ref: task-5
+  to_ref: task-2
+  kind: feeds_into
+- from_ref: task-4
+  to_ref: task-5
+  kind: feeds_into
+- from_ref: task-5
+  to_ref: task-6
+  kind: feeds_into
+context:
+- kind: pattern
+  content: Design the API contract (OpenAPI spec) before implementing — frontend and backend agree on shape
+  tags: []
+  task_ref: null
+- kind: pattern
+  content: Run backend unit tests before integration — catch issues early
+  tags: []
+  task_ref: null
+- kind: pattern
+  content: Frontend can start with mock API responses while backend is in progress
+  tags: []
+  task_ref: null
+
