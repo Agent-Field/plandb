@@ -1,0 +1,123 @@
+name: Security Audit
+description: null
+tasks:
+- ref_id: task-1
+  title: Enumerate attack surface
+  description: 'Map all entry points: API endpoints, form inputs, file uploads, WebSocket handlers, CLI args. List authentication/authorization boundaries.'
+  kind: research
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: attack surface map with all entry points documented
+  pre_hook: null
+  post_hook: null
+- ref_id: task-2
+  title: Input validation audit
+  description: 'Check every entry point for: SQL injection, XSS, command injection, path traversal, SSRF. Verify parameterized queries, HTML escaping, input sanitization.'
+  kind: review
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: all injection vectors tested and documented
+  pre_hook: null
+  post_hook: null
+- ref_id: task-3
+  title: Auth and access control
+  description: 'Verify: authentication on all protected endpoints, session management, token expiry, password hashing, role-based access, privilege escalation paths.'
+  kind: review
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: auth coverage verified for all protected resources
+  pre_hook: null
+  post_hook: null
+- ref_id: task-4
+  title: Secrets and configuration
+  description: 'Scan for: hardcoded API keys, passwords, tokens in code. Check .env handling, secret rotation, default credentials, debug mode in production.'
+  kind: review
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: no secrets in source code, config is secure
+  pre_hook: null
+  post_hook: null
+- ref_id: task-5
+  title: Dependency audit
+  description: Check dependencies for known CVEs. Run safety/npm audit/cargo audit. Verify lockfile integrity, check for typosquatting.
+  kind: review
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: no known high/critical CVEs in dependencies
+  pre_hook: null
+  post_hook: null
+- ref_id: task-6
+  title: Compile findings
+  description: Merge all findings. Classify by OWASP Top 10 category. Assign severity (critical/high/medium/low). Deduplicate and prioritize.
+  kind: research
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: findings deduplicated and prioritized by severity
+  pre_hook: null
+  post_hook: null
+- ref_id: task-7
+  title: Generate security report
+  description: 'Create structured security report: executive summary, critical findings with remediation steps, full finding list, dependency status.'
+  kind: code
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: report includes remediation steps for all critical/high findings
+  pre_hook: null
+  post_hook: null
+dependencies:
+- from_ref: task-1
+  to_ref: task-2
+  kind: feeds_into
+- from_ref: task-1
+  to_ref: task-3
+  kind: feeds_into
+- from_ref: task-1
+  to_ref: task-4
+  kind: feeds_into
+- from_ref: task-1
+  to_ref: task-5
+  kind: feeds_into
+- from_ref: task-2
+  to_ref: task-6
+  kind: feeds_into
+- from_ref: task-3
+  to_ref: task-6
+  kind: feeds_into
+- from_ref: task-4
+  to_ref: task-6
+  kind: feeds_into
+- from_ref: task-5
+  to_ref: task-6
+  kind: feeds_into
+- from_ref: task-6
+  to_ref: task-7
+  kind: feeds_into
+context:
+- kind: pattern
+  content: 'OWASP A03: SQL injection is still #1 — always check string concatenation in queries'
+  tags: []
+  task_ref: null
+- kind: pattern
+  content: Check for debug/admin endpoints that bypass auth (common in Flask/Express)
+  tags: []
+  task_ref: null
+- kind: pattern
+  content: 'Hardcoded secrets: check not just .py files but also Dockerfiles, CI configs, README examples'
+  tags: []
+  task_ref: null
+- kind: pattern
+  content: 'JWT: verify algorithm is RS256 not HS256, check expiry is set, verify signature validation'
+  tags: []
+  task_ref: null
+- kind: constraint
+  content: 'Rate limiting: verify it''s applied to auth endpoints especially — brute force prevention'
+  tags: []
+  task_ref: null
+
