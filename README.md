@@ -229,13 +229,29 @@ plandb add "Run linter" \
 
 Hooks enable replayable procedures: templates with hooks become automated workflows. Environment variables set: `PLANDB_TASK_ID`, `PLANDB_PROJECT_ID`, `PLANDB_TASK_TITLE`, `PLANDB_AGENT_ID`.
 
-### Reusable Decompositions
+### Templates as a Learning Framework
 
-Templates capture the full project state — tasks, dependencies, context entries, and hooks:
+Templates aren't written by hand — they're **learned by running agents**. Each run makes them better:
 
 ```bash
-plandb export > fullstack.yaml    # save structure + institutional knowledge
-plandb import fullstack.yaml      # apply pattern to new project (context included)
+# 1. Run an agent with PlanDB — it creates tasks, records context, adapts
+plandb init "security-audit" && plandb import templates/security-audit.yaml
+plandb go → work → plandb done --next → ...
+
+# 2. Export the evolved graph — carries tasks + findings + adaptations
+plandb export > templates/security-audit-evolved.yaml
+
+# 3. Next agent imports the evolved template — gets real-world "clues"
+plandb import templates/security-audit-evolved.yaml
+plandb go    # → lazy recall surfaces findings from previous run
+```
+
+Templates compound: original (hand-seeded patterns) → evolved (real findings) → distributed (community knowledge).
+
+```bash
+plandb templates                     # browse available templates
+plandb import templates/X.yaml      # follow the template, adapt as needed
+plandb export > evolved.yaml        # save improvements for next run
 ```
 
 ## CLI Reference
