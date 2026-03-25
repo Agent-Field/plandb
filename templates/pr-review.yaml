@@ -1,0 +1,119 @@
+name: PR Review Pipeline
+description: null
+tasks:
+- ref_id: task-1
+  title: Parse PR diff
+  description: 'Fetch and parse the PR diff. Identify changed files, added/removed lines, affected modules. Output: structured diff summary with file list and change categories.'
+  kind: research
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: diff summary includes all changed files with line counts
+  pre_hook: null
+  post_hook: null
+- ref_id: task-2
+  title: Security review
+  description: 'Analyze diff for security vulnerabilities: SQL injection, XSS, SSRF, hardcoded secrets, insecure crypto, missing auth checks. Flag severity (critical/high/medium/low).'
+  kind: review
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: all critical and high severity findings documented
+  pre_hook: null
+  post_hook: null
+- ref_id: task-3
+  title: Code quality review
+  description: Check for code smells, complexity, naming, dead code, missing error handling. Apply language-specific best practices.
+  kind: review
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: all findings categorized by severity
+  pre_hook: null
+  post_hook: null
+- ref_id: task-4
+  title: Test coverage review
+  description: Verify new code has tests. Check edge cases, error paths, boundary conditions. Flag untested critical paths.
+  kind: review
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: coverage gaps identified for all changed files
+  pre_hook: null
+  post_hook: null
+- ref_id: task-5
+  title: Architecture review
+  description: 'Evaluate structural impact: API changes, schema migrations, dependency additions, breaking changes. Check consistency with existing patterns.'
+  kind: review
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: breaking changes and migration risks documented
+  pre_hook: null
+  post_hook: null
+- ref_id: task-6
+  title: Synthesize findings
+  description: Merge all review findings. Deduplicate, resolve conflicts between reviewers, prioritize by impact. Produce unified finding list.
+  kind: research
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: no duplicate findings, all conflicts resolved
+  pre_hook: null
+  post_hook: null
+- ref_id: task-7
+  title: Generate review report
+  description: 'Format findings as a PR comment: summary, critical issues, suggestions, approval recommendation. Use markdown with collapsible sections.'
+  kind: code
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: report is valid markdown, fits in a single PR comment
+  pre_hook: null
+  post_hook: null
+dependencies:
+- from_ref: task-1
+  to_ref: task-2
+  kind: feeds_into
+- from_ref: task-1
+  to_ref: task-3
+  kind: feeds_into
+- from_ref: task-1
+  to_ref: task-4
+  kind: feeds_into
+- from_ref: task-1
+  to_ref: task-5
+  kind: feeds_into
+- from_ref: task-2
+  to_ref: task-6
+  kind: feeds_into
+- from_ref: task-3
+  to_ref: task-6
+  kind: feeds_into
+- from_ref: task-4
+  to_ref: task-6
+  kind: feeds_into
+- from_ref: task-5
+  to_ref: task-6
+  kind: feeds_into
+- from_ref: task-6
+  to_ref: task-7
+  kind: feeds_into
+context:
+- kind: pattern
+  content: 'SQL injection check: look for string concatenation in queries, verify parameterized queries'
+  tags: []
+  task_ref: null
+- kind: constraint
+  content: Breaking API changes require version bump in API path
+  tags: []
+  task_ref: null
+- kind: pattern
+  content: 'Test coverage: focus on error paths first, happy paths are usually tested'
+  tags: []
+  task_ref: null
+- kind: pattern
+  content: 'Architecture: check for N+1 queries in new ORM code'
+  tags: []
+  task_ref: null
+

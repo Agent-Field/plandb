@@ -1,0 +1,112 @@
+name: Epic Decomposition
+description: null
+tasks:
+- ref_id: task-1
+  title: Research and scope
+  description: 'Investigate requirements, constraints, prior art. Define scope boundaries and non-goals. Output: scoping document with clear boundaries.'
+  kind: research
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: scope document exists with goals, non-goals, and constraints
+  pre_hook: null
+  post_hook: null
+- ref_id: task-2
+  title: Architecture design
+  description: 'Design system architecture based on research. Define components, interfaces, data flow, and technology choices. Output: architecture document.'
+  kind: research
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: architecture document covers all components and interfaces
+  pre_hook: null
+  post_hook: null
+- ref_id: task-3
+  title: Implement core
+  description: Build the core functionality — the minimum that makes the system work end-to-end. No polish, no edge cases. Just the critical path.
+  kind: code
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: core functionality works end-to-end
+  pre_hook: null
+  post_hook: null
+- ref_id: task-4
+  title: Implement edge cases
+  description: Handle error cases, validation, boundary conditions, and robustness. Make the core production-ready.
+  kind: code
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: all error paths handled, validation complete
+  pre_hook: null
+  post_hook: null
+- ref_id: task-5
+  title: Write tests
+  description: Unit tests, integration tests, edge case tests. Target 80%+ coverage on new code.
+  kind: test
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: test suite passes, coverage >= 80%
+  pre_hook: null
+  post_hook: null
+- ref_id: task-6
+  title: Documentation
+  description: Usage docs, API reference, examples. Write for the next developer who touches this code.
+  kind: code
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: README exists with setup, usage, and examples
+  pre_hook: null
+  post_hook: null
+- ref_id: task-7
+  title: Review and ship
+  description: 'Final review: code quality, security, performance. Create PR with comprehensive description.'
+  kind: review
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: PR created with all checks passing
+  pre_hook: null
+  post_hook: null
+dependencies:
+- from_ref: task-1
+  to_ref: task-2
+  kind: feeds_into
+- from_ref: task-2
+  to_ref: task-3
+  kind: feeds_into
+- from_ref: task-3
+  to_ref: task-4
+  kind: feeds_into
+- from_ref: task-3
+  to_ref: task-5
+  kind: feeds_into
+- from_ref: task-3
+  to_ref: task-6
+  kind: feeds_into
+- from_ref: task-4
+  to_ref: task-7
+  kind: feeds_into
+- from_ref: task-5
+  to_ref: task-7
+  kind: feeds_into
+- from_ref: task-6
+  to_ref: task-7
+  kind: feeds_into
+context:
+- kind: pattern
+  content: Start with the smallest possible end-to-end path — avoid building components in isolation
+  tags: []
+  task_ref: null
+- kind: pattern
+  content: Edge cases double the implementation time — plan for it
+  tags: []
+  task_ref: null
+- kind: pattern
+  content: Write tests alongside implementation, not after — prevents regression during edge case work
+  tags: []
+  task_ref: null
+
