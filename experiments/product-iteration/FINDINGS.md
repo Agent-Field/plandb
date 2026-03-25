@@ -106,9 +106,29 @@ Tasks are now indexed via FTS5 with weighted fields:
 Templates now include context entries (institutional knowledge), so imported templates
 carry not just the task structure but also the discoveries/decisions from the original run.
 
-Shipped two template recipes:
+Shipped 6 templates:
 - `templates/pr-review.yaml` — 7-task fan-out pipeline (parse → 4 parallel reviewers → synthesize → report)
 - `templates/epic-decomposition.yaml` — 7-task waterfall with parallel test/docs/edge-case phase
+- `templates/security-audit.yaml` — 7-task OWASP-informed security audit
+- `templates/security-audit-evolved.yaml` — agent-evolved version with real findings
+- `templates/code-review.yaml` — 5-task focused code review
+- `templates/feature-implementation.yaml` — 8-task feature workflow
+
+### Template Learning Framework Validation
+
+Demonstrated the template compounding cycle:
+1. Original template (hand-seeded): 7 tasks, 5 pattern entries
+2. Agent runs template, discovers 4 vulnerabilities, inserts a missed step
+3. Evolved template exported: 6 tasks, 6 real finding entries
+4. Evolved template is MORE valuable — carries actual findings as "clues"
+
+### Mid-Flight Task Insertion (Guided Autonomy)
+
+**Critical finding**: During a security audit, the agent discovered it had missed
+reviewing hardcoded secrets. It used `plandb task insert` to add a new review task
+mid-execution. The summary task result tracked this: `{"inserted_task": "t-20dc"}`.
+
+This proves agents can self-correct using PlanDB's adaptation primitives.
 
 ### Template Import + Execution Flow
 
