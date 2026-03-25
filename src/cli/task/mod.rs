@@ -5,7 +5,7 @@ pub(crate) mod helpers;
 pub use commands::{
     ahead_cmd, create_task_cmd, done_cmd, go_cmd, list_tasks_cmd, run_what_if, split_cmd,
 };
-pub use helpers::{go_payload, parse_files_arg, print_task_detail};
+pub use helpers::{build_search_query as build_search_query_for_task, go_payload, parse_files_arg, print_task_detail};
 
 use crate::cli::{parse_dependency_kind, parse_task_kind, parse_task_status};
 use crate::db::Database;

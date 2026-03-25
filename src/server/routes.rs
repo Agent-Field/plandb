@@ -537,6 +537,7 @@ fn go_response(db: &Database, project_id: &str, agent_id: &str) -> Result<Value,
     let mut handoff = Vec::new();
     let mut notes = Vec::new();
     let mut file_conflicts = json!([]);
+    let mut relevant_context: Vec<Value> = Vec::new();
     let task_json = if let Some(task) = task {
         handoff = get_handoff_context(db, &task.id)
             .map_err(ApiError::from)?
@@ -565,6 +566,28 @@ fn go_response(db: &Database, project_id: &str, agent_id: &str) -> Result<Value,
             check_file_conflicts(db, project_id, Some(&task.id)).map_err(ApiError::from)?,
         )
         .map_err(|e| ApiError::internal(e.to_string()))?;
+
+        // Lazy recall: auto-surface relevant context
+        let search_query = crate::cli::task::build_search_query_for_task(
+            &task.title,
+            task.description.as_deref(),
+        );
+        if !search_query.is_empty() {
+            relevant_context = crate::db::search_graph(db, project_id, &search_query, 5)
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|r| r.source == "context")
+                .take(3)
+                .map(|r| {
+                    json!({
+                        "id": r.id,
+                        "kind": r.kind,
+                        "content": r.content,
+                    })
+                })
+                .collect();
+        }
+
         json!({
             "id": task.id,
             "title": task.title,
@@ -575,7 +598,7 @@ fn go_response(db: &Database, project_id: &str, agent_id: &str) -> Result<Value,
         Value::Null
     };
 
-    Ok(json!({
+    let mut response = json!({
         "task": task_json,
         "handoff": handoff,
         "notes": notes,
@@ -588,7 +611,13 @@ fn go_response(db: &Database, project_id: &str, agent_id: &str) -> Result<Value,
             "pending": pending,
         },
         "progress": progress,
-    }))
+    });
+
+    if !relevant_context.is_empty() {
+        response["relevant_context"] = json!(relevant_context);
+    }
+
+    Ok(response)
 }
 
 fn ensure_project_exists(db: &Database, project_id: &str) -> Result<Project, ApiError> {
