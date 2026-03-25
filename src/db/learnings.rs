@@ -139,13 +139,15 @@ pub fn search_graph(
     let mut results = Vec::new();
 
     // Search context via FTS5 with BM25 ranking
+    // Weights: content=1.0, kind=5.0 (searching "decision" finds decision-kind entries)
     {
         let mut stmt = conn.prepare(
-            "SELECT l.id, l.kind, l.content, l.task_id, l.project_id, f.rank \
+            "SELECT l.id, l.kind, l.content, l.task_id, l.project_id, \
+                    bm25(learnings_fts, 1.0, 5.0) AS rank \
              FROM learnings_fts f \
              JOIN learnings l ON l.rowid = f.rowid \
              WHERE learnings_fts MATCH ?1 AND l.project_id = ?2 \
-             ORDER BY f.rank \
+             ORDER BY rank \
              LIMIT ?3",
         )?;
         let mut rows = stmt.query(params![query, project_id, limit as i64])?;
@@ -162,16 +164,19 @@ pub fn search_graph(
         }
     }
 
-    // Also search task titles and descriptions via LIKE
+    // Search task titles and descriptions via FTS5 with BM25 ranking
+    // Weights: title=10.0, description=1.0 (title matches rank much higher)
     {
-        let pattern = format!("%{}%", query);
         let mut stmt = conn.prepare(
-            "SELECT id, kind, title, description, project_id \
-             FROM tasks \
-             WHERE project_id = ?1 AND (title LIKE ?2 OR description LIKE ?2) \
+            "SELECT t.id, t.kind, t.title, t.description, t.project_id, \
+                    bm25(tasks_fts, 10.0, 1.0) AS rank \
+             FROM tasks_fts f \
+             JOIN tasks t ON t.rowid = f.rowid \
+             WHERE tasks_fts MATCH ?1 AND t.project_id = ?2 \
+             ORDER BY rank \
              LIMIT ?3",
         )?;
-        let mut rows = stmt.query(params![project_id, pattern, limit as i64])?;
+        let mut rows = stmt.query(params![query, project_id, limit as i64])?;
         while let Some(row) = rows.next()? {
             let title: String = row.get(2)?;
             let desc: Option<String> = row.get(3)?;
@@ -187,7 +192,7 @@ pub fn search_graph(
                 content,
                 task_id: Some(row.get::<_, String>(0)?),
                 project_id: row.get(4)?,
-                rank: -0.5, // Lower priority than FTS matches
+                rank: row.get(5)?,
             });
         }
     }

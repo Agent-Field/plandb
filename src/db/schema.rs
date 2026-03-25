@@ -169,6 +169,20 @@ CREATE VIRTUAL TABLE IF NOT EXISTS learnings_fts USING fts5(
 );
 "#;
 
+const CREATE_TASKS_FTS: &str = r#"
+CREATE VIRTUAL TABLE IF NOT EXISTS tasks_fts USING fts5(
+  title,
+  description,
+  content='tasks',
+  content_rowid='rowid'
+);
+"#;
+
+const BACKFILL_TASKS_FTS: &str = r#"
+INSERT OR IGNORE INTO tasks_fts(rowid, title, description)
+  SELECT rowid, title, COALESCE(description, '') FROM tasks;
+"#;
+
 const CREATE_LEARNING_TAGS: &str = r#"
 CREATE TABLE IF NOT EXISTS learning_tags (
   learning_id  TEXT NOT NULL REFERENCES learnings(id),
@@ -236,7 +250,11 @@ pub fn init_db(path: &str) -> Result<Database> {
     conn.execute_batch(INDEX_LEARNINGS_PROJECT)?;
     conn.execute_batch(INDEX_LEARNINGS_TASK)?;
     conn.execute_batch(INDEX_LEARNING_TAGS_TAG)?;
+    conn.execute_batch(CREATE_TASKS_FTS)?;
     conn.execute_batch(CREATE_TASK_READINESS_VIEW)?;
+
+    // Backfill tasks_fts for existing databases
+    let _ = conn.execute_batch(BACKFILL_TASKS_FTS);
 
     // Migrations for existing databases: add pre_hook/post_hook columns
     let _ = conn.execute_batch("ALTER TABLE tasks ADD COLUMN pre_hook TEXT;");

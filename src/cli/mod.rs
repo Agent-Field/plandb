@@ -315,6 +315,15 @@ pub enum Commands {
         #[arg(help = "Context entry ID to remove")]
         context_id: String,
     },
+    #[command(
+        about = "Resume from a previous session — shows everything needed to pick up where you left off.\n\n\
+                  Combines: project status, running/ready tasks, recent context entries,\n\
+                  critical path, and action hints into one output."
+    )]
+    Resume {
+        #[arg(long, help = "Project ID (uses default if not set)")]
+        project: Option<String>,
+    },
 }
 
 pub fn run(db: &Database, command: Commands, json: bool, compact: bool) -> Result<()> {
@@ -729,6 +738,117 @@ pub fn run(db: &Database, command: Commands, json: bool, compact: bool) -> Resul
                 println!("pruned {context_id}");
             } else {
                 println!("context entry {context_id} not found");
+            }
+            Ok(())
+        }
+        Commands::Resume { project } => {
+            let project_id = resolve_project_id(db, project.as_deref())?;
+            let tasks = crate::db::list_tasks(
+                db,
+                crate::db::TaskListFilters {
+                    project_id: Some(project_id.clone()),
+                    ..Default::default()
+                },
+            )?;
+            let total = tasks.len();
+            let done = tasks
+                .iter()
+                .filter(|t| matches!(t.status, TaskStatus::Done | TaskStatus::DonePartial))
+                .count();
+            let running: Vec<_> = tasks
+                .iter()
+                .filter(|t| matches!(t.status, TaskStatus::Running | TaskStatus::Claimed))
+                .collect();
+            let ready: Vec<_> = tasks
+                .iter()
+                .filter(|t| t.status == TaskStatus::Ready)
+                .collect();
+            let pending = tasks
+                .iter()
+                .filter(|t| t.status == TaskStatus::Pending)
+                .count();
+
+            let project_name = crate::db::get_project(db, &project_id)
+                .map(|p| p.name)
+                .unwrap_or_else(|_| project_id.clone());
+
+            if json {
+                let recent_context = crate::db::list_context(db, &project_id, None, 5)?;
+                print_json(&serde_json::json!({
+                    "project": project_name,
+                    "progress": format!("{}/{} done ({}%)", done, total,
+                        if total > 0 { (done as f64 / total as f64 * 100.0).round() as i32 } else { 0 }),
+                    "running": running.iter().map(|t| json!({"id": t.id, "title": t.title})).collect::<Vec<_>>(),
+                    "ready": ready.iter().map(|t| json!({"id": t.id, "title": t.title})).collect::<Vec<_>>(),
+                    "pending": pending,
+                    "recent_context": recent_context.iter().map(|c| json!({"id": c.id, "kind": c.kind, "content": c.content})).collect::<Vec<_>>(),
+                }))?;
+            } else {
+                println!("=== {} — resuming ===", project_name);
+                println!(
+                    "progress: {}/{} done ({}%) · {} running · {} ready · {} blocked",
+                    done,
+                    total,
+                    if total > 0 {
+                        (done as f64 / total as f64 * 100.0).round() as i32
+                    } else {
+                        0
+                    },
+                    running.len(),
+                    ready.len(),
+                    pending
+                );
+
+                if !running.is_empty() {
+                    eprintln!();
+                    eprintln!("in progress:");
+                    for t in &running {
+                        let agent = t.agent_id.as_deref().unwrap_or("?");
+                        eprintln!("  {} \"{}\" @{}", t.id, t.title, agent);
+                    }
+                }
+
+                if !ready.is_empty() {
+                    eprintln!();
+                    eprintln!("ready to claim:");
+                    for t in &ready {
+                        eprintln!("  {} \"{}\"", t.id, t.title);
+                    }
+                }
+
+                // Show recent context (last 5 entries)
+                let recent_context = crate::db::list_context(db, &project_id, None, 5)?;
+                if !recent_context.is_empty() {
+                    eprintln!();
+                    eprintln!("recent context:");
+                    for c in &recent_context {
+                        let truncated = if c.content.len() > 80 {
+                            format!("{}...", &c.content[..77])
+                        } else {
+                            c.content.clone()
+                        };
+                        eprintln!("  [{}] {}", c.kind, truncated);
+                    }
+                }
+
+                // Action hints
+                eprintln!();
+                if !running.is_empty() {
+                    eprintln!("continue: plandb done --next                  # complete running task + claim next");
+                } else if !ready.is_empty() {
+                    eprintln!("continue: plandb go                           # claim next ready task");
+                } else if pending > 0 {
+                    eprintln!("blocked: all remaining tasks have unmet dependencies");
+                    eprintln!("  plandb status --detail                      # see what's blocking");
+                } else if done == total && total > 0 {
+                    eprintln!("all tasks complete!");
+                    eprintln!("  plandb export > template.yaml               # save as reusable template");
+                } else {
+                    eprintln!("no tasks yet:");
+                    eprintln!("  plandb add \"title\" --description \"spec\"     # create first task");
+                }
+                eprintln!("  plandb search \"query\"                       # recall project knowledge");
+                eprintln!("  plandb status --detail                      # full dependency tree");
             }
             Ok(())
         }

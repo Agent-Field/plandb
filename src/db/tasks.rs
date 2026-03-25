@@ -524,6 +524,16 @@ pub fn create_task(db: &Database, task: &Task, tags: &[String]) -> Result<Task> 
             dt_to_sql(task_with_defaults.updated_at)
         ],
     )?;
+    // Populate tasks_fts index
+    conn.execute(
+        "INSERT INTO tasks_fts (rowid, title, description) \
+         VALUES (last_insert_rowid(), ?1, ?2)",
+        params![
+            &task_with_defaults.title,
+            task_with_defaults.description.as_deref().unwrap_or("")
+        ],
+    )?;
+
     for tag in tags {
         conn.execute(INSERT_TASK_TAG, params![&task_id, tag])?;
     }
@@ -894,6 +904,38 @@ pub fn update_task(
     let params: Vec<&dyn rusqlite::types::ToSql> =
         param_values.iter().map(|b| b.as_ref()).collect();
     conn.execute(&sql, rusqlite::params_from_iter(params))?;
+
+    // Sync tasks_fts if title or description changed
+    if title.is_some() || description.is_some() {
+        let rowid: Option<i64> = conn
+            .query_row(
+                "SELECT rowid FROM tasks WHERE id = ?1",
+                rusqlite::params![task_id],
+                |row| row.get(0),
+            )
+            .ok();
+        if let Some(rid) = rowid {
+            let new_title: String = conn.query_row(
+                "SELECT title FROM tasks WHERE id = ?1",
+                rusqlite::params![task_id],
+                |row| row.get(0),
+            )?;
+            let new_desc: Option<String> = conn.query_row(
+                "SELECT description FROM tasks WHERE id = ?1",
+                rusqlite::params![task_id],
+                |row| row.get(0),
+            )?;
+            conn.execute(
+                "DELETE FROM tasks_fts WHERE rowid = ?1",
+                rusqlite::params![rid],
+            )?;
+            conn.execute(
+                "INSERT INTO tasks_fts (rowid, title, description) VALUES (?1, ?2, ?3)",
+                rusqlite::params![rid, new_title, new_desc.unwrap_or_default()],
+            )?;
+        }
+    }
+
     drop(conn);
 
     get_task(db, task_id)
