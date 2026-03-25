@@ -69,6 +69,9 @@ pub fn api_routes() -> Router<AppState> {
         .route("/tasks/:id/split", post(split_task_handler))
         .route("/ahead", get(ahead_handler))
         .route("/what-if", post(what_if_handler))
+        .route("/context", post(create_context_handler))
+        .route("/contexts", get(list_contexts_handler))
+        .route("/search", get(search_handler))
 }
 
 #[derive(Debug, Serialize)]
@@ -1760,4 +1763,84 @@ pub async fn what_if_handler(
 pub fn parse_event_stream_query(query: &EventStreamQuery) -> Result<(Option<String>, Option<EventType>), ApiError> {
     let event_type = parse_event_type(query.event_type.clone())?;
     Ok((query.project_id.clone(), event_type))
+}
+
+// ─── Context Store & Search Endpoints ───
+
+#[derive(Deserialize)]
+pub struct CreateContextRequest {
+    pub project_id: String,
+    pub content: String,
+    #[serde(default = "default_kind")]
+    pub kind: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    pub task_id: Option<String>,
+    #[serde(default = "default_agent")]
+    pub agent_id: String,
+}
+
+fn default_kind() -> String { "discovery".to_string() }
+fn default_agent() -> String { "http".to_string() }
+
+pub async fn create_context_handler(
+    State(db): State<AppState>,
+    Json(body): Json<CreateContextRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    // Auto-detect running task if not specified
+    let task_id = match body.task_id {
+        Some(t) => Some(t),
+        None => crate::db::get_running_task_for_agent(&db, &body.agent_id)
+            .ok()
+            .flatten()
+            .map(|t| t.id),
+    };
+    let entry = crate::db::add_context(
+        &db,
+        &body.project_id,
+        task_id.as_deref(),
+        Some(&body.agent_id),
+        &body.kind,
+        &body.content,
+        &body.tags,
+    ).map_err(ApiError::from)?;
+    Ok(Json(json!(entry)))
+}
+
+#[derive(Deserialize)]
+pub struct ListContextsQuery {
+    pub project_id: String,
+    pub kind: Option<String>,
+    #[serde(default = "default_limit")]
+    pub limit: usize,
+}
+
+fn default_limit() -> usize { 50 }
+
+pub async fn list_contexts_handler(
+    State(db): State<AppState>,
+    Query(q): Query<ListContextsQuery>,
+) -> Result<impl IntoResponse, ApiError> {
+    let entries = crate::db::list_context(&db, &q.project_id, q.kind.as_deref(), q.limit)
+        .map_err(ApiError::from)?;
+    Ok(Json(json!(entries)))
+}
+
+#[derive(Deserialize)]
+pub struct SearchQuery {
+    pub project_id: String,
+    pub q: String,
+    #[serde(default = "default_search_limit")]
+    pub limit: usize,
+}
+
+fn default_search_limit() -> usize { 10 }
+
+pub async fn search_handler(
+    State(db): State<AppState>,
+    Query(q): Query<SearchQuery>,
+) -> Result<impl IntoResponse, ApiError> {
+    let results = crate::db::search_graph(&db, &q.project_id, &q.q, q.limit)
+        .map_err(ApiError::from)?;
+    Ok(Json(json!(results)))
 }
