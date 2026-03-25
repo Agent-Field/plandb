@@ -114,6 +114,22 @@ Like SQLite eliminated database servers, PlanDB eliminates orchestration servers
 | Context types used by agents | discovery, decision, pattern (freeform) |
 | Test pass rate | 128/128 functional tests |
 
+### 12. Templates as a Learning Framework
+
+Templates are NOT written by hand — they're learned by running agents:
+
+1. **Seed**: Start with a minimal template (or no template)
+2. **Run**: Agent works through the task, records context, adapts
+3. **Export**: `plandb export` captures the evolved graph + all context
+4. **Distribute**: The evolved template is MORE valuable than the original
+5. **Repeat**: Next agent imports, adapts further, re-exports
+
+Each cycle compounds — templates get better with every run because
+they carry real-world findings, not theoretical patterns.
+
+Example: Security Audit template evolved from 7 hand-seeded tasks with
+5 pattern entries to 6 agent-optimized tasks with 6 real finding entries.
+
 ## Anti-Patterns Discovered
 
 1. **Don't create examples by hand** — the test output IS the example
