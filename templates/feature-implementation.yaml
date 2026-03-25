@@ -1,0 +1,129 @@
+name: Feature Implementation
+description: null
+tasks:
+- ref_id: task-1
+  title: Understand requirements
+  description: 'Read the feature request/issue. Identify: what to build, acceptance criteria, constraints, affected files. Output: clear scope document.'
+  kind: research
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: requirements documented with acceptance criteria
+  pre_hook: null
+  post_hook: null
+- ref_id: task-2
+  title: Research existing code
+  description: 'Read the relevant codebase areas. Understand: current architecture, coding patterns, test conventions, existing utilities to reuse.'
+  kind: research
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: relevant code areas identified, patterns documented
+  pre_hook: null
+  post_hook: null
+- ref_id: task-3
+  title: Design approach
+  description: 'Choose implementation approach. Consider: simplest solution, existing patterns, test strategy, migration needs. Document tradeoffs.'
+  kind: research
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: approach chosen with tradeoffs documented
+  pre_hook: null
+  post_hook: null
+- ref_id: task-4
+  title: Implement core
+  description: Build the core feature. Follow existing code patterns. Write minimal, clean code. Skip edge cases for now.
+  kind: code
+  priority: 0
+  parent_ref: null
+  pre_condition: design approach is documented
+  post_condition: core feature works for happy path
+  pre_hook: null
+  post_hook: null
+- ref_id: task-5
+  title: Add tests
+  description: 'Write tests: unit tests for new functions, integration tests for the feature flow, edge case tests. Target 80%+ coverage.'
+  kind: test
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: tests pass, coverage >= 80%
+  pre_hook: null
+  post_hook: null
+- ref_id: task-6
+  title: Handle edge cases
+  description: Add error handling, input validation, boundary conditions. Make the implementation production-ready.
+  kind: code
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: error paths handled, validation complete
+  pre_hook: null
+  post_hook: null
+- ref_id: task-7
+  title: Update documentation
+  description: Update README, API docs, comments. Document the new feature for the next developer.
+  kind: code
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: documentation reflects new feature
+  pre_hook: null
+  post_hook: null
+- ref_id: task-8
+  title: Self-review and ship
+  description: 'Review your own changes. Check: no debug code, no TODO comments, consistent style, all tests pass. Create PR with comprehensive description.'
+  kind: review
+  priority: 0
+  parent_ref: null
+  pre_condition: null
+  post_condition: PR created, all checks passing
+  pre_hook: null
+  post_hook: null
+dependencies:
+- from_ref: task-1
+  to_ref: task-2
+  kind: feeds_into
+- from_ref: task-2
+  to_ref: task-3
+  kind: feeds_into
+- from_ref: task-3
+  to_ref: task-4
+  kind: feeds_into
+- from_ref: task-4
+  to_ref: task-5
+  kind: feeds_into
+- from_ref: task-4
+  to_ref: task-6
+  kind: feeds_into
+- from_ref: task-4
+  to_ref: task-7
+  kind: feeds_into
+- from_ref: task-5
+  to_ref: task-8
+  kind: feeds_into
+- from_ref: task-6
+  to_ref: task-8
+  kind: feeds_into
+- from_ref: task-7
+  to_ref: task-8
+  kind: feeds_into
+context:
+- kind: pattern
+  content: Start with the smallest working change — avoid building the whole thing before testing
+  tags: []
+  task_ref: null
+- kind: pattern
+  content: Read existing tests to understand the testing patterns before writing new ones
+  tags: []
+  task_ref: null
+- kind: constraint
+  content: If the codebase uses a specific error handling pattern, follow it exactly
+  tags: []
+  task_ref: null
+- kind: pattern
+  content: Edge cases double implementation time — plan for it but don't do it first
+  tags: []
+  task_ref: null
+
