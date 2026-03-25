@@ -130,6 +130,18 @@ they carry real-world findings, not theoretical patterns.
 Example: Security Audit template evolved from 7 hand-seeded tasks with
 5 pattern entries to 6 agent-optimized tasks with 6 real finding entries.
 
+### 13. Templates Must Be Explicitly Forced in Prompts
+
+Agents prefer creating their own task structure over importing templates.
+To get template-driven behavior:
+- The prompt must say "import the template FIRST"
+- `plandb init` hints should lead with templates
+- `plandb go` should show "(from template: X)" when following one
+- After import, hints guide adaptation (insert, split, context, export)
+
+The agent will still adapt the template (which is good), but it needs to
+START from the template to benefit from institutional knowledge.
+
 ## Anti-Patterns Discovered
 
 1. **Don't create examples by hand** — the test output IS the example
