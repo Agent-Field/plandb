@@ -107,11 +107,15 @@ Like SQLite eliminated database servers, PlanDB eliminates orchestration servers
 
 | Metric | Value |
 |--------|-------|
-| Prompt size reduction | 51% (199→110 lines, 9.5KB→4.7KB) |
-| Agent dependency usage (original prompt) | None |
-| Agent dependency usage (improved prompt) | Full graph with custom IDs |
-| Context entries per agent session | ~6 (Codex URL shortener test) |
-| Context types used by agents | discovery, decision, pattern (freeform) |
+| Prompt size | 120 lines (~5.7KB) |
+| Agent dependency usage | Full graph with custom IDs (all agents) |
+| Context entries per session | 3-39 (varies by complexity) |
+| Context types used | discovery, decision, pattern, finding, constraint |
+| Agent tests conducted | 12+ sessions (Codex + Gemini) |
+| Template generations tested | 3 (7→10→14 tasks, 5→27→52 context) |
+| Features built | 17 |
+| Templates shipped | 9 |
+| Interface parity | CLI + MCP + HTTP (all have context/search) |
 | Test pass rate | 128/128 functional tests |
 
 ### 12. Templates as a Learning Framework
