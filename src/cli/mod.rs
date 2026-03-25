@@ -219,9 +219,12 @@ pub enum Commands {
         #[arg(long, help = "Template description")]
         description: Option<String>,
     },
-    #[command(about = "Import a template to create tasks from a saved graph pattern")]
+    #[command(about = "Import a template to create tasks from a saved graph pattern.\n\n\
+                  Accepts local file paths or URLs (for distributed templates):\n\
+                  \x20 plandb import templates/pr-review.yaml\n\
+                  \x20 plandb import https://raw.githubusercontent.com/.../template.yaml")]
     Import {
-        #[arg(help = "Path to template YAML file")]
+        #[arg(help = "Path to template YAML file (or URL)")]
         file: String,
         #[arg(long, help = "Project ID (uses default if not set)")]
         project: Option<String>,
@@ -591,7 +594,23 @@ pub fn run(db: &Database, command: Commands, json: bool, compact: bool) -> Resul
         }
         Commands::Import { file, project } => {
             let project_id = resolve_project_id(db, project.as_deref())?;
-            let content = std::fs::read_to_string(&file)?;
+            let content = if file.starts_with("http://") || file.starts_with("https://") {
+                // Fetch template from URL
+                let output = std::process::Command::new("curl")
+                    .args(["-fsSL", &file])
+                    .output()
+                    .map_err(|e| anyhow!("failed to fetch template from URL: {}", e))?;
+                if !output.status.success() {
+                    return Err(anyhow!(
+                        "failed to fetch template: {}",
+                        String::from_utf8_lossy(&output.stderr)
+                    ));
+                }
+                String::from_utf8(output.stdout)
+                    .map_err(|e| anyhow!("invalid UTF-8 in template: {}", e))?
+            } else {
+                std::fs::read_to_string(&file)?
+            };
             let template: crate::db::GraphTemplate = serde_yaml::from_str(&content)?;
             let template_name = template.name.clone();
             let context_count = template.context.len();
