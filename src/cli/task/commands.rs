@@ -807,6 +807,24 @@ pub fn go_cmd(db: &Database, args: &GoArgs, json: bool) -> Result<()> {
             }
         }
 
+        // Show relevant context from project memory (lazy recall)
+        if let Some(context) = response["relevant_context"].as_array() {
+            if !context.is_empty() {
+                eprintln!();
+                eprintln!("relevant context:");
+                for c in context {
+                    let kind = c["kind"].as_str().unwrap_or("?");
+                    let content = c["content"].as_str().unwrap_or("");
+                    let display = if content.len() > 100 {
+                        format!("{}…", &content[..97])
+                    } else {
+                        content.to_string()
+                    };
+                    eprintln!("  [{}] {}", kind, display);
+                }
+            }
+        }
+
         if let Some(pre) = response["task"]["pre_condition"].as_str() {
             eprintln!();
             eprintln!("pre-condition: {}", pre);
