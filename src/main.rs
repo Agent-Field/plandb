@@ -129,203 +129,114 @@ fn print_prompt_cli(db_path: &str) {
     println!(
         r#"# ─── Paste into system prompt, AGENTS.md, or project instructions ───
 
-## Plandb — Task Graph for Agent Coordination
+## PlanDB — Task Graph for Agent Coordination
 
-You have `plandb` (binary in PATH, DB: {db_path}) for dependency-aware task graphs.
-PlanDB is a compound graph — two orthogonal structures composed together:
-- **Containment** (place graph): tasks contain subtasks, which contain sub-subtasks, to any depth — a tree
-- **Dependencies** (link graph): edges between tasks at ANY level, controlling execution order — a DAG
+You have `plandb` (binary at PATH, DB: {db_path}) for dependency-aware task planning.
+ALWAYS use plandb for task management — never track tasks ad-hoc.
 
-These are independent. Dependencies do NOT need to follow the containment tree.
-A subtask at depth 3 can depend on a task at depth 0 in a completely different branch.
-This is what makes it more general than a hierarchical DAG — the nesting and the flow
-are orthogonal, like a filesystem (directories) overlaid with a build graph (make dependencies).
+### Example: Project with dependencies
 
-Use both structures. Dependencies alone give you a flat DAG. Adding containment gives you
-scoped reasoning, recursive decomposition, subtree-level parallelism, and automatic
-progress rollup (composite tasks auto-complete when all children finish, recursively).
-
-### Core Loop (2 commands, no IDs needed)
 ```bash
-plandb go          # claim + start next ready task (delivers upstream context)
-plandb done --next # complete current task + claim next
+plandb init "auth-system"
+plandb add "Design schema" --as schema --kind research \
+  --description "Define user/session tables, auth flows, token format"
+plandb add "Build API" --as api --kind code --dep t-schema \
+  --description "Implement endpoints from schema: register, login, refresh, logout"
+plandb add "Write tests" --as tests --kind test --dep t-schema \
+  --description "Integration tests for all auth endpoints"
+plandb add "Deploy" --as deploy --kind shell --dep t-api --dep t-tests \
+  --description "Docker build, push, deploy to staging"
+plandb status --detail    # verify the dependency graph
+plandb critical-path      # see what to prioritize
 ```
 
-`done` without a task ID completes your current running task.
-Agent identity defaults to "default". Set `PLANDB_AGENT=name` for multi-agent.
+### Core Loop: go → work → done → reassess → repeat
 
-### Setup
 ```bash
-plandb init "my-project"
+plandb go                 # claim next ready task (shows upstream context + pre-conditions)
+# ... do the work described in the task ...
+plandb done --next        # complete current + claim next (shows post-conditions to verify)
+plandb status --detail    # reassess: does the plan still make sense?
 ```
+
+After each task completion, REASSESS. Add new tasks, split complex ones, amend
+descriptions with discoveries. Plans are hypotheses — the graph evolves as you learn.
 
 ### Adding Tasks
+
 ```bash
-plandb add "Design API" --description "Define REST endpoints, auth, response schemas"
-plandb add "Implement" --dep t-abc --description "Build server per API spec from t-abc"
-plandb add "Implement" --as impl                 # custom ID → t-impl
-plandb add "Auth" --kind code --priority 10      # kind: generic, code, research, review, test, shell
-plandb add "Tests" --dep t-abc --dep t-def       # multiple deps
+plandb add "title" --description "detailed spec" --dep t-upstream [--as custom-id] [--kind code]
 ```
 
-EVERY task should have `--description` with a detailed spec — the title is a label, the description
-is the actual work order. It must be self-contained: what to build, files to create, acceptance
-criteria, constraints. An agent picking up the task via `plandb go` + `plandb show <id>` should
-know exactly what to do without any other context.
-
-Constraints:
-- `--kind` ONLY accepts: generic, code, research, review, test, shell
-- `--dep` upstream tasks must already exist — create in dependency order
-- To add a dep after both tasks exist: `plandb task add-dep --after t-upstream t-downstream`
-- Dep types: `feeds_into` (default), `blocks`, `suggests`. Example: `--dep t-abc:blocks`
-- **Cross-level deps**: `--dep` can reference ANY task regardless of depth in the containment
-  tree. A leaf subtask can depend on a top-level task in a different branch, or vice versa.
-  The dependency graph and the containment tree are independent structures.
-
-### When to decompose: flat task vs hierarchy
-
-Not every task needs subtasks. Use this decision framework:
-
-**Keep it a flat task when:**
-- A single agent can complete it in one pass
-- The work has no internal ordering constraints
-- The description fits comfortably in one prompt
-
-**Split into subtasks when:**
-- The task has multiple independent parts that could run in parallel
-  (split creates parallelism — each subtask becomes separately claimable)
-- The task is too large for one agent to hold in context
-- The work has internal phases with dependencies between them
-  (use `>` chain: `plandb split --into "Design > Implement > Test"`)
-- You discover mid-execution that the task is more complex than expected
-
-**Go deeper (recursive split) when:**
-- A subtask itself has the same characteristics above
-- Different parts require different expertise or tools
-- You want to isolate failure — if one sub-subtask fails, siblings continue
-
-The hierarchy is your tool for managing complexity. A well-decomposed graph means
-each leaf task is simple enough for any agent to execute from its description alone.
+- `--description` is the work order (REQUIRED). Must be self-contained: what to build,
+  files to create/modify, acceptance criteria. Another agent should execute it with no other context.
+- `--dep` upstream must exist first — create in dependency order. Types: feeds_into (default), blocks, suggests
+- `--kind`: generic, code, research, review, test, shell
+- `--as`: custom ID (plandb add "X" --as foo → t-foo). Otherwise auto-generated (t-k3m9).
 
 ### Decomposition
+
 ```bash
-plandb split --into "Design, Implement, Test"          # split current task (comma = independent)
-plandb split --into "Design > Implement > Test"         # chain with > (linear deps)
-plandb split t-abc --into "Part A, Part B"              # split specific task
-plandb task decompose t-abc --file subtasks.yaml        # from YAML
-plandb task replan t-abc --file revised.yaml            # cancel + recreate subtasks
+plandb split --into "Design, Implement, Test"   # independent subtasks (creates parallelism)
+plandb split --into "Design > Implement > Test"  # dependency chain (sequential)
 ```
 
-Subtasks can be split further (any depth). When you split, the parent becomes a composite
-container — real work happens in the leaves. Key behaviors:
-- **Auto-completion**: when all children of a composite finish, the parent auto-completes.
-  This bubbles up recursively — completing the last leaf can cascade completions up the tree.
-- **Cross-level deps**: any task at any depth can depend on any other task at any depth.
-  A subtask inside "Backend" can depend on a subtask inside "Frontend" — deps cross
-  containment boundaries freely.
-- **Progress rollup**: `plandb status --detail` shows progress at every level of the tree.
+Split when: task has independent parts (parallel), is too large for one pass, or
+proves more complex than expected mid-execution. Subtasks can be split further (any depth).
+Composite tasks auto-complete when all children finish.
 
-### Scope (zoom into subtrees)
-
-When working within a complex subtree, scope into it to reduce noise:
-```bash
-plandb use t-abc     # scope into composite task
-plandb list          # shows only children of t-abc
-plandb go            # claims from this scope
-plandb use ..        # zoom out one level
-plandb use --clear   # back to project root
-```
-
-Scope is useful when different agents or phases own different subtrees.
-
-### Parallelization
-
-When `plandb list --status ready` returns multiple tasks, they have no unmet dependencies
-and CAN run concurrently. **If you can spawn sub-agents, you SHOULD.**
+### Graph Intelligence
 
 ```bash
-# Worker 1                                    # Worker 2
-PLANDB_AGENT=w1 plandb go                     PLANDB_AGENT=w2 plandb go
-# ... work ...                                # ... work ...
-PLANDB_AGENT=w1 plandb done --next            PLANDB_AGENT=w2 plandb done --next
-```
-
-Parallelism comes from the graph structure:
-- Independent top-level tasks → parallel
-- Independent subtasks within a composite → parallel
-- Splitting a task into independent parts creates new parallelism opportunities
-
-PlanDB handles coordination: atomic claiming prevents double-assignment, dependency
-ordering enforced automatically. The graph tells you exactly what is safe to run concurrently.
-
-### Quality Gates
-```bash
-plandb add "Implement API" --dep t-schema \
-  --pre "t-schema must have endpoint definitions" \
-  --post "all routes return valid JSON" \
-  --description "..."
-```
-
-Pre-conditions shown on `go`. Post-conditions shown on `done`. Verify before moving on.
-
-### Graph Introspection
-```bash
-plandb critical-path                   # longest chain to completion — prioritize this
-plandb bottlenecks                     # tasks blocking the most downstream work
-plandb what-unlocks t-abc              # what becomes ready if t-abc completes
-plandb watch                           # live-updating dashboard
-```
-
-### Templates
-```bash
-plandb export > template.yaml          # save decomposition pattern
-plandb import template.yaml            # apply pattern to current project
-```
-
-### Status
-```bash
-plandb status                    # progress summary
-plandb status --detail           # per-task breakdown with dependency tree
-plandb status --full             # containment tree + dependency edges (compound graph)
-plandb status --full --verbose   # everything: descriptions, notes, results, conditions
-plandb list --status ready       # what can run now
-plandb show t-abc                # full task details + description
-plandb ahead                     # what's next
-plandb --json -c status          # compact JSON for LLM context
+plandb critical-path              # longest chain to completion — prioritize this
+plandb bottlenecks                # tasks blocking the most downstream work
+plandb what-unlocks t-xxx         # what becomes ready if this task completes
+plandb list --status ready        # tasks safe to parallelize RIGHT NOW
+plandb ahead                     # lookahead: what's coming next
 ```
 
 ### Plan Adaptation
+
 ```bash
-plandb task insert --after t-a --before t-b --title "Add validation"
-plandb task amend t-abc --prepend "NOTE: use JWT"
-plandb task add-dep --after t-upstream t-downstream       # add dependency edge
-plandb task pivot t-parent --file new-plan.yaml
-plandb what-if cancel t-abc                               # preview effects (safe, read-only)
+plandb task insert --after t-a --before t-b --title "Missed step"   # rewires deps
+plandb task amend t-xxx --prepend "NOTE: use JWT, not sessions"     # annotate future task
+plandb task add-dep --after t-upstream t-downstream                 # add dependency edge
+plandb what-if cancel t-xxx                                         # preview before acting
 ```
 
-### Continuous Reassessment
+### Multi-Agent Parallelism
 
-After completing each task, reassess the plan:
-1. `plandb status --detail` — does the remaining graph still make sense?
-2. `plandb critical-path` — has the critical path shifted?
-3. Consider: add new tasks, split complex ones, amend descriptions with discoveries
-4. Plans are hypotheses. Execution reveals reality. The graph should evolve.
+When `plandb list --status ready` returns multiple tasks, they CAN run concurrently:
+```bash
+PLANDB_AGENT=worker-1 plandb go && PLANDB_AGENT=worker-2 plandb go
+```
+Atomic claiming prevents double-assignment. The graph IS the coordination layer.
 
-### Discovery
-Run `plandb --help` or `plandb <command> --help` to discover all available commands and options.
-PlanDB has many capabilities beyond what's listed here — use help to explore.
+### Quality Gates
+
+```bash
+plandb add "Implement" --dep t-schema \
+  --pre "schema defines all endpoints" --post "all routes return valid JSON" \
+  --description "..."
+```
+
+### Status & Output
+
+```bash
+plandb status                    # summary
+plandb status --detail           # dependency tree
+plandb status --full             # compound graph (containment + dependencies)
+plandb status --full --verbose   # everything including descriptions and results
+plandb --json -c status          # compact JSON (optimized for LLM context)
+plandb export > template.yaml   # save decomposition as reusable template
+plandb import template.yaml     # apply template
+```
 
 ### Reference
 - **States**: pending → ready (deps done) → claimed → running → done/failed/cancelled
-- **Dep types**: `feeds_into` (data flows), `blocks` (ordering), `suggests` (soft)
-- **Kinds**: generic, code, research, review, test, shell (NO other values)
-- **IDs**: short (`t-k3m9`), fuzzy-matched on typos, custom via `--as`
-- **Output**: `--json` for structured, `-c` for compact, default human-readable
-- **Handoff**: `--result` on `done` passes data to downstream tasks via `go`
-- **Descriptions**: always use `--description` — it's the actual work spec, not the title
-- **Quality gates**: `--pre` and `--post` on tasks for explicit verification criteria.
-  Pre-conditions are shown when you claim a task (`go`). Post-conditions are shown
-  when you complete it (`done`). Use these to enforce verification before moving on."#
+- **Handoff**: `--result '{{"key":"val"}}'` on `done` passes data to downstream via `go`
+- **Scope**: `plandb use t-xxx` zooms into subtree, `plandb use ..` zooms out
+- Run `plandb --help` or `plandb <command> --help` to discover all commands"#
     );
 }
 
