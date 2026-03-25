@@ -192,6 +192,41 @@ but chose a simpler 2-task approach better suited for a single-file review.
 This validates the template philosophy: templates are **reference material for
 guided autonomy**, not rigid procedures. Agents absorb the patterns and adapt.
 
+## Phase 5: Comprehensive Templates (50+ tasks)
+
+Created two massive compound-graph templates:
+- **Security Audit (60 tasks)**: 9 phases, 3-level hierarchy, 30 deps, 16 context entries
+  - Fan-out from recon to 7 parallel testing phases
+  - Cross-level deps: auth→crypto, session→CSRF, file upload→path traversal
+  - Hooks on recon and reporting tasks
+  - Post-conditions on all review tasks
+
+- **PR Review (62 tasks)**: 9 phases, 3-level hierarchy, 27 deps, 17 context entries
+  - Fan-out from parse to 6 parallel review phases
+  - Cross-phase deps: coupling→mock quality, injection→schema changes
+  - Internal chains within synthesis and reporting phases
+  - Post-conditions on all review tasks
+
+### Multi-File Audit (3rd Generation)
+
+Codex audited a 12-file Flask app across 4 directories:
+- Imported transfer-evolved template (14 tasks) and adapted to 18 tasks
+- Found 44 findings across injection, auth, crypto, config, serialization, CORS
+- 50 context entries in the exported template
+- Template compounding: 7→10→14→18 tasks across 4 generations
+
+## Final Statistics
+
+| Metric | Value |
+|--------|-------|
+| Features built | 17 |
+| Templates shipped | 12 (largest: 62 tasks) |
+| Agent tests conducted | 12+ sessions |
+| Template generations tested | 4 (7→10→14→18 tasks) |
+| Interface parity | CLI + MCP + HTTP |
+| Functional tests | 128/128 passing |
+| Branch commits | 60+ |
+
 ## Meta-Findings
 
 1. **The prompt IS the product** — agents' behavior is shaped entirely by the prompt quality
@@ -203,3 +238,6 @@ guided autonomy**, not rigid procedures. Agents absorb the patterns and adapt.
 7. **CLI output is a teaching surface** — every response should hint at available actions
 8. **Templates are extracted, not written** — export from real runs, not hand-crafted YAML
 9. **The test IS the example** — real agent session output becomes the documentation
+10. **Templates must be forced in prompts** — agents prefer creating their own structure
+11. **Compound graph is the differentiator** — cross-level deps and containment hierarchy are unique
+12. **Templates compound across generations** — each run makes the template smarter
