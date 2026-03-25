@@ -1,0 +1,1048 @@
+name: "Comprehensive Security Audit (50+ Tasks)"
+description: >
+  Production-grade security audit template with 50+ tasks organized in a compound
+  graph (3+ levels of containment hierarchy), non-linear dependencies (fan-out,
+  fan-in, cross-level), hooks, post-conditions, and rich institutional context.
+  Covers OWASP Top 10, cryptography, business logic, infrastructure, and dependency
+  analysis with synthesis and reporting phases.
+
+tasks:
+  # ============================================================
+  # PHASE 0 — RECONNAISSANCE
+  # ============================================================
+  - ref_id: recon
+    title: "Reconnaissance"
+    description: "Enumerate the full attack surface before any testing begins."
+    kind: research
+    priority: 100
+    parent_ref: null
+    pre_condition: null
+    post_condition: null
+    pre_hook: "echo \"[AUDIT] Starting security audit at $(date)\""
+    post_hook: null
+
+  - ref_id: recon-routes
+    title: "Enumerate HTTP routes and handlers"
+    description: >
+      Identify every HTTP endpoint (REST, GraphQL, WebSocket, gRPC-web).
+      Record method, path, handler function, and auth requirement.
+      Include internal/admin routes and health-check endpoints.
+    kind: research
+    priority: 90
+    parent_ref: recon
+    pre_condition: null
+    post_condition: "Complete route inventory with auth status per endpoint"
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: recon-inputs
+    title: "Map all input vectors"
+    description: >
+      Catalog every input channel: query params, path params, request body (JSON, XML,
+      multipart), headers (custom, auth, content-type), cookies, WebSocket messages,
+      file uploads, CLI arguments, environment variables read at runtime.
+    kind: research
+    priority: 85
+    parent_ref: recon
+    pre_condition: null
+    post_condition: "Input vector catalog with data type and trust level per input"
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: recon-trust-boundaries
+    title: "Identify trust boundaries"
+    description: >
+      Map trust boundaries: public vs authenticated, user vs admin, internal vs external,
+      service-to-service. Identify where data crosses boundaries without validation.
+    kind: research
+    priority: 85
+    parent_ref: recon
+    pre_condition: null
+    post_condition: "Trust boundary diagram with data flow directions"
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: recon-tech-stack
+    title: "Identify technology stack and frameworks"
+    description: >
+      Document language, framework, ORM, template engine, auth library, session store,
+      database engine, cache layer, message queue, and deployment platform.
+      Note version numbers for CVE cross-referencing.
+    kind: research
+    priority: 80
+    parent_ref: recon
+    pre_condition: null
+    post_condition: "Tech stack inventory with version numbers"
+    pre_hook: null
+    post_hook: null
+
+  # ============================================================
+  # PHASE 1 — INJECTION TESTING
+  # ============================================================
+  - ref_id: injection
+    title: "Injection Testing"
+    description: "Test all injection vectors: SQL, XSS, command, path traversal, SSRF, template, LDAP/XML."
+    kind: review
+    priority: 95
+    parent_ref: null
+    pre_condition: "Reconnaissance phase complete"
+    post_condition: null
+    pre_hook: null
+    post_hook: null
+
+  # -- SQL Injection --
+  - ref_id: sqli
+    title: "SQL injection audit"
+    description: "Audit all database query construction for injection vulnerabilities."
+    kind: review
+    priority: 95
+    parent_ref: injection
+    pre_condition: null
+    post_condition: "All SQL construction patterns reviewed and documented"
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: sqli-select
+    title: "Check SELECT statement construction"
+    description: >
+      Review every SELECT query for string concatenation/interpolation of user input.
+      Check WHERE, ORDER BY, LIMIT, GROUP BY, HAVING clauses. Verify parameterized
+      query usage. Flag any f-string, format(), or % interpolation in SQL.
+    kind: review
+    priority: 95
+    parent_ref: sqli
+    pre_condition: null
+    post_condition: "Every SELECT query verified for parameter binding"
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: sqli-insert-update
+    title: "Check INSERT/UPDATE/DELETE construction"
+    description: >
+      Review all write queries for injection. Check INSERT VALUES, UPDATE SET,
+      DELETE WHERE. Verify bulk insert patterns. Check for dynamic table/column names.
+    kind: review
+    priority: 95
+    parent_ref: sqli
+    pre_condition: null
+    post_condition: "Every write query verified for parameter binding"
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: sqli-orm
+    title: "Check ORM vs raw SQL patterns"
+    description: >
+      Identify all raw SQL usage (execute, raw, text). Check ORM query construction
+      for extra() or raw filter injection. Verify no ORM bypass for performance
+      that reintroduces injection. Check stored procedures.
+    kind: review
+    priority: 90
+    parent_ref: sqli
+    pre_condition: null
+    post_condition: "ORM usage verified safe; raw SQL instances documented"
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: sqli-dynamic-schema
+    title: "Check dynamic table/column name construction"
+    description: >
+      Search for patterns where table names, column names, or schema identifiers
+      are constructed from user input. These cannot use parameterized queries and
+      require allowlist validation.
+    kind: review
+    priority: 85
+    parent_ref: sqli
+    pre_condition: null
+    post_condition: "All dynamic schema references use allowlist validation"
+    pre_hook: null
+    post_hook: null
+
+  # -- XSS --
+  - ref_id: xss
+    title: "Cross-site scripting (XSS) audit"
+    description: "Test for reflected, stored, and DOM-based XSS across all output contexts."
+    kind: review
+    priority: 90
+    parent_ref: injection
+    pre_condition: null
+    post_condition: null
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: xss-reflected
+    title: "Check reflected XSS vectors"
+    description: >
+      Review all endpoints that echo user input in responses: error messages, search
+      results, redirect URLs, debug output. Verify HTML encoding in templates.
+      Check Content-Type headers on responses containing user data.
+    kind: review
+    priority: 90
+    parent_ref: xss
+    pre_condition: null
+    post_condition: "All reflection points verified for output encoding"
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: xss-stored
+    title: "Check stored XSS vectors"
+    description: >
+      Review user-generated content paths: comments, profiles, posts, filenames,
+      metadata. Verify sanitization on input AND encoding on output. Check for
+      render_template_string or equivalent unsafe rendering patterns.
+    kind: review
+    priority: 90
+    parent_ref: xss
+    pre_condition: null
+    post_condition: "All stored content rendering verified for XSS protection"
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: xss-dom
+    title: "Check DOM-based XSS"
+    description: >
+      Review client-side JavaScript for innerHTML, document.write, eval,
+      location.hash consumption. Check for unsafe jQuery patterns (.html(), $.parseHTML).
+      Verify CSP headers are set and effective.
+    kind: review
+    priority: 85
+    parent_ref: xss
+    pre_condition: null
+    post_condition: "Client-side JS verified for DOM XSS; CSP headers documented"
+    pre_hook: null
+    post_hook: null
+
+  # -- Command Injection --
+  - ref_id: cmdi
+    title: "Command injection audit"
+    description: >
+      Review all subprocess, exec, system, popen, backtick, and shell=True usage.
+      Check for user input flowing into command arguments. Verify allowlists on
+      command construction. Check for indirect injection via filenames or env vars.
+    kind: review
+    priority: 95
+    parent_ref: injection
+    pre_condition: null
+    post_condition: "All shell/subprocess calls verified for injection safety"
+    pre_hook: null
+    post_hook: null
+
+  # -- Path Traversal --
+  - ref_id: path-traversal
+    title: "Path traversal audit"
+    description: >
+      Review all file open/read/write operations. Check for user-controlled paths
+      without normalization. Verify chroot/jail patterns. Check symlink following.
+      Test for null byte injection in file paths. Verify directory listing is disabled.
+    kind: review
+    priority: 90
+    parent_ref: injection
+    pre_condition: null
+    post_condition: "All file access paths verified for traversal protection"
+    pre_hook: null
+    post_hook: null
+
+  # -- SSRF --
+  - ref_id: ssrf
+    title: "Server-side request forgery (SSRF) audit"
+    description: >
+      Review all outbound HTTP requests. Check for user-controlled URLs in requests,
+      redirects, webhooks, image fetchers, PDF generators. Verify URL allowlists.
+      Check for DNS rebinding. Test internal network access (169.254.169.254, localhost).
+    kind: review
+    priority: 85
+    parent_ref: injection
+    pre_condition: null
+    post_condition: "All outbound request construction verified for SSRF protection"
+    pre_hook: null
+    post_hook: null
+
+  # -- Template Injection --
+  - ref_id: template-injection
+    title: "Server-side template injection (SSTI) audit"
+    description: >
+      Search for render_template_string, Jinja2 Environment with user input,
+      Mako template construction from user data, string.Template with user input.
+      Verify template auto-escaping is enabled. Check for template sandbox bypasses.
+    kind: review
+    priority: 85
+    parent_ref: injection
+    pre_condition: null
+    post_condition: "All template rendering verified for injection safety"
+    pre_hook: null
+    post_hook: null
+
+  # -- LDAP/XML Injection --
+  - ref_id: ldap-xml
+    title: "LDAP and XML injection audit"
+    description: >
+      Check for LDAP filter construction from user input. Review XML parsing for
+      XXE (external entity), billion laughs, XSLT injection. Verify XML parsers
+      disable external entities. Check SOAP endpoints if present.
+    kind: review
+    priority: 75
+    parent_ref: injection
+    pre_condition: null
+    post_condition: "XML parser configuration verified; LDAP filters checked"
+    pre_hook: null
+    post_hook: null
+
+  # ============================================================
+  # PHASE 2 — AUTH & ACCESS CONTROL
+  # ============================================================
+  - ref_id: auth
+    title: "Authentication & Access Control"
+    description: "Verify authentication, authorization, session management, and privilege boundaries."
+    kind: review
+    priority: 95
+    parent_ref: null
+    pre_condition: "Reconnaissance phase complete"
+    post_condition: null
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: auth-registration
+    title: "Registration flow security"
+    description: >
+      Review account creation: email validation, password policy enforcement,
+      duplicate account handling, rate limiting, CAPTCHA, email verification flow.
+      Check for mass registration abuse vectors.
+    kind: review
+    priority: 85
+    parent_ref: auth
+    pre_condition: null
+    post_condition: "Registration flow verified for abuse resistance"
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: auth-login
+    title: "Login flow security"
+    description: >
+      Review login: timing-safe comparison, account lockout, brute force protection,
+      MFA support, credential stuffing resistance. Check for username enumeration
+      via error messages or timing differences.
+    kind: review
+    priority: 90
+    parent_ref: auth
+    pre_condition: null
+    post_condition: "Login flow verified for brute force and enumeration resistance"
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: auth-session
+    title: "Session management audit"
+    description: >
+      Review session lifecycle: creation, storage, expiry, invalidation on logout,
+      rotation on privilege change. Check cookie flags (HttpOnly, Secure, SameSite).
+      Verify session fixation protection. Check concurrent session limits.
+    kind: review
+    priority: 90
+    parent_ref: auth
+    pre_condition: null
+    post_condition: "Session management verified for all OWASP session requirements"
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: auth-authz
+    title: "Authorization and RBAC audit"
+    description: >
+      Verify authorization checks on every protected endpoint. Test horizontal privilege
+      escalation (accessing other users' resources). Test vertical escalation (user
+      accessing admin functions). Check for IDOR on all resource endpoints.
+    kind: review
+    priority: 95
+    parent_ref: auth
+    pre_condition: null
+    post_condition: "Authorization verified on all protected endpoints"
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: auth-csrf
+    title: "CSRF protection audit"
+    description: >
+      Verify CSRF tokens on all state-changing endpoints. Check token generation
+      (CSPRNG), validation (constant-time comparison), binding to session.
+      Check SameSite cookie attribute. Verify Origin/Referer validation as backup.
+    kind: review
+    priority: 85
+    parent_ref: auth
+    pre_condition: null
+    post_condition: "CSRF protection verified on all state-changing endpoints"
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: auth-token
+    title: "Token/JWT security audit"
+    description: >
+      If JWT: verify algorithm (RS256 not HS256), check signature validation, verify
+      expiry is set and enforced, check for algorithm confusion attacks. If API keys:
+      verify CSPRNG generation, check storage (hashed, not plaintext), verify
+      revocation mechanism exists.
+    kind: review
+    priority: 85
+    parent_ref: auth
+    pre_condition: null
+    post_condition: "Token design verified for integrity, expiry, and revocation"
+    pre_hook: null
+    post_hook: null
+
+  # ============================================================
+  # PHASE 3 — CRYPTOGRAPHY & SECRETS
+  # ============================================================
+  - ref_id: crypto
+    title: "Cryptography & Secrets Management"
+    description: "Audit cryptographic operations, key management, and secret handling."
+    kind: review
+    priority: 90
+    parent_ref: null
+    pre_condition: "Reconnaissance phase complete"
+    post_condition: null
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: crypto-passwords
+    title: "Password hashing audit"
+    description: >
+      Verify password hashing uses bcrypt, scrypt, or Argon2id with appropriate
+      cost factors. Check for MD5, SHA-1, SHA-256 without salt. Verify salt is
+      unique per password. Check password storage in database (not plaintext, not
+      reversible encryption).
+    kind: review
+    priority: 95
+    parent_ref: crypto
+    pre_condition: null
+    post_condition: "Password hashing verified as industry-standard"
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: crypto-tls
+    title: "TLS and transport security audit"
+    description: >
+      Check TLS configuration: minimum version (1.2+), cipher suites, HSTS headers,
+      certificate validation in outbound connections. Verify no SSL stripping vectors.
+      Check for mixed content. Verify certificate pinning if applicable.
+    kind: review
+    priority: 85
+    parent_ref: crypto
+    pre_condition: null
+    post_condition: "TLS configuration verified for all connections"
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: crypto-random
+    title: "Random number generation audit"
+    description: >
+      Verify all security-sensitive random values use CSPRNG (secrets module, os.urandom,
+      crypto/rand). Check for Python random module, Math.random(), or other non-crypto
+      RNG used for tokens, keys, nonces, or session IDs.
+    kind: review
+    priority: 90
+    parent_ref: crypto
+    pre_condition: null
+    post_condition: "All security-sensitive RNG verified as cryptographic"
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: crypto-secrets-code
+    title: "Hardcoded secrets scan"
+    description: >
+      Scan source code, config files, Dockerfiles, CI configs, README examples,
+      and test fixtures for hardcoded API keys, passwords, tokens, private keys,
+      connection strings. Check .env handling and default fallback values.
+    kind: review
+    priority: 95
+    parent_ref: crypto
+    pre_condition: null
+    post_condition: "No hardcoded secrets in source code"
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: crypto-key-mgmt
+    title: "Key management and rotation audit"
+    description: >
+      Verify encryption keys are stored securely (vault, KMS, not in code). Check
+      key rotation procedures. Verify key derivation functions. Check for weak
+      symmetric keys or reused IVs/nonces.
+    kind: review
+    priority: 80
+    parent_ref: crypto
+    pre_condition: null
+    post_condition: "Key management practices verified"
+    pre_hook: null
+    post_hook: null
+
+  # ============================================================
+  # PHASE 4 — BUSINESS LOGIC
+  # ============================================================
+  - ref_id: bizlogic
+    title: "Business Logic Security"
+    description: "Test for business logic flaws that bypass intended application behavior."
+    kind: review
+    priority: 85
+    parent_ref: null
+    pre_condition: "Reconnaissance phase complete"
+    post_condition: null
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: bizlogic-race
+    title: "Race condition and TOCTOU audit"
+    description: >
+      Identify operations that are not atomic: balance checks before deductions,
+      inventory checks before purchases, permission checks separated from actions.
+      Check for double-spend, double-submit, and concurrent modification issues.
+      Verify database transactions and locking.
+    kind: review
+    priority: 85
+    parent_ref: bizlogic
+    pre_condition: null
+    post_condition: "Critical operations verified for atomicity"
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: bizlogic-rate-limit
+    title: "Rate limiting and abuse prevention"
+    description: >
+      Verify rate limiting on: authentication endpoints, API endpoints, resource-
+      intensive operations, file uploads, account creation. Check for bypass via
+      header manipulation (X-Forwarded-For). Verify rate limit storage (not in-memory
+      only for multi-instance deployments).
+    kind: review
+    priority: 80
+    parent_ref: bizlogic
+    pre_condition: null
+    post_condition: "Rate limiting verified on all abuse-prone endpoints"
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: bizlogic-workflow
+    title: "Workflow bypass audit"
+    description: >
+      Test for step-skipping in multi-step workflows (checkout, registration,
+      approval chains). Verify server-side state tracking. Check for parameter
+      tampering to skip validation steps. Test for price/quantity manipulation.
+    kind: review
+    priority: 80
+    parent_ref: bizlogic
+    pre_condition: null
+    post_condition: "Multi-step workflows verified for server-side enforcement"
+    pre_hook: null
+    post_hook: null
+
+  # ============================================================
+  # PHASE 5 — DATA HANDLING
+  # ============================================================
+  - ref_id: data
+    title: "Data Handling & Serialization"
+    description: "Audit serialization, deserialization, file handling, and data exposure."
+    kind: review
+    priority: 85
+    parent_ref: null
+    pre_condition: "Reconnaissance phase complete"
+    post_condition: null
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: data-deser
+    title: "Unsafe deserialization audit"
+    description: >
+      Search for pickle.loads, yaml.load (without SafeLoader), Marshal.load,
+      unserialize, eval, JSON.parse with reviver abuse, XML deserialization.
+      Verify all deserialization of untrusted data uses safe loaders/parsers.
+    kind: review
+    priority: 95
+    parent_ref: data
+    pre_condition: null
+    post_condition: "All deserialization of untrusted data uses safe methods"
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: data-file-upload
+    title: "File upload security audit"
+    description: >
+      Review file upload handling: extension allowlist, MIME validation, file size
+      limits, storage isolation, filename sanitization, antivirus scanning.
+      Check for web shell upload, polyglot files, zip bomb, path traversal via filename.
+    kind: review
+    priority: 90
+    parent_ref: data
+    pre_condition: null
+    post_condition: "File upload pipeline verified for all upload attack vectors"
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: data-exposure
+    title: "Sensitive data exposure audit"
+    description: >
+      Check API responses for over-exposure of data: internal IDs, email addresses,
+      password hashes, PII, debug info, stack traces, internal paths. Verify error
+      responses don't leak sensitive information. Check logging for credential leaks.
+    kind: review
+    priority: 85
+    parent_ref: data
+    pre_condition: null
+    post_condition: "No sensitive data exposed in responses, errors, or logs"
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: data-logging
+    title: "Security logging audit"
+    description: >
+      Verify security events are logged: failed logins, privilege changes, admin
+      actions, data exports, configuration changes. Verify logs don't contain
+      passwords, tokens, or PII. Check log injection vectors (newline injection).
+    kind: review
+    priority: 75
+    parent_ref: data
+    pre_condition: null
+    post_condition: "Security logging is comprehensive and does not leak secrets"
+    pre_hook: null
+    post_hook: null
+
+  # ============================================================
+  # PHASE 6 — INFRASTRUCTURE & CONFIG
+  # ============================================================
+  - ref_id: infra
+    title: "Infrastructure & Configuration"
+    description: "Audit server configuration, deployment settings, and infrastructure security."
+    kind: review
+    priority: 80
+    parent_ref: null
+    pre_condition: "Reconnaissance phase complete"
+    post_condition: null
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: infra-headers
+    title: "Security headers audit"
+    description: >
+      Verify presence and correctness of: Content-Security-Policy, X-Content-Type-Options,
+      X-Frame-Options, Strict-Transport-Security, Referrer-Policy, Permissions-Policy.
+      Check for missing headers on all response types (HTML, API, static).
+    kind: review
+    priority: 80
+    parent_ref: infra
+    pre_condition: null
+    post_condition: "All security headers verified on all response types"
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: infra-cors
+    title: "CORS configuration audit"
+    description: >
+      Review CORS settings: verify origin allowlist (not wildcard *), check
+      Access-Control-Allow-Credentials, verify preflight handling. Check for
+      null origin bypass. Verify CORS headers on error responses.
+    kind: review
+    priority: 80
+    parent_ref: infra
+    pre_condition: null
+    post_condition: "CORS policy verified as restrictive and correct"
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: infra-debug
+    title: "Debug and development mode audit"
+    description: >
+      Check for debug=True, development mode flags, verbose error pages,
+      interactive debuggers (Werkzeug), profiler endpoints, test credentials,
+      seed data in production. Verify host binding (not 0.0.0.0 in production).
+    kind: review
+    priority: 85
+    parent_ref: infra
+    pre_condition: null
+    post_condition: "No debug/development settings enabled in production config"
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: infra-docker
+    title: "Container and deployment security"
+    description: >
+      Review Dockerfile: non-root user, minimal base image, no secrets in build args,
+      multi-stage build, read-only filesystem where possible. Check docker-compose
+      for exposed ports, volume mounts, privileged mode. Verify network isolation.
+    kind: review
+    priority: 75
+    parent_ref: infra
+    pre_condition: null
+    post_condition: "Container configuration verified for production security"
+    pre_hook: null
+    post_hook: null
+
+  # ============================================================
+  # PHASE 7 — DEPENDENCY ANALYSIS
+  # ============================================================
+  - ref_id: deps
+    title: "Dependency Analysis"
+    description: "Audit third-party dependencies for known vulnerabilities and supply chain risks."
+    kind: review
+    priority: 85
+    parent_ref: null
+    pre_condition: "Reconnaissance phase complete — tech stack identified"
+    post_condition: null
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: deps-cve
+    title: "Known CVE scan"
+    description: >
+      Run dependency audit tools (npm audit, pip-audit, cargo audit, safety check).
+      Cross-reference with OSV, NVD, GitHub Advisory Database. Document all
+      high/critical CVEs with affected versions and available patches.
+    kind: review
+    priority: 90
+    parent_ref: deps
+    pre_condition: null
+    post_condition: "All dependencies scanned; high/critical CVEs documented"
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: deps-lockfile
+    title: "Lockfile integrity check"
+    description: >
+      Verify lockfile exists and is committed. Check for lockfile tampering.
+      Verify lockfile matches manifest (package.json vs package-lock.json).
+      Check for floating version ranges that could introduce supply chain attacks.
+    kind: review
+    priority: 80
+    parent_ref: deps
+    pre_condition: null
+    post_condition: "Lockfile integrity verified"
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: deps-typosquat
+    title: "Typosquatting and supply chain audit"
+    description: >
+      Check package names for typosquatting (e.g., lodash vs 1odash). Verify package
+      publishers and maintainer reputation. Check for install scripts that execute
+      arbitrary code. Review post-install hooks.
+    kind: review
+    priority: 75
+    parent_ref: deps
+    pre_condition: null
+    post_condition: "No suspicious packages identified"
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: deps-outdated
+    title: "Outdated dependency assessment"
+    description: >
+      Identify dependencies that are significantly outdated (2+ major versions behind).
+      Assess security maintenance status of each dependency. Flag abandoned or
+      unmaintained packages. Check for end-of-life framework versions.
+    kind: review
+    priority: 70
+    parent_ref: deps
+    pre_condition: null
+    post_condition: "Outdated dependencies cataloged with upgrade priority"
+    pre_hook: null
+    post_hook: null
+
+  # ============================================================
+  # PHASE 8 — SYNTHESIS
+  # ============================================================
+  - ref_id: synthesis
+    title: "Synthesis & Findings Consolidation"
+    description: "Merge, deduplicate, classify, and prioritize all findings from testing phases."
+    kind: research
+    priority: 60
+    parent_ref: null
+    pre_condition: "All testing phases complete"
+    post_condition: null
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: synthesis-merge
+    title: "Merge and deduplicate findings"
+    description: >
+      Collect all findings from injection, auth, crypto, business logic, data handling,
+      infrastructure, and dependency phases. Remove duplicates (same root cause reported
+      by multiple phases). Identify finding clusters (related issues from same pattern).
+    kind: research
+    priority: 60
+    parent_ref: synthesis
+    pre_condition: null
+    post_condition: "Deduplicated finding list with cluster annotations"
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: synthesis-classify
+    title: "Classify by OWASP Top 10 and severity"
+    description: >
+      Map each finding to OWASP Top 10 2021 category. Assign severity using CVSS-like
+      scoring: Critical (RCE, auth bypass, data breach), High (SQLi, XSS with impact,
+      privilege escalation), Medium (info disclosure, weak config), Low (best practice
+      violations). Include exploitability assessment.
+    kind: review
+    priority: 55
+    parent_ref: synthesis
+    pre_condition: null
+    post_condition: "Every finding has OWASP category, severity, and exploitability rating"
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: synthesis-remediation
+    title: "Draft remediation recommendations"
+    description: >
+      For each finding, draft a specific remediation: what to change, where (file:line),
+      code example of the fix, and effort estimate (quick-fix, moderate, significant
+      refactor). Group remediations by effort to enable sprint planning.
+    kind: research
+    priority: 50
+    parent_ref: synthesis
+    pre_condition: null
+    post_condition: "Every critical/high finding has actionable remediation with code example"
+    pre_hook: null
+    post_hook: null
+
+  # ============================================================
+  # PHASE 9 — REPORTING
+  # ============================================================
+  - ref_id: reporting
+    title: "Final Report Generation"
+    description: "Produce the final security audit report with executive summary and technical details."
+    kind: code
+    priority: 40
+    parent_ref: null
+    pre_condition: "Synthesis phase complete"
+    post_condition: null
+    pre_hook: null
+    post_hook: "echo \"[AUDIT] Complete. Report at SECURITY_AUDIT_REPORT.md\""
+
+  - ref_id: report-executive
+    title: "Write executive summary"
+    description: >
+      One-page summary for non-technical stakeholders: overall security posture
+      (critical/acceptable/good), count of findings by severity, top 3 risks,
+      recommended immediate actions, estimated remediation timeline.
+    kind: code
+    priority: 40
+    parent_ref: reporting
+    pre_condition: null
+    post_condition: "Executive summary is actionable and non-technical"
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: report-technical
+    title: "Write technical findings report"
+    description: >
+      Detailed report with: finding ID, OWASP category, severity, affected component,
+      description, proof of concept, remediation steps, code examples. Organized by
+      severity (critical first). Include appendix with full dependency audit results.
+    kind: code
+    priority: 40
+    parent_ref: reporting
+    pre_condition: null
+    post_condition: "Technical report includes PoC and remediation for all critical/high findings"
+    pre_hook: null
+    post_hook: null
+
+  - ref_id: report-metrics
+    title: "Generate audit metrics and coverage summary"
+    description: >
+      Produce metrics: total findings by severity, coverage by OWASP category, areas
+      not tested and why, comparison with previous audits if available, compliance
+      status (SOC2, PCI-DSS, HIPAA mapping if applicable).
+    kind: code
+    priority: 35
+    parent_ref: reporting
+    pre_condition: null
+    post_condition: "Metrics summary with coverage gaps identified"
+    pre_hook: null
+    post_hook: null
+
+dependencies:
+  # ── Recon fans out to all testing phases ──
+  - from_ref: recon
+    to_ref: injection
+    kind: feeds_into
+  - from_ref: recon
+    to_ref: auth
+    kind: feeds_into
+  - from_ref: recon
+    to_ref: crypto
+    kind: feeds_into
+  - from_ref: recon
+    to_ref: bizlogic
+    kind: feeds_into
+  - from_ref: recon
+    to_ref: data
+    kind: feeds_into
+  - from_ref: recon
+    to_ref: infra
+    kind: feeds_into
+  - from_ref: recon
+    to_ref: deps
+    kind: feeds_into
+
+  # ── Intra-recon: inputs and trust boundaries need routes first ──
+  - from_ref: recon-routes
+    to_ref: recon-inputs
+    kind: feeds_into
+  - from_ref: recon-routes
+    to_ref: recon-trust-boundaries
+    kind: feeds_into
+
+  # ── Intra-injection: SQL subtasks depend on parent structure ──
+  - from_ref: sqli-select
+    to_ref: sqli-orm
+    kind: suggests
+  - from_ref: sqli-insert-update
+    to_ref: sqli-orm
+    kind: suggests
+
+  # ── Cross-level dependencies ──
+  # Password hashing depends on understanding registration flow
+  - from_ref: auth-registration
+    to_ref: crypto-passwords
+    kind: feeds_into
+  # Token security needs session context
+  - from_ref: auth-session
+    to_ref: auth-token
+    kind: feeds_into
+  # CSRF check needs session management understanding
+  - from_ref: auth-session
+    to_ref: auth-csrf
+    kind: feeds_into
+  # File upload security informs path traversal testing
+  - from_ref: data-file-upload
+    to_ref: path-traversal
+    kind: suggests
+  # Deserialization findings feed into command injection (chained exploits)
+  - from_ref: data-deser
+    to_ref: cmdi
+    kind: suggests
+  # Debug mode findings inform secrets scan
+  - from_ref: infra-debug
+    to_ref: crypto-secrets-code
+    kind: suggests
+  # Tech stack identification feeds dependency analysis
+  - from_ref: recon-tech-stack
+    to_ref: deps
+    kind: feeds_into
+
+  # ── All testing phases fan-in to synthesis ──
+  - from_ref: injection
+    to_ref: synthesis
+    kind: feeds_into
+  - from_ref: auth
+    to_ref: synthesis
+    kind: feeds_into
+  - from_ref: crypto
+    to_ref: synthesis
+    kind: feeds_into
+  - from_ref: bizlogic
+    to_ref: synthesis
+    kind: feeds_into
+  - from_ref: data
+    to_ref: synthesis
+    kind: feeds_into
+  - from_ref: infra
+    to_ref: synthesis
+    kind: feeds_into
+  - from_ref: deps
+    to_ref: synthesis
+    kind: feeds_into
+
+  # ── Synthesis internal flow ──
+  - from_ref: synthesis-merge
+    to_ref: synthesis-classify
+    kind: feeds_into
+  - from_ref: synthesis-classify
+    to_ref: synthesis-remediation
+    kind: feeds_into
+
+  # ── Reporting depends on synthesis ──
+  - from_ref: synthesis
+    to_ref: reporting
+    kind: feeds_into
+
+  # ── Report internal flow ──
+  - from_ref: report-executive
+    to_ref: report-metrics
+    kind: suggests
+  - from_ref: report-technical
+    to_ref: report-metrics
+    kind: feeds_into
+
+context:
+  # ── Institutional knowledge: patterns ──
+  - kind: pattern
+    content: "OWASP A03 Injection: SQL injection remains the #1 web vulnerability. Always check string concatenation/interpolation in SQL queries. Parameterized queries are the only reliable defense — input sanitization is not sufficient."
+    tags: [injection, sql, owasp]
+    task_ref: null
+
+  - kind: pattern
+    content: "OWASP A03 XSS: Check all three vectors — reflected (echo user input), stored (render saved content), DOM-based (client-side JS manipulation). Auto-escaping in templates is necessary but not sufficient — check for |safe filters, innerHTML, and render_template_string."
+    tags: [injection, xss, owasp]
+    task_ref: null
+
+  - kind: pattern
+    content: "Hardcoded secrets are not just in .py/.js files. Check Dockerfiles (ARG/ENV), CI configs (.github/workflows), docker-compose.yml, README examples, test fixtures, and migration scripts. Default fallback values (os.getenv('SECRET', 'dev-key')) are hardcoded secrets."
+    tags: [secrets, config]
+    task_ref: null
+
+  - kind: pattern
+    content: "JWT algorithm confusion: If the server accepts HS256 when it expects RS256, an attacker can sign tokens with the public key. Always verify the algorithm in the token matches what the server expects. Use allowlists, not blocklists, for algorithm selection."
+    tags: [auth, jwt, crypto]
+    task_ref: null
+
+  - kind: pattern
+    content: "Deserialization is RCE: pickle.loads, yaml.load (without SafeLoader), and Marshal.load on untrusted input are effectively eval(). These are always Critical severity regardless of authentication status. The safe alternatives are json.loads, yaml.safe_load, and schema-validated parsers."
+    tags: [deserialization, rce]
+    task_ref: null
+
+  - kind: pattern
+    content: "Race conditions in financial/inventory operations: Check for TOCTOU between validation and action. If 'check balance' and 'deduct balance' are separate queries without a transaction lock, concurrent requests can double-spend. Use SELECT ... FOR UPDATE or application-level locks."
+    tags: [bizlogic, race-condition]
+    task_ref: null
+
+  - kind: constraint
+    content: "Rate limiting must be applied to: login attempts (5/min), registration (3/hour/IP), password reset (3/hour/account), API endpoints (varies by tier), file uploads (size + count). Rate limit storage must be shared across instances (Redis, not in-memory)."
+    tags: [rate-limiting, abuse]
+    task_ref: null
+
+  - kind: constraint
+    content: "Password hashing requirements: Use bcrypt (cost 12+), scrypt, or Argon2id. Never MD5, SHA-1, SHA-256 (even with salt). Verify unique salt per password. Cost factor should make hashing take 100-500ms on target hardware."
+    tags: [crypto, passwords]
+    task_ref: null
+
+  - kind: constraint
+    content: "Security headers checklist: Content-Security-Policy (script-src, style-src, default-src), X-Content-Type-Options: nosniff, X-Frame-Options: DENY, Strict-Transport-Security: max-age=31536000; includeSubDomains, Referrer-Policy: strict-origin-when-cross-origin, Permissions-Policy (camera, microphone, geolocation)."
+    tags: [headers, infra]
+    task_ref: null
+
+  - kind: constraint
+    content: "CORS policy: Never use Access-Control-Allow-Origin: * with credentials. Maintain an explicit origin allowlist. Verify CORS headers are also set on error responses (4xx, 5xx). Check for null origin bypass."
+    tags: [cors, infra]
+    task_ref: null
+
+  - kind: constraint
+    content: "File upload defense in depth: 1) Extension allowlist (not blocklist), 2) MIME type validation, 3) File size limit, 4) Rename uploaded files (UUID), 5) Store outside webroot, 6) Serve via content-disposition: attachment, 7) Scan for malware if possible."
+    tags: [file-upload, data]
+    task_ref: null
+
+  - kind: pattern
+    content: "Supply chain attacks: Check for typosquatting (lodash vs 1odash, requests vs reqeusts). Verify lockfile integrity — if lockfile doesn't match manifest, something changed. Check for pre/post-install scripts in dependencies that execute arbitrary code."
+    tags: [deps, supply-chain]
+    task_ref: null
+
+  - kind: pattern
+    content: "SSRF bypass techniques: Attackers bypass URL allowlists using DNS rebinding, IPv6 (::1), decimal IP (2130706433 = 127.0.0.1), URL encoding, redirects, and cloud metadata endpoints (169.254.169.254). URL validation must resolve DNS and check the IP, not just the hostname."
+    tags: [ssrf, injection]
+    task_ref: null
+
+  - kind: pattern
+    content: "Error message information disclosure: Stack traces reveal file paths, framework versions, and internal logic. Database errors reveal table/column names. Auth errors should never distinguish between 'user not found' and 'wrong password' — always return generic 'invalid credentials'."
+    tags: [info-disclosure, errors]
+    task_ref: null
+
+  - kind: constraint
+    content: "Session cookie requirements: HttpOnly (prevents JS access), Secure (HTTPS only), SameSite=Lax or Strict (CSRF prevention), Path=/ (or most restrictive applicable), Domain (explicit, not parent domain), Max-Age or Expires (session timeout)."
+    tags: [session, cookies]
+    task_ref: null
+
+  - kind: pattern
+    content: "Command injection beyond shell=True: Check for os.system(), subprocess with shell=True, backtick execution in Ruby/PHP, eval() in any language, template engines that allow code execution (Jinja2 sandbox bypass, Mako templates). Also check for indirect injection via filenames passed to shell commands."
+    tags: [injection, command]
+    task_ref: null
