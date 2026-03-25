@@ -324,6 +324,12 @@ pub enum Commands {
         #[arg(long, help = "Project ID (uses default if not set)")]
         project: Option<String>,
     },
+    #[command(
+        about = "List available template recipes.\n\n\
+                  Shows built-in templates that can be imported with 'plandb import <file>'.\n\
+                  Templates include tasks, dependencies, hooks, and context entries."
+    )]
+    Templates,
 }
 
 pub fn run(db: &Database, command: Commands, json: bool, compact: bool) -> Result<()> {
@@ -849,6 +855,72 @@ pub fn run(db: &Database, command: Commands, json: bool, compact: bool) -> Resul
                 }
                 eprintln!("  plandb search \"query\"                       # recall project knowledge");
                 eprintln!("  plandb status --detail                      # full dependency tree");
+            }
+            Ok(())
+        }
+        Commands::Templates => {
+            // Look for templates in common locations
+            let search_paths = vec![
+                std::path::PathBuf::from("templates"),
+                std::path::PathBuf::from(
+                    std::env::var("HOME").unwrap_or_default()
+                ).join(".plandb").join("templates"),
+            ];
+
+            let mut found = Vec::new();
+            for dir in &search_paths {
+                if dir.is_dir() {
+                    if let Ok(entries) = std::fs::read_dir(dir) {
+                        for entry in entries.flatten() {
+                            let path = entry.path();
+                            if path.extension().map_or(false, |ext| ext == "yaml" || ext == "yml") {
+                                if let Ok(content) = std::fs::read_to_string(&path) {
+                                    if let Ok(template) = serde_yaml::from_str::<crate::db::GraphTemplate>(&content) {
+                                        found.push((path, template));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if found.is_empty() {
+                println!("no templates found");
+                eprintln!();
+                eprintln!("create templates:");
+                eprintln!("  plandb export > templates/my-template.yaml    # from current project");
+                eprintln!("  mkdir -p templates/                           # in project root");
+            } else {
+                if json {
+                    let list: Vec<_> = found.iter().map(|(path, t)| {
+                        json!({
+                            "name": t.name,
+                            "path": path.display().to_string(),
+                            "tasks": t.tasks.len(),
+                            "dependencies": t.dependencies.len(),
+                            "context_entries": t.context.len(),
+                        })
+                    }).collect();
+                    print_json(&json!(list))?;
+                } else {
+                    println!("available templates:");
+                    for (path, template) in &found {
+                        let ctx = if template.context.is_empty() {
+                            String::new()
+                        } else {
+                            format!(" · {} context entries", template.context.len())
+                        };
+                        println!(
+                            "  {} — {} tasks, {} deps{}",
+                            template.name,
+                            template.tasks.len(),
+                            template.dependencies.len(),
+                            ctx
+                        );
+                        println!("    plandb import {}", path.display());
+                    }
+                }
             }
             Ok(())
         }
