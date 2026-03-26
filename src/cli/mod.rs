@@ -52,13 +52,11 @@ pub use task::{CreateTaskArgs, DoneArgs, GetTaskArgs, GoArgs, ListTasksArgs, Spl
         CONTEXT STORE & SEARCH:\n\
         \x20 plandb context \"what you learned\" --kind discovery   Record project knowledge\n\
         \x20 plandb search \"query\"                                BM25 search across context + tasks\n\
-        \x20 plandb resume                                        Session continuity — pick up where you left off\n\
         \x20 Context auto-links to running task. plandb go auto-surfaces relevant context (lazy recall).\n\n\
-        TEMPLATES (learning framework):\n\
-        \x20 plandb templates                                     Browse available templates\n\
-        \x20 plandb import templates/X.yaml                       Import + adapt a template\n\
-        \x20 plandb export > evolved.yaml                         Save evolved graph as new template\n\
-        \x20 Templates compound: each run makes them smarter (carries context as institutional knowledge).\n\n\
+        TEMPLATES:\n\
+        \x20 plandb import template.yaml                           Apply a reusable task graph\n\
+        \x20 plandb export > evolved.yaml                          Save current graph as template\n\
+        \x20 Templates carry context entries as institutional knowledge.\n\n\
         MULTI-AGENT PARALLELISM:\n\
         \x20 When plandb list --status ready returns multiple tasks, they can run concurrently.\n\
         \x20 Each agent: plandb go → work → plandb done --next. Atomic claiming prevents conflicts.\n\n\

@@ -118,9 +118,13 @@ You have plandb installed for task planning. Use it to decompose work and track 
 Core loop:    plandb go → work → plandb done --next
 Add tasks:    plandb add "title" --description "detailed spec" --dep t-xxx
 Split:        plandb split --into "A, B, C" (independent) or "A > B > C" (chain)
+Context:      plandb context "what you discovered" --kind discovery
+Search:       plandb search "query" (BM25 across context + tasks)
 Introspect:   plandb critical-path | plandb bottlenecks | plandb what-unlocks <id>
 Status:       plandb status --detail
 
+Record discoveries and decisions with plandb context as you work.
+plandb go auto-surfaces relevant context (lazy recall) — no need to search manually.
 After each completion, reassess: plandb status --detail + plandb critical-path.
 Plans are hypotheses — adapt as you learn.
 When plandb list --status ready shows multiple tasks, parallelize them.
@@ -230,6 +234,28 @@ plandb what-if cancel t-abc                                # preview effects
 plandb export > template.yaml                              # save pattern
 plandb import template.yaml                                # apply pattern
 ```
+
+### Context Store & Search
+
+```bash
+plandb context "JWT conflicts with session cache" --kind discovery  # record knowledge
+plandb context "use token bucket for rate limiting" --kind decision  # record decisions
+plandb search "rate limiting"                                       # BM25 search
+plandb contexts --kind decision                                     # list by kind
+```
+
+Context auto-links to your running task. `plandb go` auto-surfaces relevant context (lazy recall).
+
+### Hooks
+
+```bash
+plandb add "Run linter" \
+  --pre-hook 'echo "starting $PLANDB_TASK_TITLE"' \
+  --post-hook 'pytest tests/' \
+  --description "..."
+```
+
+Shell commands at task start (`--pre-hook`) and completion (`--post-hook`). Advisory — failures warn but never block. Env vars: `PLANDB_TASK_ID`, `PLANDB_TASK_TITLE`, `PLANDB_PROJECT_ID`, `PLANDB_AGENT_ID`.
 
 ### Multi-Agent
 
