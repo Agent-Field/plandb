@@ -49,6 +49,10 @@ pub use task::{CreateTaskArgs, DoneArgs, GetTaskArgs, GoArgs, ListTasksArgs, Spl
         \x20 plandb task pivot                 Replace a subtree with new tasks\n\
         \x20 plandb what-if cancel             Preview effects before committing\n\
         \x20 plandb export / import            Save and reuse decomposition patterns\n\n\
+        CONTEXT STORE & SEARCH:\n\
+        \x20 plandb context \"what you learned\" --kind discovery   Record project knowledge\n\
+        \x20 plandb search \"query\"                                BM25 search across context + tasks\n\
+        \x20 Context auto-links to running task. plandb go auto-surfaces relevant context (lazy recall).\n\n\
         MULTI-AGENT PARALLELISM:\n\
         \x20 When plandb list --status ready returns multiple tasks, they can run concurrently.\n\
         \x20 Each agent: plandb go → work → plandb done --next. Atomic claiming prevents conflicts.\n\n\
@@ -267,6 +271,53 @@ pub enum Commands {
         r#for: Option<String>,
         #[arg(long, help = "List available platforms")]
         list: bool,
+    },
+    #[command(
+        about = "Attach context to the project graph.\n\n\
+                  Context persists across sessions and is searchable via BM25.\n\
+                  Unlike notes (task-scoped), context is project-wide and queryable.\n\
+                  The --kind flag is freeform — use any label that fits your domain.\n\
+                  Common types: discovery, decision, pattern, blocker, reference, constraint, insight"
+    )]
+    Context {
+        #[arg(help = "The context content")]
+        content: String,
+        #[arg(long, default_value = "discovery",
+              help = "Freeform kind label (e.g. discovery, decision, constraint, pattern, finding, etc.)")]
+        kind: String,
+        #[arg(long, help = "Task ID to link to (auto-detects current running task if omitted)")]
+        task: Option<String>,
+        #[arg(long, help = "Project ID (uses default if not set)")]
+        project: Option<String>,
+        #[arg(long, help = "Tags for categorization (comma-separated)")]
+        tags: Option<String>,
+    },
+    #[command(
+        about = "BM25-ranked search across the entire project graph.\n\n\
+                  Searches context entries, task titles, descriptions, and notes.\n\
+                  Returns results ranked by relevance — the project's knowledge base."
+    )]
+    Search {
+        #[arg(help = "Search query (BM25 ranked)")]
+        query: String,
+        #[arg(long, help = "Project ID (uses default if not set)")]
+        project: Option<String>,
+        #[arg(long, default_value_t = 10, help = "Max results")]
+        limit: usize,
+    },
+    #[command(about = "List context entries attached to the project graph")]
+    Contexts {
+        #[arg(long, help = "Project ID (uses default if not set)")]
+        project: Option<String>,
+        #[arg(long, help = "Filter by kind (freeform — matches the --kind used when adding)")]
+        kind: Option<String>,
+        #[arg(long, default_value_t = 50, help = "Max results")]
+        limit: usize,
+    },
+    #[command(about = "Remove a context entry from the project graph")]
+    Prune {
+        #[arg(help = "Context entry ID to remove")]
+        context_id: String,
     },
 }
 
@@ -559,14 +610,130 @@ pub fn run(db: &Database, command: Commands, json: bool, compact: bool) -> Resul
                 println!("created {} ({})", project.id, project.name);
                 if !compact {
                     eprintln!();
-                    eprintln!("next: plandb add \"First task\"");
-                    eprintln!("tip:  start with 1-2 tasks. add more as you learn things.");
+                    eprintln!("next: plandb add \"title\" --description \"detailed spec\" [--dep t-upstream] [--as custom-id]");
+                    eprintln!("tip:  create tasks in dependency order. use --dep to chain them.");
+                    eprintln!("      plandb add \"A\" --as a && plandb add \"B\" --dep t-a --as b");
+                    eprintln!("      plandb go → work → plandb done --next → repeat");
                 }
             }
             Ok(())
         }
         Commands::Version => {
             println!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
+            Ok(())
+        }
+        Commands::Context {
+            content,
+            kind,
+            task,
+            project,
+            tags,
+        } => {
+            let project_id = resolve_project_id(db, project.as_deref())?;
+            let agent_id = std::env::var("PLANDB_AGENT")
+                .unwrap_or_else(|_| "default".to_string());
+
+            // Auto-link to current running task if --task not specified
+            let task_id = match task {
+                Some(t) => Some(t),
+                None => {
+                    crate::db::get_running_task_for_agent(db, &agent_id)?
+                        .map(|t| t.id)
+                }
+            };
+
+            let tag_list: Vec<String> = tags
+                .map(|t| t.split(',').map(|s| s.trim().to_string()).collect())
+                .unwrap_or_default();
+            let entry = crate::db::add_context(
+                db,
+                &project_id,
+                task_id.as_deref(),
+                Some(&agent_id),
+                &kind,
+                &content,
+                &tag_list,
+            )?;
+            if json {
+                print_json(&entry)?;
+            } else {
+                println!("{} [{}]", entry.id, entry.kind);
+                if compact {
+                    return Ok(());
+                }
+                if let Some(ref t) = entry.task_id {
+                    println!("  task: {t}");
+                }
+                if !entry.tags.is_empty() {
+                    println!("  tags: {}", entry.tags.join(", "));
+                }
+            }
+            Ok(())
+        }
+        Commands::Search {
+            query,
+            project,
+            limit,
+        } => {
+            let project_id = resolve_project_id(db, project.as_deref())?;
+            let results = crate::db::search_graph(db, &project_id, &query, limit)?;
+            if json {
+                print_json(&results)?;
+            } else if results.is_empty() {
+                println!("no results for \"{}\"", query);
+            } else {
+                for r in &results {
+                    let source_tag = match r.source.as_str() {
+                        "context" => "ctx",
+                        "task" => "task",
+                        _ => "?",
+                    };
+                    let truncated = if r.content.len() > 120 {
+                        format!("{}...", &r.content[..120])
+                    } else {
+                        r.content.clone()
+                    };
+                    println!("  [{}] {} {} {}", source_tag, r.id, r.kind, truncated);
+                }
+            }
+            Ok(())
+        }
+        Commands::Contexts {
+            project,
+            kind,
+            limit,
+        } => {
+            let project_id = resolve_project_id(db, project.as_deref())?;
+            let entries =
+                crate::db::list_context(db, &project_id, kind.as_deref(), limit)?;
+            if json {
+                print_json(&entries)?;
+            } else if entries.is_empty() {
+                println!("no context entries yet");
+                if !compact {
+                    eprintln!("tip: plandb context \"what you discovered\" --kind discovery");
+                }
+            } else {
+                for e in &entries {
+                    let truncated = if e.content.len() > 100 {
+                        format!("{}...", &e.content[..100])
+                    } else {
+                        e.content.clone()
+                    };
+                    println!("  {} [{}] {}", e.id, e.kind, truncated);
+                }
+            }
+            Ok(())
+        }
+        Commands::Prune { context_id } => {
+            let deleted = crate::db::delete_context(db, &context_id)?;
+            if json {
+                print_json(&serde_json::json!({"deleted": deleted}))?;
+            } else if deleted > 0 {
+                println!("pruned {context_id}");
+            } else {
+                println!("context entry {context_id} not found");
+            }
             Ok(())
         }
         Commands::Mcp | Commands::Serve { .. } | Commands::Prompt { .. } => {

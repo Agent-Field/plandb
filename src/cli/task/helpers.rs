@@ -141,6 +141,12 @@ pub fn print_task_detail(task: &Task) {
     if let Some(post) = &task.post_condition {
         println!("post-condition: {post}");
     }
+    if let Some(hook) = &task.pre_hook {
+        println!("pre-hook: {hook}");
+    }
+    if let Some(hook) = &task.post_hook {
+        println!("post-hook: {hook}");
+    }
 }
 
 pub(crate) fn enrich_transition_error(
@@ -225,6 +231,44 @@ pub(crate) fn enrich_transition_error(
     )
 }
 
+/// Extract meaningful search terms from task title and description for lazy recall.
+/// Strips common stop words and short tokens to produce a concise FTS5 query.
+pub fn build_search_query(title: &str, description: Option<&str>) -> String {
+    let stop_words: std::collections::HashSet<&str> = [
+        "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by",
+        "from", "is", "it", "as", "be", "was", "are", "this", "that", "all", "will", "can",
+        "should", "must", "do", "not", "no", "so", "if", "then", "than", "also", "just", "into",
+        "each", "has", "have", "had", "its", "my", "our", "your", "their", "we", "you", "they",
+        "use", "using", "create", "implement", "build", "write", "add", "make", "set", "get",
+        "design", "define", "task", "work", "need", "based",
+    ]
+    .iter()
+    .copied()
+    .collect();
+
+    let combined = match description {
+        Some(desc) => format!("{} {}", title, &desc[..desc.len().min(200)]),
+        None => title.to_string(),
+    };
+
+    // Split on non-alphanumeric, filter stop words and short tokens, deduplicate
+    let mut seen = std::collections::HashSet::new();
+    let tokens: Vec<String> = combined
+        .split(|c: char| !c.is_alphanumeric())
+        .map(|w| w.to_lowercase())
+        .filter(|w| w.len() > 2 && !stop_words.contains(w.as_str()) && seen.insert(w.clone()))
+        .take(6) // Focused query — too many terms dilute BM25
+        .collect();
+
+    if tokens.is_empty() {
+        return String::new();
+    }
+
+    // FTS5 implicit AND is fine — we want results matching ANY significant term
+    // Wrap each token to be safe for FTS5 syntax
+    tokens.join(" OR ")
+}
+
 pub fn go_payload(
     db: &Database,
     project: Option<&str>,
@@ -267,54 +311,85 @@ pub fn go_payload(
         format!("{}%", ((done as f64 / total as f64) * 100.0).round() as i32)
     };
 
-    let (task_json, handoff_json, notes_json, conflicts_json) = if let Some(task) = &task {
-        let handoff = get_handoff_context(db, &task.id)?;
-        let notes = list_notes(db, &task.id)?;
-        let task_files = list_task_files(db, &task.id)?;
-        let mut conflicts = check_file_conflicts(db, &project_id, Some(&task.id))?;
-        if !task_files.is_empty() {
-            let path_set = task_files
-                .into_iter()
-                .collect::<std::collections::HashSet<_>>();
-            conflicts.retain(|c| path_set.contains(&c.path));
-        }
-        (
-            serde_json::json!({
-                "id": task.id,
-                "title": task.title,
-                "status": task.status,
-                "description": task.description,
-                "pre_condition": task.pre_condition,
-                "post_condition": task.post_condition,
-            }),
-            handoff
-                .into_iter()
-                .map(|h| {
-                    serde_json::json!({
-                        "from_task": h.from_task_id,
-                        "from_title": h.from_title,
-                        "result": h.result,
-                        "agent_id": h.agent_id,
-                    })
-                })
-                .collect::<Vec<_>>(),
-            notes
-                .into_iter()
-                .map(|n| {
-                    serde_json::json!({
-                        "content": n.content,
-                        "agent_id": n.agent_id,
-                        "created_at": n.created_at,
-                    })
-                })
-                .collect::<Vec<_>>(),
-            serde_json::to_value(conflicts)?,
-        )
-    } else {
-        (Value::Null, Vec::new(), Vec::new(), serde_json::json!([]))
-    };
+    let (task_json, handoff_json, notes_json, conflicts_json, relevant_context) =
+        if let Some(task) = &task {
+            let handoff = get_handoff_context(db, &task.id)?;
+            let notes = list_notes(db, &task.id)?;
+            let task_files = list_task_files(db, &task.id)?;
+            let mut conflicts = check_file_conflicts(db, &project_id, Some(&task.id))?;
+            if !task_files.is_empty() {
+                let path_set = task_files
+                    .into_iter()
+                    .collect::<std::collections::HashSet<_>>();
+                conflicts.retain(|c| path_set.contains(&c.path));
+            }
 
-    Ok(serde_json::json!({
+            // Lazy recall: search for context relevant to this task's title + description.
+            // Agents receive relevant project knowledge automatically without explicit search.
+            let search_query = build_search_query(&task.title, task.description.as_deref());
+            let context_hits = if !search_query.is_empty() {
+                crate::db::search_graph(db, &project_id, &search_query, 5)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter(|r| r.source == "context") // Only context entries, not tasks
+                    .take(3)
+                    .map(|r| {
+                        serde_json::json!({
+                            "id": r.id,
+                            "kind": r.kind,
+                            "content": r.content,
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            } else {
+                Vec::new()
+            };
+
+            (
+                serde_json::json!({
+                    "id": task.id,
+                    "title": task.title,
+                    "status": task.status,
+                    "kind": task.kind,
+                    "description": task.description,
+                    "pre_condition": task.pre_condition,
+                    "post_condition": task.post_condition,
+                }),
+                handoff
+                    .into_iter()
+                    .map(|h| {
+                        serde_json::json!({
+                            "from_task": h.from_task_id,
+                            "from_title": h.from_title,
+                            "result": h.result,
+                            "agent_id": h.agent_id,
+                        })
+                    })
+                    .collect::<Vec<_>>(),
+                notes
+                    .into_iter()
+                    .map(|n| {
+                        serde_json::json!({
+                            "content": n.content,
+                            "agent_id": n.agent_id,
+                            "created_at": n.created_at,
+                        })
+                    })
+                    .collect::<Vec<_>>(),
+                serde_json::to_value(conflicts)?,
+                context_hits,
+            )
+        } else {
+            (
+                Value::Null,
+                Vec::new(),
+                Vec::new(),
+                serde_json::json!([]),
+                Vec::new(),
+            )
+        };
+
+    let mut response = serde_json::json!({
         "task": task_json,
         "handoff": handoff_json,
         "notes": notes_json,
@@ -327,7 +402,14 @@ pub fn go_payload(
             "pending": pending,
         },
         "progress": progress,
-    }))
+    });
+
+    // Only include relevant_context if non-empty (zero noise when no context exists)
+    if !relevant_context.is_empty() {
+        response["relevant_context"] = serde_json::json!(relevant_context);
+    }
+
+    Ok(response)
 }
 
 pub(crate) fn decompose_or_replan(
@@ -396,6 +478,8 @@ pub(crate) fn decompose_or_replan(
             approval_comment: None,
             pre_condition: None,
             post_condition: None,
+            pre_hook: None,
+            post_hook: None,
             metadata: None,
             created_at: now,
             updated_at: now,

@@ -49,6 +49,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   approval_comment   TEXT,
   pre_condition      TEXT,
   post_condition     TEXT,
+  pre_hook           TEXT,
+  post_hook          TEXT,
   metadata           JSON,
   created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -146,6 +148,42 @@ const INDEX_TASK_FILES_TASK: &str =
 const INDEX_TASK_FILES_PATH: &str =
     "CREATE INDEX IF NOT EXISTS idx_task_files_path ON task_files(path);";
 
+const CREATE_LEARNINGS: &str = r#"
+CREATE TABLE IF NOT EXISTS learnings (
+  id           TEXT PRIMARY KEY,
+  project_id   TEXT NOT NULL REFERENCES projects(id),
+  task_id      TEXT REFERENCES tasks(id),
+  agent_id     TEXT,
+  kind         TEXT NOT NULL DEFAULT 'discovery',
+  content      TEXT NOT NULL,
+  created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+"#;
+
+const CREATE_LEARNINGS_FTS: &str = r#"
+CREATE VIRTUAL TABLE IF NOT EXISTS learnings_fts USING fts5(
+  content,
+  kind,
+  content='learnings',
+  content_rowid='rowid'
+);
+"#;
+
+const CREATE_LEARNING_TAGS: &str = r#"
+CREATE TABLE IF NOT EXISTS learning_tags (
+  learning_id  TEXT NOT NULL REFERENCES learnings(id),
+  tag          TEXT NOT NULL,
+  PRIMARY KEY (learning_id, tag)
+);
+"#;
+
+const INDEX_LEARNINGS_PROJECT: &str =
+    "CREATE INDEX IF NOT EXISTS idx_learnings_project ON learnings(project_id);";
+const INDEX_LEARNINGS_TASK: &str =
+    "CREATE INDEX IF NOT EXISTS idx_learnings_task ON learnings(task_id);";
+const INDEX_LEARNING_TAGS_TAG: &str =
+    "CREATE INDEX IF NOT EXISTS idx_learning_tags_tag ON learning_tags(tag);";
+
 const CREATE_TASK_READINESS_VIEW: &str = r#"
 CREATE VIEW IF NOT EXISTS task_readiness AS
 SELECT
@@ -192,6 +230,17 @@ pub fn init_db(path: &str) -> Result<Database> {
     conn.execute_batch(INDEX_TASK_NOTES_TASK)?;
     conn.execute_batch(INDEX_TASK_FILES_TASK)?;
     conn.execute_batch(INDEX_TASK_FILES_PATH)?;
+    conn.execute_batch(CREATE_LEARNINGS)?;
+    conn.execute_batch(CREATE_LEARNINGS_FTS)?;
+    conn.execute_batch(CREATE_LEARNING_TAGS)?;
+    conn.execute_batch(INDEX_LEARNINGS_PROJECT)?;
+    conn.execute_batch(INDEX_LEARNINGS_TASK)?;
+    conn.execute_batch(INDEX_LEARNING_TAGS_TAG)?;
     conn.execute_batch(CREATE_TASK_READINESS_VIEW)?;
+
+    // Migrations for existing databases: add pre_hook/post_hook columns
+    let _ = conn.execute_batch("ALTER TABLE tasks ADD COLUMN pre_hook TEXT;");
+    let _ = conn.execute_batch("ALTER TABLE tasks ADD COLUMN post_hook TEXT;");
+
     Ok(Database::from_connection(conn))
 }

@@ -109,6 +109,12 @@ prerequisites are complete.
 4. Complete + advance: `plandb_done` marks complete, `plandb_go` gets the next one
 5. Check progress: `plandb_status` shows done/total/ready/running counts
 
+### Context Store (Project Knowledge)
+- Record discoveries: `plandb_context_create` with kind (discovery, decision, pattern, etc.)
+- Search knowledge: `plandb_search` — BM25 across context entries and task descriptions
+- Context is auto-linked to your running task and auto-recalled when claiming related tasks
+- Kind is freeform — use whatever labels fit (discovery, decision, constraint, bug, etc.)
+
 ### Plan Adaptation (mid-flight)
 - `plandb_task_insert` — add a missed step between existing tasks
 - `plandb_task_amend` — prepend notes to a future task ("use JWT not sessions")
@@ -119,8 +125,8 @@ prerequisites are complete.
 - Tasks flow: pending → ready (when deps done) → claimed → running → done/failed
 - Dependency types: `feeds_into` (default), `blocks`, `suggests`
 - Task kinds: `generic`, `code`, `research`, `review`, `test`, `shell`
-- IDs are short 8-char strings (e.g. `t-a1b2c3d4`)
-- Fuzzy matching: misspell a task ID and plandb suggests the closest match
+- `plandb_go` returns relevant context entries automatically (lazy recall)
+- Tasks can have `pre_hook`/`post_hook` — shell commands at start/completion
 - Use `--compact` flag on tools for token-efficient output"#
     );
 }
@@ -133,6 +139,7 @@ fn print_prompt_cli(db_path: &str) {
 
 You have `plandb` (binary at PATH, DB: {db_path}) for dependency-aware task planning.
 ALWAYS use plandb for task management — never track tasks ad-hoc.
+Every command shows hints about what you can do next — read them.
 
 ### Example: Project with dependencies
 
@@ -153,9 +160,12 @@ plandb critical-path      # see what to prioritize
 ### Core Loop: go → work → done → reassess → repeat
 
 ```bash
-plandb go                 # claim next ready task (shows upstream context + pre-conditions)
+plandb go                 # claim next ready task — shows:
+                          #   upstream handoff data, relevant context (auto-recalled),
+                          #   downstream tasks, pre-conditions, and action hints
 # ... do the work described in the task ...
-plandb done --next        # complete current + claim next (shows post-conditions to verify)
+plandb done --next        # complete current + claim next — shows:
+                          #   what unlocked, post-conditions, next steps
 plandb status --detail    # reassess: does the plan still make sense?
 ```
 
@@ -173,6 +183,7 @@ plandb add "title" --description "detailed spec" --dep t-upstream [--as custom-i
 - `--dep` upstream must exist first — create in dependency order. Types: feeds_into (default), blocks, suggests
 - `--kind`: generic, code, research, review, test, shell
 - `--as`: custom ID (plandb add "X" --as foo → t-foo). Otherwise auto-generated (t-k3m9).
+- `--pre-hook` / `--post-hook`: shell commands that run at task start/completion
 
 ### Decomposition
 
@@ -183,25 +194,37 @@ plandb split --into "Design > Implement > Test"  # dependency chain (sequential)
 
 Split when: task has independent parts (parallel), is too large for one pass, or
 proves more complex than expected mid-execution. Subtasks can be split further (any depth).
-Composite tasks auto-complete when all children finish.
+Use `plandb use t-xxx` to zoom into a subtree, `plandb use ..` to zoom out.
 
-### Graph Intelligence
+Cross-level dependencies: a subtask can depend on ANY task at ANY level:
+```bash
+plandb task add-dep --after t-backend-api t-frontend   # subtask → top-level
+```
+
+### Context Store (Project Knowledge)
+
+Record what you discover while working. Context persists across sessions and is
+automatically recalled when claiming related tasks.
 
 ```bash
-plandb critical-path              # longest chain to completion — prioritize this
-plandb bottlenecks                # tasks blocking the most downstream work
-plandb what-unlocks t-xxx         # what becomes ready if this task completes
-plandb list --status ready        # tasks safe to parallelize RIGHT NOW
-plandb ahead                     # lookahead: what's coming next
+plandb context "JWT expiry conflicts with session cache" --kind discovery
+plandb context "use token bucket for rate limiting" --kind decision
+plandb search "rate limiting"                      # BM25 search across context + tasks
+plandb contexts --kind decision                    # list all decisions
 ```
+
+Context is auto-linked to your current running task. --kind is freeform (discovery,
+decision, pattern, constraint, bug — use whatever fits). When you `plandb go`,
+relevant context entries are surfaced automatically (lazy recall).
 
 ### Plan Adaptation
 
 ```bash
 plandb task insert --after t-a --before t-b --title "Missed step"   # rewires deps
 plandb task amend t-xxx --prepend "NOTE: use JWT, not sessions"     # annotate future task
-plandb task add-dep --after t-upstream t-downstream                 # add dependency edge
 plandb what-if cancel t-xxx                                         # preview before acting
+plandb critical-path                                                 # longest chain
+plandb bottlenecks                                                   # what blocks the most work
 ```
 
 ### Multi-Agent Parallelism
@@ -212,30 +235,22 @@ PLANDB_AGENT=worker-1 plandb go && PLANDB_AGENT=worker-2 plandb go
 ```
 Atomic claiming prevents double-assignment. The graph IS the coordination layer.
 
-### Quality Gates
+### Quality Gates & Hooks
 
 ```bash
 plandb add "Implement" --dep t-schema \
   --pre "schema defines all endpoints" --post "all routes return valid JSON" \
+  --pre-hook 'echo "starting $PLANDB_TASK_TITLE"' \
+  --post-hook 'pytest tests/' \
   --description "..."
-```
-
-### Status & Output
-
-```bash
-plandb status                    # summary
-plandb status --detail           # dependency tree
-plandb status --full             # compound graph (containment + dependencies)
-plandb status --full --verbose   # everything including descriptions and results
-plandb --json -c status          # compact JSON (optimized for LLM context)
-plandb export > template.yaml   # save decomposition as reusable template
-plandb import template.yaml     # apply template
 ```
 
 ### Reference
 - **States**: pending → ready (deps done) → claimed → running → done/failed/cancelled
 - **Handoff**: `--result '{{"key":"val"}}'` on `done` passes data to downstream via `go`
+- **Lazy recall**: `go` auto-surfaces relevant context entries for the claimed task
 - **Scope**: `plandb use t-xxx` zooms into subtree, `plandb use ..` zooms out
+- **Status**: `plandb status [--detail|--full|--full --verbose]`
 - Run `plandb --help` or `plandb <command> --help` to discover all commands"#
     );
 }
@@ -282,6 +297,11 @@ PLAN ADAPTATION:
   POST   /what-if/cancel/:id         Preview cancel effects (read-only)
   GET    /ahead?project_id=X&depth=2 Lookahead buffer
 
+CONTEXT STORE (project knowledge):
+  POST   /context                    Add context entry. Body: {{"project_id": "...", "content": "...", "kind": "discovery"}}
+  GET    /contexts?project_id=X      List context entries (filter: kind, limit)
+  GET    /search?project_id=X&q=Q    BM25 search across context + tasks
+
 STATUS:
   GET    /status?project_id=X        Project progress summary
   GET    /tasks/:id/notes            List notes on task
@@ -295,8 +315,9 @@ EVENTS (real-time):
 - Dependency types: `feeds_into` (default), `blocks`, `suggests`
 - Task kinds: `generic`, `code`, `research`, `review`, `test`, `shell`
 - IDs are short 8-char strings (e.g. `t-a1b2c3d4`)
-- Add `?compact=true` to any GET for token-efficient responses
-- POST /go is the preferred agent entry point — returns task + upstream context
-- POST /tasks/:id/done with result data enables handoff to downstream tasks"#
+- POST /go returns task + relevant context (lazy recall) + upstream handoff
+- POST /tasks/:id/done with result data enables handoff to downstream tasks
+- Context auto-links to running task — no task_id needed
+- Add `?compact=true` to any GET for token-efficient responses"#
     );
 }

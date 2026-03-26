@@ -51,6 +51,8 @@ After each task, reassess. Add new tasks, split complex ones, amend descriptions
 plandb add "title" --description "spec" --dep t-upstream [--as custom-id] [--kind code]
 plandb split --into "A, B, C"                   # independent subtasks (parallel)
 plandb split --into "A > B > C"                 # dependency chain (sequential)
+plandb context "what you discovered" --kind discovery  # record project knowledge
+plandb search "query"                            # BM25 search across context + tasks
 plandb critical-path                             # longest chain — prioritize this
 plandb bottlenecks                               # what's blocking the most work
 plandb list --status ready                       # tasks safe to parallelize NOW
@@ -60,6 +62,9 @@ plandb what-if cancel t-xxx                      # preview before destructive ac
 plandb status --detail                           # dependency tree view
 plandb status --full                             # compound graph view
 ```
+
+Context auto-links to your running task. `plandb go` auto-surfaces relevant context
+(lazy recall) — no need to search manually before starting work.
 
 ### Rules
 - `--description` MUST be a self-contained work order (what to build, files, criteria)
