@@ -127,7 +127,6 @@ prerequisites are complete.
 - Task kinds: `generic`, `code`, `research`, `review`, `test`, `shell`
 - `plandb_go` returns relevant context entries automatically (lazy recall)
 - Tasks can have `pre_hook`/`post_hook` — shell commands at start/completion
-- Templates (`plandb export/import`) carry context entries as institutional knowledge
 - Use `--compact` flag on tools for token-efficient output"#
     );
 }
@@ -244,13 +243,6 @@ plandb add "Implement" --dep t-schema \
   --pre-hook 'echo "starting $PLANDB_TASK_TITLE"' \
   --post-hook 'pytest tests/' \
   --description "..."
-```
-
-### Templates (Replayable Procedures)
-
-```bash
-plandb export > template.yaml   # save structure + context as reusable template
-plandb import template.yaml     # apply template (tasks, deps, hooks, context)
 ```
 
 ### Reference

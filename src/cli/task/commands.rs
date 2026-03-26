@@ -1045,11 +1045,10 @@ pub fn done_cmd(db: &Database, args: DoneArgs, json: bool, compact: bool) -> Res
             }
         }
         if !compact {
+            eprintln!();
             if state.done == state.total && state.total > 0 && state.ready == 0 && state.pending == 0 {
-                eprintln!();
-                eprintln!("all tasks complete! plandb export > template.yaml");
+                eprintln!("all tasks complete!");
             } else {
-                eprintln!();
                 eprintln!("next: plandb go | status --detail | task insert --after {} --before <id>", task.id);
             }
         }
