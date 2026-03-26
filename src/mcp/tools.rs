@@ -888,16 +888,28 @@ fn plandb_task_create(db: &Database, args: Value) -> ToolHandlerResult {
         task.status = TaskStatus::Ready;
     }
 
+    // Validate dependency targets exist before creating the task
+    let mut parsed_deps = Vec::new();
+    for dep in &deps {
+        let kind = parse_dep_kind(&dep.kind)?;
+        if get_task(db, &dep.from).is_err() {
+            return Err(anyhow::anyhow!(
+                "dependency task '{}' not found. Create it first.",
+                dep.from
+            ));
+        }
+        parsed_deps.push((dep.from.clone(), kind));
+    }
+
     let tags = args.tags.unwrap_or_default();
     let created = create_task(db, &task, &tags)?;
 
-    for dep in deps {
-        let kind = parse_dep_kind(&dep.kind)?;
+    for (from_task, kind) in &parsed_deps {
         add_dependency(
             db,
-            &dep.from,
+            from_task,
             &created.id,
-            kind,
+            kind.clone(),
             DependencyCondition::All,
             None,
         )?;

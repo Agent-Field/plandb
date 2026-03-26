@@ -522,14 +522,39 @@ pub fn create_task_cmd(
         updated_at: now,
     };
 
-    let created = create_task(db, &task, &args.tags)?;
+    // Validate all dependency targets exist before creating the task.
+    // Without this check, the task would be created but dependency addition
+    // would fail with a raw FOREIGN KEY error, leaving an orphaned task.
+    let mut parsed_deps = Vec::new();
     for dep in &args.deps {
         let (from_task, kind) = parse_dep_arg(dep)?;
+        match get_task(db, &from_task) {
+            Ok(_) => parsed_deps.push((from_task, kind)),
+            Err(_) => {
+                // Try fuzzy match to give a helpful suggestion
+                if let Ok(fuzzy) = fuzzy_find_task(db, &from_task, Some(&task.project_id)) {
+                    return Err(anyhow!(
+                        "dependency task '{}' not found. Did you mean '{}'? ({})",
+                        from_task,
+                        fuzzy.id,
+                        fuzzy.title
+                    ));
+                }
+                return Err(anyhow!(
+                    "dependency task '{}' not found. Create it first, then add the dependency.",
+                    from_task
+                ));
+            }
+        }
+    }
+
+    let created = create_task(db, &task, &args.tags)?;
+    for (from_task, kind) in &parsed_deps {
         add_dependency(
             db,
-            &from_task,
+            from_task,
             &created.id,
-            kind,
+            kind.clone(),
             DependencyCondition::All,
             None,
         )?;
