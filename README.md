@@ -18,12 +18,6 @@
 
 ---
 
-<div align="center">
-<img src="assets/comparison.png" alt="Your team uses kanban boards. Your agents get a dependency graph." width="90%" />
-</div>
-
-<br/>
-
 Your agents have no issue tracker. No dependencies. No sprints. No idea what to work on next. They start coding before the schema exists, duplicate each other's work, and forget everything between sessions.
 
 PlanDB gives them one. Single binary, SQLite-backed, works with any agent from a prompt alone.
@@ -126,11 +120,21 @@ Pre-trained weights included: `cd experiments/mini-gpt-rust && cargo run --relea
 
 ## Why This Matters
 
-**Plans are graphs, not lists.** Dependencies determine execution order, parallelization, and critical path. No coordinator agent needed — the data structure IS the coordinator.
+Intelligence used to be the bottleneck. Now it's an API call. When reasoning becomes cheap and abundant, the constraint shifts from *thinking* to *coordinating* — and the tools built for humans coordinating at human scale don't work for agents operating at machine scale.
 
-**Plans evolve during execution.** `split` when harder than expected. `insert` a missed step. `pivot` when an approach fails. Dependencies rewire. This isn't failure — it's how planning works.
+Agents parallelize across dozens of branches simultaneously. They decompose a task into subtasks mid-flight when it turns out harder than expected. They pivot entire subtrees when an approach fails. They work across sessions, days apart, inheriting what previous agents discovered. This isn't how humans work — it's a fundamentally different operating model that needs fundamentally different infrastructure.
 
-**Knowledge compounds.** Agent records "the API uses non-standard date formats." Three days later, a different agent claims a frontend task. `plandb go` auto-surfaces that discovery via BM25. Nobody searched for it.
+<div align="center">
+<img src="assets/agent-scale.png" alt="Agent-scale coordination: massive parallelism, deep decomposition, mid-flight adaptation" width="100%" />
+</div>
+
+<br/>
+
+**The graph IS the coordinator.** Dependencies determine execution order, parallelization, and critical path — no orchestrator agent needed. The data structure replaces the meta-agent.
+
+**Plans are hypotheses.** `split` when harder than expected. `insert` a missed step. `pivot` when an approach fails. Dependencies rewire automatically. Adapting isn't failure — it's how planning actually works.
+
+**Knowledge compounds across agents and sessions.** Agent A records a discovery. Three days later, Agent B claims a related task and gets it surfaced automatically via BM25. Nobody searched for it.
 
 ## Under the Hood
 
