@@ -1,10 +1,8 @@
-name: CI
+name: Release
 
 on:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+    tags: ['v*']
 
 permissions:
   contents: write
@@ -27,35 +25,8 @@ jobs:
       - name: Functional tests
         run: bash tests/functional_test.sh
 
-  version:
-    needs: test
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.calc.outputs.version }}
-      tag: ${{ steps.calc.outputs.tag }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Calculate next version
-        id: calc
-        run: |
-          LATEST=$(git tag -l 'v*' --sort=-v:refname | head -1)
-          if [ -z "$LATEST" ]; then
-            TAG="v0.1.0"
-          else
-            PATCH=$(echo "$LATEST" | sed 's/v[0-9]*\.[0-9]*\.//')
-            MAJOR_MINOR=$(echo "$LATEST" | sed 's/\.[0-9]*$//')
-            TAG="${MAJOR_MINOR}.$((PATCH + 1))"
-          fi
-          echo "version=${TAG#v}" >> $GITHUB_OUTPUT
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-          echo "Next release: $TAG"
-
   build:
-    needs: version
+    needs: test
     strategy:
       matrix:
         include:
@@ -94,10 +65,9 @@ jobs:
       - name: Set version in Cargo.toml
         shell: bash
         run: |
-          VERSION="${{ needs.version.outputs.version }}"
+          VERSION="${GITHUB_REF_NAME#v}"
           sed -i.bak "s/^version = \".*\"/version = \"${VERSION}\"/" Cargo.toml
           rm -f Cargo.toml.bak
-          grep '^version' Cargo.toml
 
       - name: Build
         run: cargo build --release --target ${{ matrix.target }}
@@ -119,8 +89,8 @@ jobs:
           name: ${{ matrix.name }}
           path: ${{ matrix.name }}
 
-  release:
-    needs: [version, build]
+  publish:
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -144,8 +114,8 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.version.outputs.tag }}
-          name: Plandb ${{ needs.version.outputs.tag }}
+          tag_name: ${{ github.ref_name }}
+          name: PlanDB ${{ github.ref_name }}
           generate_release_notes: true
           files: |
             artifacts/plandb-linux-x86_64/plandb-linux-x86_64

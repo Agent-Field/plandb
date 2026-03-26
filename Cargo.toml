@@ -2,7 +2,7 @@
 name = "plandb"
 version = "0.1.0"
 edition = "2021"
-description = "Task graph primitive for AI agent orchestration"
+description = "The issue tracker your AI agents are missing"
 license = "Apache-2.0"
 repository = "https://github.com/Agent-Field/plandb"
 
