@@ -18,6 +18,12 @@
 
 ---
 
+<div align="center">
+<img src="assets/comparison.png" alt="Your team uses kanban boards. Your agents get a dependency graph." width="90%" />
+</div>
+
+<br/>
+
 Your agents have no issue tracker. No dependencies. No sprints. No idea what to work on next. They start coding before the schema exists, duplicate each other's work, and forget everything between sessions.
 
 PlanDB gives them one. Single binary, SQLite-backed, works with any agent from a prompt alone.
