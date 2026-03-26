@@ -995,6 +995,8 @@ pub fn batch_create_tasks(db: &Database, tasks: &[Task]) -> Result<usize> {
                 &task.approval_comment,
                 &task.pre_condition,
                 &task.post_condition,
+                &task.pre_hook,
+                &task.post_hook,
                 &metadata,
                 dt_to_sql(task.created_at),
                 dt_to_sql(task.updated_at)
