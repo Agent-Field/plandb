@@ -1,0 +1,28 @@
+name: Feature Request
+description: Suggest a new capability
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the use case. What are you trying to do that PlanDB doesn't support?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How should this work? Include example commands if possible.
+      placeholder: |
+        plandb <new-command> --flag value
+        # expected behavior: ...
+  - type: dropdown
+    id: interface
+    attributes:
+      label: Which interface?
+      options:
+        - CLI
+        - MCP
+        - HTTP
+        - All

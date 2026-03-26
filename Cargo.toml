@@ -2,9 +2,14 @@
 name = "plandb"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.75"
 description = "The issue tracker your AI agents are missing"
 license = "Apache-2.0"
 repository = "https://github.com/Agent-Field/plandb"
+homepage = "https://agentfield.ai"
+readme = "README.md"
+keywords = ["ai-agents", "task-graph", "orchestration", "mcp", "planning"]
+categories = ["command-line-utilities", "database"]
 
 [dependencies]
 # CLI

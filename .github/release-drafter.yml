@@ -1,0 +1,61 @@
+name-template: 'PlanDB v$RESOLVED_VERSION'
+tag-template: 'v$RESOLVED_VERSION'
+template: |
+  ## What's Changed
+
+  $CHANGES
+
+  **Full Changelog**: https://github.com/Agent-Field/plandb/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION
+categories:
+  - title: New Features
+    labels:
+      - feat
+      - enhancement
+  - title: Bug Fixes
+    labels:
+      - bug
+      - fix
+  - title: Improvements
+    labels:
+      - refactor
+      - perf
+  - title: Documentation
+    labels:
+      - docs
+      - documentation
+  - title: CI/CD
+    labels:
+      - ci
+      - chore
+version-resolver:
+  major:
+    labels:
+      - breaking
+  minor:
+    labels:
+      - feat
+      - enhancement
+  patch:
+    labels:
+      - bug
+      - fix
+      - refactor
+      - docs
+  default: patch
+autolabeler:
+  - label: feat
+    title:
+      - '/^feat/i'
+  - label: fix
+    title:
+      - '/^fix/i'
+  - label: docs
+    title:
+      - '/^docs/i'
+  - label: refactor
+    title:
+      - '/^refactor/i'
+  - label: ci
+    title:
+      - '/^ci/i'
+      - '/^chore/i'

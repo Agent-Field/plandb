@@ -1,13 +1,20 @@
 /target/
+**/target/
+
+# SQLite databases (local state)
 *.db
 *.db-wal
 *.db-shm
+
+# OS
 .DS_Store
-experiments/*/plandb.db
-experiments/*/.venv/
-experiments/*/__pycache__/
+
+# Python
 **/__pycache__/
 *.pyc
-docs/plans/
+experiments/*/.venv/
+
+# Local / editor
+.claude/
 .worktrees/
-**/target/
+docs/plans/
