@@ -12,7 +12,7 @@ set -euo pipefail
 
 REPO="Agent-Field/plandb"
 BINARY="plandb"
-INSTALL_DIR="${PLANDB_INSTALL_DIR:-/usr/local/bin}"
+INSTALL_DIR="${PLANDB_INSTALL_DIR:-$HOME/.local/bin}"
 PLANDB_VERSION="${PLANDB_VERSION:-latest}"
 
 # ── Colors ──────────────────────────────────────────────────────────
@@ -86,12 +86,32 @@ install_binary() {
     gh_token=$(gh auth token 2>/dev/null || true)
   fi
 
-  # Download binary
+  # Download binary — try plain curl first (works for public repos),
+  # fall back to gh CLI (handles private repos with auth)
   local downloaded=false
   local tmpfile
   tmpfile=$(mktemp)
 
-  if command -v gh &>/dev/null && gh auth status &>/dev/null; then
+  # Try curl first (fast, no auth needed for public repos)
+  local curl_auth=()
+  if [[ -n "$gh_token" ]]; then
+    curl_auth=(-H "Authorization: token ${gh_token}")
+  fi
+
+  local download_url=""
+  download_url=$(curl -fsSL "${curl_auth[@]}" "$release_url" 2>/dev/null \
+    | grep -o "\"browser_download_url\": *\"[^\"]*${asset_name}[^\"]*\"" \
+    | head -1 \
+    | sed 's/.*"browser_download_url": *"\(.*\)"/\1/' || true)
+
+  if [[ -n "$download_url" ]]; then
+    info "Downloading ${asset_name}..."
+    curl -fsSL "${curl_auth[@]}" "$download_url" -o "$tmpfile"
+    downloaded=true
+  fi
+
+  # Fall back to gh CLI for private repos
+  if [[ "$downloaded" != "true" ]] && command -v gh &>/dev/null && gh auth status &>/dev/null; then
     info "Downloading ${asset_name} via gh CLI..."
     local release_tag="latest"
     if [[ "$PLANDB_VERSION" != "latest" ]]; then
@@ -108,25 +128,6 @@ install_binary() {
       downloaded=true
     fi
     rm -rf "$tmpdir"
-  fi
-
-  if [[ "$downloaded" != "true" ]]; then
-    local curl_auth=()
-    if [[ -n "$gh_token" ]]; then
-      curl_auth=(-H "Authorization: token ${gh_token}")
-    fi
-
-    local download_url=""
-    download_url=$(curl -fsSL "${curl_auth[@]}" "$release_url" 2>/dev/null \
-      | grep -o "\"browser_download_url\": *\"[^\"]*${asset_name}[^\"]*\"" \
-      | head -1 \
-      | sed 's/.*"browser_download_url": *"\(.*\)"/\1/' || true)
-
-    if [[ -n "$download_url" ]]; then
-      info "Downloading ${asset_name}..."
-      curl -fsSL "${curl_auth[@]}" "$download_url" -o "$tmpfile"
-      downloaded=true
-    fi
   fi
 
   if [[ "$downloaded" != "true" ]]; then
@@ -172,15 +173,10 @@ install_binary() {
     fi
   fi
 
-  # Install — use sudo only if needed
-  if [[ -d "$INSTALL_DIR" ]] && [[ -w "$INSTALL_DIR" ]]; then
-    mv "$tmpfile" "${INSTALL_DIR}/${BINARY}"
-  else
-    info "Need permissions for ${INSTALL_DIR} — using sudo"
-    sudo mkdir -p "$INSTALL_DIR"
-    sudo mv "$tmpfile" "${INSTALL_DIR}/${BINARY}"
-    sudo chmod +x "${INSTALL_DIR}/${BINARY}"
-  fi
+  # Install
+  mkdir -p "$INSTALL_DIR"
+  mv "$tmpfile" "${INSTALL_DIR}/${BINARY}"
+  chmod +x "${INSTALL_DIR}/${BINARY}"
 
   ok "Installed to ${INSTALL_DIR}/${BINARY}"
 
@@ -470,7 +466,7 @@ main() {
         echo "  --help         Show this help"
         echo ""
         echo "Environment:"
-        echo "  PLANDB_INSTALL_DIR  Installation directory (default: /usr/local/bin)"
+        echo "  PLANDB_INSTALL_DIR  Installation directory (default: ~/.local/bin)"
         echo "  PLANDB_VERSION      Version to install (default: latest)"
         echo "  GITHUB_TOKEN        GitHub token for authenticated downloads"
         exit 0
