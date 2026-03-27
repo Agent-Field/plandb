@@ -28,7 +28,7 @@ PlanDB gives them one. Single binary, SQLite-backed, works with any agent from a
 curl -fsSL https://raw.githubusercontent.com/Agent-Field/plandb/main/install.sh | bash
 ```
 
-Installs PlanDB and configures your agent framework automatically.
+Installs the latest binary and auto-configures Claude Code, Cursor, Codex, Gemini, OpenCode, Windsurf, and Aider. Run it again anytime to update to the latest release.
 
 <details><summary>More options</summary>
 
