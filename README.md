@@ -25,12 +25,18 @@ PlanDB gives them one. Single binary, SQLite-backed, works with any agent from a
 ## Install
 
 ```bash
-curl -fsSL https://github.com/Agent-Field/plandb/releases/latest/download/plandb-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m) -o /usr/local/bin/plandb && chmod +x /usr/local/bin/plandb
+curl -fsSL https://raw.githubusercontent.com/Agent-Field/plandb/main/install.sh | bash
 ```
 
-<details><summary>From source</summary>
+Installs PlanDB and configures your agent framework automatically.
+
+<details><summary>More options</summary>
 
 ```bash
+curl -fsSL .../install.sh | bash -s -- --all           # Silent (VMs/CI)
+curl -fsSL .../install.sh | bash -s -- --binary-only   # Just the binary
+
+# From source
 cargo install --path .
 ```
 </details>
