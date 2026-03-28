@@ -213,55 +213,132 @@ plandb_instructions() {
   cat << 'PLANDB_BLOCK'
 # PlanDB — Task Planning for Agents
 
-You have `plandb` installed. Use it to decompose work into a dependency graph and track progress.
+<plandb-philosophy>
+You have `plandb` installed. It is your task graph — use it to decompose every non-trivial task into a dependency graph, track progress, and coordinate parallel work.
 
-## When to Use
+**You MUST use PlanDB for any task with more than 2 steps.** Do not rely on mental tracking, inline checklists, or ad-hoc notes. PlanDB is the single source of truth for what needs to be done, what's blocked, what's ready, and what's complete.
 
-- Starting any non-trivial task (>2 steps)
-- Multi-file features, refactors, or bug investigations
-- Work that benefits from dependency ordering or parallelization
+PlanDB is a compound graph with two orthogonal structures:
+- **Containment** (place graph): tasks contain subtasks recursively, to any depth
+- **Dependencies** (link graph): edges between tasks at ANY level, crossing containment boundaries
 
+This is more general than a flat list or a simple DAG. A subtask at depth 3 can depend on a task in a completely different branch.
+</plandb-philosophy>
+
+<plandb-core-loop>
 ## Core Loop
 
+Every task follows this cycle. No exceptions.
+
 ```bash
-plandb init "project-name"                          # Create project
-plandb add "title" --description "spec" --dep t-xxx # Add task with deps
-plandb go                                           # Claim next ready task
+plandb init "project-name"                            # 1. Create project (once)
+plandb add "title" --description "spec" --dep t-xxx   # 2. Build the task graph
+plandb go                                             # 3. Claim next ready task
 # ... do the work ...
-plandb done --next                                  # Complete + claim next
-plandb status --detail                              # Reassess the plan
+plandb done --next                                    # 4. Complete + claim next
+plandb status --detail                                # 5. Reassess after each task
 ```
 
-## Key Commands
+**Description is mandatory.** Every task's `--description` must be a self-contained work order: what to do, which files to touch, acceptance criteria. The title is a label — the description is the spec.
+</plandb-core-loop>
+
+<plandb-decomposition>
+## Decomposition
+
+Break tasks down aggressively. Small tasks complete faster and unlock parallelism.
 
 ```bash
-# Planning
-plandb add "title" --description "detailed spec" --dep t-upstream [--as id] [--kind code]
-plandb split --into "A, B, C"                  # Independent subtasks (parallel)
-plandb split --into "A > B > C"                # Dependency chain (sequential)
-plandb task insert --after t-a --before t-b    # Insert missed step
-plandb task amend t-xxx --prepend "NOTE: ..."  # Annotate future task
+# Split into independent subtasks (creates parallelism)
+plandb split --into "A, B, C"
 
-# Introspection
-plandb status --detail                         # Dependency tree view
-plandb critical-path                           # Longest chain — prioritize this
-plandb bottlenecks                             # What blocks the most work
-plandb list --status ready                     # Tasks safe to parallelize NOW
-plandb what-if cancel t-xxx                    # Preview before destructive action
+# Split with dependency chain (sequential)
+plandb split --into "A > B > C"
 
-# Knowledge
-plandb context "what you discovered" --kind discovery
-plandb search "query"                          # BM25 across context + tasks
+# Scope into a composite task to add deeper subtasks
+plandb use t-xxx
+plandb add "sub-subtask" --description "..."
+plandb use ..                                         # Zoom back out
 ```
 
+Composite tasks auto-complete when all children finish. Split further at any depth.
+</plandb-decomposition>
+
+<plandb-parallelism>
+## Parallel Execution
+
+**When `plandb list --status ready` returns multiple tasks, run them concurrently.** This is where PlanDB creates the most value — it tells you exactly which tasks are independent and safe to parallelize.
+
+```bash
+plandb list --status ready                            # See what can run NOW
+plandb what-unlocks t-xxx                             # What opens up when this completes
+plandb ahead --depth 3                                # Preview next 3 layers of work
+```
+
+If you have access to sub-agents, spawn one per ready task:
+1. Run `plandb list --status ready` to find independent tasks
+2. Each agent claims its task: `plandb go --agent <agent-name>`
+3. Each agent completes: `plandb done --next --agent <agent-name>`
+4. Atomic claiming prevents conflicts — two agents cannot claim the same task
+
+Set `PLANDB_AGENT=<name>` to avoid passing `--agent` on every command.
+</plandb-parallelism>
+
+<plandb-adaptation>
+## Mid-Flight Adaptation
+
+Plans are hypotheses. Adapt as you learn — don't abandon PlanDB when reality diverges from the plan.
+
+| Situation | Command |
+|-----------|---------|
+| Missed a step | `plandb task insert --after t-a --before t-b --title "..."` |
+| Task too large | `plandb split --into "A, B, C"` |
+| New info for a future task | `plandb task amend t-xxx --prepend "NOTE: ..."` |
+| Need to replace a subtree | `plandb task pivot t-xxx --file new-tasks.yaml` |
+| Unsure about cancelling | `plandb what-if cancel t-xxx` |
+</plandb-adaptation>
+
+<plandb-introspection>
+## Introspection
+
+Use these to decide what to work on and where effort is wasted.
+
+```bash
+plandb status --detail                                # Per-task breakdown with status
+plandb status --full                                  # Compound graph: containment + deps
+plandb critical-path                                  # Longest chain — prioritize this
+plandb bottlenecks                                    # Tasks blocking the most downstream work
+plandb watch                                          # Live-updating dashboard
+```
+</plandb-introspection>
+
+<plandb-knowledge>
+## Knowledge Store
+
+Record discoveries as you work. Context persists across sessions and auto-surfaces when relevant.
+
+```bash
+plandb context "what you learned" --kind discovery    # Record project knowledge
+plandb search "query"                                 # BM25 search across context + tasks
+plandb contexts                                       # List all context entries
+```
+
+`--kind` is freeform: `discovery`, `decision`, `pattern`, `blocker`, `reference`, `constraint`, `insight` — use whatever fits. Context auto-links to the running task and auto-surfaces on `plandb go` (lazy recall).
+</plandb-knowledge>
+
+<plandb-rules>
 ## Rules
 
-- `--description` must be a self-contained spec (what, files, acceptance criteria)
-- Create tasks in dependency order (`--dep` upstream must exist)
-- `--kind`: generic, code, research, review, test, shell
-- When `plandb list --status ready` shows multiple → parallelize them
-- Plans are hypotheses — split, insert, and adapt as you learn
-- Record discoveries with `plandb context` — auto-surfaces on `plandb go`
+1. **Use PlanDB for every non-trivial task.** If it has more than 2 steps, decompose it into a graph.
+2. **Description is the spec.** `--description` must contain everything needed to execute: context, approach, files, acceptance criteria.
+3. **Decompose aggressively.** Smaller tasks = more parallelism = faster completion.
+4. **Parallelize ready tasks.** When `plandb list --status ready` returns multiple tasks, run them concurrently — with sub-agents if available.
+5. **Adapt, don't abandon.** When reality changes, use `insert`, `split`, `amend`, `pivot`. Don't stop using PlanDB.
+6. **Record what you learn.** Use `plandb context` for discoveries, blockers, patterns. It auto-surfaces later.
+7. **Check the critical path.** `plandb critical-path` shows what actually determines completion time. Focus there.
+8. **Dependencies flow data.** `feeds_into` = data flows, `blocks` = ordering only, `suggests` = soft/optional.
+9. **Kinds are freeform.** Common: `code`, `research`, `review`, `test`, `shell`, `generic`.
+10. **Status is automatic.** `pending` → `ready` (deps done) → `claimed` → `running` → `done`/`failed`. Don't manage state manually.
+</plandb-rules>
 PLANDB_BLOCK
 }
 
