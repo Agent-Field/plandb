@@ -132,57 +132,71 @@ install_binary() {
 
   if [[ "$downloaded" != "true" ]]; then
     rm -f "$tmpfile"
-    fail "No pre-built binary found for ${OS}/${ARCH}.
 
-  Check available releases at:
-    https://github.com/${REPO}/releases
-
-  Or build from source:
-    git clone https://github.com/${REPO}.git && cd plandb
-    cargo build --release
-    cp target/release/plandb ${INSTALL_DIR}/plandb"
-  fi
-
-  chmod +x "$tmpfile"
-
-  # Verify checksum if available
-  local checksums_url=""
-  checksums_url=$(curl -fsSL "${curl_auth[@]:-}" "$release_url" 2>/dev/null \
-    | grep -o "\"browser_download_url\": *\"[^\"]*checksums[^\"]*\"" \
-    | head -1 \
-    | sed 's/.*"browser_download_url": *"\(.*\)"/\1/' || true)
-
-  if [[ -n "$checksums_url" ]]; then
-    local expected_hash
-    expected_hash=$(curl -fsSL "${curl_auth[@]:-}" "$checksums_url" 2>/dev/null \
-      | grep "${asset_name}$" | awk '{print $1}' || true)
-
-    if [[ -n "$expected_hash" ]]; then
-      local actual_hash=""
-      if command -v sha256sum &>/dev/null; then
-        actual_hash=$(sha256sum "$tmpfile" | awk '{print $1}')
-      elif command -v shasum &>/dev/null; then
-        actual_hash=$(shasum -a 256 "$tmpfile" | awk '{print $1}')
-      fi
-
-      if [[ -n "$actual_hash" && "$actual_hash" != "$expected_hash" ]]; then
-        rm -f "$tmpfile"
-        fail "Checksum mismatch — expected ${expected_hash}, got ${actual_hash}"
-      fi
-      [[ -n "$actual_hash" ]] && ok "Checksum verified"
+    # Download failed — check if plandb is already installed
+    local existing=""
+    if command -v plandb &>/dev/null; then
+      existing=$(plandb --version 2>/dev/null || true)
+    elif [[ -x "${INSTALL_DIR}/${BINARY}" ]]; then
+      existing=$("${INSTALL_DIR}/${BINARY}" --version 2>/dev/null || true)
     fi
+
+    if [[ -n "$existing" ]]; then
+      ok "plandb already installed (${existing}) — using existing binary"
+      info "To upgrade, run again when a new release is published"
+    else
+      warn "No pre-built binary found and plandb is not installed."
+      info "Build from source:"
+      echo -e "    ${DIM}git clone https://github.com/${REPO}.git && cd plandb${RESET}"
+      echo -e "    ${DIM}cargo build --release${RESET}"
+      echo -e "    ${DIM}cp target/release/plandb ${INSTALL_DIR}/plandb${RESET}"
+      echo ""
+      info "Continuing with framework configuration..."
+    fi
+  else
+    chmod +x "$tmpfile"
+
+    # Verify checksum if available
+    local checksums_url=""
+    checksums_url=$(curl -fsSL "${curl_auth[@]:-}" "$release_url" 2>/dev/null \
+      | grep -o "\"browser_download_url\": *\"[^\"]*checksums[^\"]*\"" \
+      | head -1 \
+      | sed 's/.*"browser_download_url": *"\(.*\)"/\1/' || true)
+
+    if [[ -n "$checksums_url" ]]; then
+      local expected_hash
+      expected_hash=$(curl -fsSL "${curl_auth[@]:-}" "$checksums_url" 2>/dev/null \
+        | grep "${asset_name}$" | awk '{print $1}' || true)
+
+      if [[ -n "$expected_hash" ]]; then
+        local actual_hash=""
+        if command -v sha256sum &>/dev/null; then
+          actual_hash=$(sha256sum "$tmpfile" | awk '{print $1}')
+        elif command -v shasum &>/dev/null; then
+          actual_hash=$(shasum -a 256 "$tmpfile" | awk '{print $1}')
+        fi
+
+        if [[ -n "$actual_hash" && "$actual_hash" != "$expected_hash" ]]; then
+          rm -f "$tmpfile"
+          fail "Checksum mismatch — expected ${expected_hash}, got ${actual_hash}"
+        fi
+        [[ -n "$actual_hash" ]] && ok "Checksum verified"
+      fi
+    fi
+
+    # Install
+    mkdir -p "$INSTALL_DIR"
+    mv "$tmpfile" "${INSTALL_DIR}/${BINARY}"
+    chmod +x "${INSTALL_DIR}/${BINARY}"
+
+    ok "Installed to ${INSTALL_DIR}/${BINARY}"
   fi
 
-  # Install
-  mkdir -p "$INSTALL_DIR"
-  mv "$tmpfile" "${INSTALL_DIR}/${BINARY}"
-  chmod +x "${INSTALL_DIR}/${BINARY}"
-
-  ok "Installed to ${INSTALL_DIR}/${BINARY}"
-
-  # Verify
-  if "${INSTALL_DIR}/${BINARY}" --version &>/dev/null; then
-    ok "$(${INSTALL_DIR}/${BINARY} --version 2>/dev/null || echo 'plandb installed')"
+  # Verify (if binary exists anywhere)
+  if command -v plandb &>/dev/null; then
+    ok "plandb $(plandb --version 2>/dev/null || echo 'installed')"
+  elif [[ -x "${INSTALL_DIR}/${BINARY}" ]]; then
+    ok "plandb $("${INSTALL_DIR}/${BINARY}" --version 2>/dev/null || echo 'installed')"
   fi
 
   # Check PATH
@@ -303,13 +317,18 @@ configure_framework() {
     return 0
   fi
 
-  if already_configured "$path"; then
-    ok "${name}: already configured (${path})"
-    return 0
-  fi
-
+  # Create parent directories
   mkdir -p "$(dirname "$path")"
 
+  # If previously configured, strip old block first (for file-append frameworks)
+  if [[ "$method" != "dir" ]] && already_configured "$path"; then
+    local tmp="${path}.plandb-tmp"
+    sed "/${MARKER}/,/${MARKER}/d" "$path" > "$tmp"
+    mv "$tmp" "$path"
+  fi
+
+  # For "file" method: append to existing file (or create)
+  # For "dir" method: create/overwrite file with plandb instructions
   if [[ "$method" == "dir" ]]; then
     {
       echo "$MARKER"
@@ -317,6 +336,7 @@ configure_framework() {
       echo "$MARKER"
     } > "$path"
   else
+    # Append to existing file
     {
       echo ""
       echo "$MARKER"
