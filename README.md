@@ -12,7 +12,7 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-7c3aed.svg?style=flat&labelColor=1e1e2e)](LICENSE)
 [![Last Commit](https://img.shields.io/github/last-commit/Agent-Field/plandb?style=flat&logo=git&logoColor=white&color=7c3aed&labelColor=1e1e2e)](https://github.com/Agent-Field/plandb/commits/main)
 
-**[Paste Into Your Agent](#paste-this-into-your-agent)** · **[Demo](#see-it-work)** · **[Architecture](docs/ARCHITECTURE.md)** · **[Examples](examples/)**
+**[Install](#install)** · **[Demo](#see-it-work)** · **[Architecture](docs/ARCHITECTURE.md)** · **[Examples](examples/)**
 
 </div>
 
@@ -24,46 +24,52 @@ PlanDB gives them one. Single binary, SQLite-backed, works with any agent from a
 
 ## Install
 
+One command. Your agents start using it immediately — no config, no copy-paste, no prompt engineering.
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Agent-Field/plandb/main/install.sh | bash
 ```
 
-Installs the latest binary and auto-configures Claude Code, Cursor, Codex, Gemini, OpenCode, Windsurf, and Aider. Run it again anytime to update to the latest release.
+The installer downloads the binary **and** auto-configures your agents with full planning instructions. Supports Claude Code, Cursor, Codex, Gemini CLI, OpenCode, Windsurf, and Aider. Re-run anytime to update — it's idempotent.
 
-<details><summary>More options</summary>
+<details><summary>More install options</summary>
 
 ```bash
-curl -fsSL .../install.sh | bash -s -- --all           # Silent (VMs/CI)
-curl -fsSL .../install.sh | bash -s -- --binary-only   # Just the binary
+curl -fsSL .../install.sh | bash -s -- --all           # Silent: configure all detected frameworks
+curl -fsSL .../install.sh | bash -s -- --binary-only   # Just the binary, no framework config
 
 # From source
 cargo install --path .
+
+# Custom prompts for other frameworks
+plandb prompt --for cli    # Shell agents (Codex, Aider)
+plandb prompt --for mcp    # MCP agents (Claude Code, Cursor, Windsurf)
+plandb prompt --for http   # HTTP agents (custom, webhooks)
 ```
+
 </details>
 
-## Paste This Into Your Agent
+## Why PlanDB
 
-Copy into your system prompt, `CLAUDE.md`, `.cursorrules`, or MCP config. That's it:
+- **Compound graph, not a flat list.** Tasks contain subtasks to any depth. Dependencies cross containment boundaries. A backend subtask at depth 3 can depend on a frontend task at depth 0. More expressive than DAGs, trees, or kanban boards.
 
-```
-You have plandb installed for task planning. Use it to decompose work and track progress.
+- **The graph IS the orchestrator.** Dependencies determine execution order, parallelization, and critical path — no meta-agent needed. When `plandb list --status ready` returns 5 tasks, 5 agents work in parallel. The data structure replaces the coordinator.
 
-Core loop:    plandb go → work → plandb done --next
-Add tasks:    plandb add "title" --description "detailed spec" --dep t-xxx
-Split:        plandb split --into "A, B, C" (independent) or "A > B > C" (chain)
-Context:      plandb context "what you discovered" --kind discovery
-Search:       plandb search "query" (BM25 across context + tasks)
-Introspect:   plandb critical-path | plandb bottlenecks | plandb what-unlocks <id>
-Status:       plandb status --detail
+- **Knowledge that finds you.** Record discoveries with `plandb context`. Three days later, a different agent claims a related task and gets that context surfaced automatically via BM25. Nobody searched for it. Nobody remembered to pass it along.
 
-Record discoveries and decisions with plandb context as you work.
-plandb go auto-surfaces relevant context — no need to search manually.
-After each completion, reassess: plandb status --detail + plandb critical-path.
-Plans are hypotheses — adapt as you learn.
-When plandb list --status ready shows multiple tasks, parallelize them.
-```
+<details><summary><strong>Everything else</strong></summary>
 
-For richer prompts: `plandb prompt --for cli` · `--for mcp` · `--for http`
+- **Plans that adapt mid-flight.** `split` when harder than expected. `insert` a missed step. `pivot` an entire subtree when an approach fails. Dependencies rewire automatically.
+- **Atomic multi-agent claiming.** `plandb go` uses atomic operations — two agents cannot claim the same task. No locks, no races, no duplicate work.
+- **Critical path analysis.** `plandb critical-path` shows the longest dependency chain. `plandb bottlenecks` shows what blocks the most downstream work. Focus where it matters.
+- **Quality gates.** `--pre "precondition"` and `--post "verify"` attach conditions agents see on claim and completion.
+- **BM25 search across everything.** Tasks, descriptions, context entries, notes — all searchable with `plandb search`.
+- **Zero infrastructure.** Single binary. SQLite. No Docker, no cloud, no config files. Works offline.
+- **Three interfaces.** CLI for shell agents. MCP server for Claude Code / Cursor / Windsurf. HTTP API for custom agents and dashboards.
+- **Export/import patterns.** Save a decomposition as YAML, reuse it across projects. `plandb export` / `plandb import`.
+- **Live dashboard.** `plandb watch` for a terminal-based live view that updates as tasks complete.
+
+</details>
 
 ## See It Work
 
@@ -109,39 +115,6 @@ Pre-trained weights included: `cd experiments/mini-gpt-rust && cargo run --relea
 
 > More in [`experiments/`](experiments/) — docs sites built autonomously by Codex, Claude Code, and Gemini CLI.
 
-## What You Use vs What Your Agents Get
-
-| You use | Your agents get | Why it matters |
-|---|---|---|
-| **Issues** | `plandb add --description "..."` | Work items with full specs, not just prompts |
-| **Dependencies** | `--dep t-schema` | Right execution order, automatically |
-| **Sprint board** | `plandb status --detail` | See what's blocked, ready, running, done |
-| **Assignment** | `plandb go` | Atomic claiming — no two agents grab the same work |
-| **Sub-issues** | `plandb split --into "A, B, C"` | Recursive decomposition to any depth |
-| **Comments** | `plandb context --kind discovery` | Knowledge persists across sessions and agents |
-| **Triage** | `plandb critical-path` | Prioritize the bottleneck, not just the next task |
-| **Search** | `plandb search "query"` | BM25 across everything the project has learned |
-| **Quality gates** | `--pre "..." --post "..."` | Conditions agents see on claim and completion |
-| **Retrospective** | Context auto-surfaces via `plandb go` | Agent B gets what Agent A discovered — automatically |
-
-## Why This Matters
-
-Intelligence used to be the bottleneck. Now it's an API call. When reasoning becomes cheap and abundant, the constraint shifts from *thinking* to *coordinating* — and the tools built for humans coordinating at human scale don't work for agents operating at machine scale.
-
-Agents parallelize across dozens of branches simultaneously. They decompose a task into subtasks mid-flight when it turns out harder than expected. They pivot entire subtrees when an approach fails. They work across sessions, days apart, inheriting what previous agents discovered. This isn't how humans work — it's a fundamentally different operating model that needs fundamentally different infrastructure.
-
-<div align="center">
-<img src="assets/agent-scale.png" alt="Agent-scale coordination: massive parallelism, deep decomposition, mid-flight adaptation" width="100%" />
-</div>
-
-<br/>
-
-**The graph IS the coordinator.** Dependencies determine execution order, parallelization, and critical path — no orchestrator agent needed. The data structure replaces the meta-agent.
-
-**Plans are hypotheses.** `split` when harder than expected. `insert` a missed step. `pivot` when an approach fails. Dependencies rewire automatically. Adapting isn't failure — it's how planning actually works.
-
-**Knowledge compounds across agents and sessions.** Agent A records a discovery. Three days later, Agent B claims a related task and gets it surfaced automatically via BM25. Nobody searched for it.
-
 ## Under the Hood
 
 PlanDB uses a **compound graph** — two orthogonal structures composed:
@@ -162,6 +135,23 @@ graph LR
 ```
 
 A backend subtask can depend on a frontend task directly. Composites auto-complete when children finish. `plandb use t-backend` zooms into a subtree for scoped work.
+
+<details><summary><strong>What your agents get vs what you use</strong></summary>
+
+| You use | Your agents get | Why it matters |
+|---|---|---|
+| **Issues** | `plandb add --description "..."` | Work items with full specs, not just prompts |
+| **Dependencies** | `--dep t-schema` | Right execution order, automatically |
+| **Sprint board** | `plandb status --detail` | See what's blocked, ready, running, done |
+| **Assignment** | `plandb go` | Atomic claiming — no two agents grab the same work |
+| **Sub-issues** | `plandb split --into "A, B, C"` | Recursive decomposition to any depth |
+| **Comments** | `plandb context --kind discovery` | Knowledge persists across sessions and agents |
+| **Triage** | `plandb critical-path` | Prioritize the bottleneck, not just the next task |
+| **Search** | `plandb search "query"` | BM25 across everything the project has learned |
+| **Quality gates** | `--pre "..." --post "..."` | Conditions agents see on claim and completion |
+| **Retrospective** | Context auto-surfaces via `plandb go` | Agent B gets what Agent A discovered — automatically |
+
+</details>
 
 ## Interfaces
 
