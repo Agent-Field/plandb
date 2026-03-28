@@ -216,11 +216,12 @@ plandb_instructions() {
 <plandb-philosophy>
 You have `plandb` installed. It is your task graph — use it to decompose every non-trivial task into a dependency graph, track progress, and coordinate parallel work.
 
-**BEFORE you write any code or make any change, ask yourself: is this a single straightforward edit?**
-- If YES (one file, one clear change, no dependencies) — just do it.
-- If NO — **STOP. Plan in PlanDB first.** Decompose into tasks, set dependencies, then work the graph. Do NOT start implementing until the plan exists in PlanDB.
+**BEFORE you start any task, ask yourself: can this be done in a single action with no dependencies?**
+- If YES (one action, no parallelism possible, no follow-up steps) — just do it.
+- If NO — **STOP. Plan in PlanDB first.** This includes: multiple steps, parallel work, research + execution, anything with dependencies between parts.
+- If there are **2+ independent actions** — that's parallelism. Use PlanDB even if each action is simple.
 
-This is non-negotiable. Every multi-step task must be decomposed in PlanDB before execution begins. The graph tells you what to work on, what to parallelize, and what to skip — but only if you build it first.
+This is non-negotiable. Do NOT justify skipping PlanDB because individual steps are "simple." If there are multiple steps or any opportunity to parallelize, the graph must exist before work begins. PlanDB is not just for code — it's for any task: research, API calls, data analysis, writing, deployment, investigation.
 
 PlanDB is a compound graph with two orthogonal structures:
 - **Containment** (place graph): tasks contain subtasks recursively, to any depth
@@ -243,7 +244,7 @@ plandb done --next                                    # 4. Complete + claim next
 plandb status --detail                                # 5. Reassess after each task
 ```
 
-**Description is mandatory.** Every task's `--description` must be a self-contained work order: what to do, which files to touch, acceptance criteria. The title is a label — the description is the spec.
+**Description is mandatory.** Every task's `--description` must be a self-contained work order: what to do, what to produce, acceptance criteria. The title is a label — the description is the spec.
 </plandb-core-loop>
 
 <plandb-decomposition>
@@ -341,7 +342,7 @@ Your goal is maximum quality at maximum speed. PlanDB enables this — but only 
 
 **Maximize the width of your graph.** The more tasks that are `ready` simultaneously, the more work runs in parallel. Structure dependencies to unlock breadth early:
 - Front-load research and design tasks — they unblock everything downstream.
-- Split implementation by feature or module, not by layer. "Build auth API" and "Build search API" can parallelize. "Build all models" then "build all controllers" cannot.
+- Split work by independent outcome, not by sequential phase. "Fetch ad performance" and "Check audience status" can parallelize. "Gather all data" then "analyze everything" cannot.
 - Use `plandb ahead --depth 3` to check if your graph has enough width.
 
 **Use the critical path to prioritize.** `plandb critical-path` shows the longest chain to completion — that's your bottleneck. If you have a choice between working on something on the critical path or off it, always choose the critical path. `plandb bottlenecks` shows which tasks block the most downstream work.
@@ -352,7 +353,7 @@ Your goal is maximum quality at maximum speed. PlanDB enables this — but only 
 <plandb-rules>
 ## Rules
 
-1. **Use PlanDB for every non-trivial task.** If it has more than 2 steps, decompose it into a graph.
+1. **Use PlanDB for every non-trivial task.** Multiple steps, parallel actions, or dependencies between parts — plan it. This applies to any work: code, research, API calls, analysis, writing, deployment.
 2. **Description is the spec.** `--description` must contain everything needed to execute: context, approach, files, acceptance criteria.
 3. **Maximize graph width.** Structure tasks to unlock as many parallel branches as possible.
 4. **Parallelize ready tasks.** When `plandb list --status ready` returns multiple tasks, run them concurrently — with sub-agents if available.
