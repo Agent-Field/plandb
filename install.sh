@@ -216,7 +216,11 @@ plandb_instructions() {
 <plandb-philosophy>
 You have `plandb` installed. It is your task graph — use it to decompose every non-trivial task into a dependency graph, track progress, and coordinate parallel work.
 
-**You MUST use PlanDB for any task with more than 2 steps.** Do not rely on mental tracking, inline checklists, or ad-hoc notes. PlanDB is the single source of truth for what needs to be done, what's blocked, what's ready, and what's complete.
+**BEFORE you write any code or make any change, ask yourself: is this a single straightforward edit?**
+- If YES (one file, one clear change, no dependencies) — just do it.
+- If NO — **STOP. Plan in PlanDB first.** Decompose into tasks, set dependencies, then work the graph. Do NOT start implementing until the plan exists in PlanDB.
+
+This is non-negotiable. Every multi-step task must be decomposed in PlanDB before execution begins. The graph tells you what to work on, what to parallelize, and what to skip — but only if you build it first.
 
 PlanDB is a compound graph with two orthogonal structures:
 - **Containment** (place graph): tasks contain subtasks recursively, to any depth
