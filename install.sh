@@ -265,12 +265,7 @@ plandb add "sub-subtask" --description "..."
 plandb use ..                                         # Zoom back out
 ```
 
-Decompose at every level:
-- **Project level:** "Build auth system" → schema, API, tests, deploy
-- **Task level:** "Build API" → define routes, implement handlers, add validation
-- **Subtask level:** "Implement handlers" → login handler, register handler, refresh handler
-
-Each split creates new opportunities for parallelism. Composite tasks auto-complete when all children finish.
+**The decomposition rule:** if a task would take more than ~30 seconds to complete, split it further. Keep splitting until each leaf task is a single focused action. Every split is a new opportunity for parallelism — the more leaves your graph has, the more work can happen simultaneously. Composite tasks auto-complete when all children finish.
 </plandb-decomposition>
 
 <plandb-parallelism>
