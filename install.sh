@@ -325,16 +325,36 @@ plandb contexts                                       # List all context entries
 `--kind` is freeform: `discovery`, `decision`, `pattern`, `blocker`, `reference`, `constraint`, `insight` — use whatever fits. Context auto-links to the running task and auto-surfaces on `plandb go` (lazy recall).
 </plandb-knowledge>
 
+<plandb-strategy>
+## Planning Strategy
+
+Your goal is maximum quality at maximum speed. PlanDB enables this — but only if you plan deliberately.
+
+**Think before you add tasks.** Before building the graph, reason about the problem structure:
+- What are the independent dimensions? Those become parallel branches.
+- What has to happen in sequence? Those get `--dep` chains.
+- What will you only learn by doing? Keep those tasks small so pivoting is cheap.
+
+**Maximize the width of your graph.** The more tasks that are `ready` simultaneously, the more work runs in parallel. Structure dependencies to unlock breadth early:
+- Front-load research and design tasks — they unblock everything downstream.
+- Split implementation by feature or module, not by layer. "Build auth API" and "Build search API" can parallelize. "Build all models" then "build all controllers" cannot.
+- Use `plandb ahead --depth 3` to check if your graph has enough width.
+
+**Use the critical path to prioritize.** `plandb critical-path` shows the longest chain to completion — that's your bottleneck. If you have a choice between working on something on the critical path or off it, always choose the critical path. `plandb bottlenecks` shows which tasks block the most downstream work.
+
+**Record context aggressively.** Every discovery, constraint, or decision you make is knowledge that a future task (or a future agent) may need. Use `plandb context` immediately — don't wait until later. It costs almost nothing and compounds over time.
+</plandb-strategy>
+
 <plandb-rules>
 ## Rules
 
 1. **Use PlanDB for every non-trivial task.** If it has more than 2 steps, decompose it into a graph.
 2. **Description is the spec.** `--description` must contain everything needed to execute: context, approach, files, acceptance criteria.
-3. **Decompose aggressively.** Smaller tasks = more parallelism = faster completion.
+3. **Maximize graph width.** Structure tasks to unlock as many parallel branches as possible.
 4. **Parallelize ready tasks.** When `plandb list --status ready` returns multiple tasks, run them concurrently — with sub-agents if available.
-5. **Adapt, don't abandon.** When reality changes, use `insert`, `split`, `amend`, `pivot`. Don't stop using PlanDB.
-6. **Record what you learn.** Use `plandb context` for discoveries, blockers, patterns. It auto-surfaces later.
-7. **Check the critical path.** `plandb critical-path` shows what actually determines completion time. Focus there.
+5. **Prioritize the critical path.** `plandb critical-path` determines completion time. Focus there first.
+6. **Adapt, don't abandon.** When reality changes, use `insert`, `split`, `amend`, `pivot`. Don't stop using PlanDB.
+7. **Record what you learn.** Use `plandb context` for discoveries, blockers, patterns. It auto-surfaces later.
 8. **Dependencies flow data.** `feeds_into` = data flows, `blocks` = ordering only, `suggests` = soft/optional.
 9. **Kinds are freeform.** Common: `code`, `research`, `review`, `test`, `shell`, `generic`.
 10. **Status is automatic.** `pending` → `ready` (deps done) → `claimed` → `running` → `done`/`failed`. Don't manage state manually.

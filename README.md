@@ -6,7 +6,9 @@
 
 ### **The issue tracker your AI agents are missing.**
 
-*Think Linear or Jira — but the users are your agents, not your team.*
+Linear and Jira were built for humans planning at human speed. Your agents decompose tasks mid-flight, parallelize across branches, and pivot entire subtrees when an approach fails — they need infrastructure that keeps up.
+
+PlanDB is that infrastructure. Local-first, single binary, SQLite-backed. No cloud, no accounts, no setup.
 
 [![Stars](https://img.shields.io/github/stars/Agent-Field/plandb?style=flat&logo=github&logoColor=white&color=7c3aed&labelColor=1e1e2e)](https://github.com/Agent-Field/plandb/stargazers)
 [![License](https://img.shields.io/badge/license-Apache%202.0-7c3aed.svg?style=flat&labelColor=1e1e2e)](LICENSE)
@@ -20,7 +22,7 @@
 
 Your agents have no issue tracker. No dependencies. No sprints. No idea what to work on next. They start coding before the schema exists, duplicate each other's work, and forget everything between sessions.
 
-PlanDB gives them one. Single binary, SQLite-backed, works with any agent from a prompt alone.
+PlanDB gives them one — like giving every agent their own Linear workspace, except it's a single binary that runs anywhere.
 
 ## Install
 
@@ -51,23 +53,22 @@ plandb prompt --for http   # HTTP agents (custom, webhooks)
 
 ## Why PlanDB
 
-- **Compound graph, not a flat list.** Tasks contain subtasks to any depth. Dependencies cross containment boundaries. A backend subtask at depth 3 can depend on a frontend task at depth 0. More expressive than DAGs, trees, or kanban boards.
+- **Compound graph, not a flat task list.** Most tools give you a list or a tree. PlanDB is a compound graph — tasks contain subtasks to any depth (like folders), and dependencies connect tasks *across* those boundaries (like symlinks). Your "Build API" subtask inside Backend can directly depend on "Define Schema" inside Database. One `split` turns a stuck task into three parallel subtasks. One `--dep` wires them into the right execution order. That's why agents using PlanDB naturally parallelize — the graph tells them exactly what's independent.
 
-- **The graph IS the orchestrator.** Dependencies determine execution order, parallelization, and critical path — no meta-agent needed. When `plandb list --status ready` returns 5 tasks, 5 agents work in parallel. The data structure replaces the coordinator.
+- **Plans that adapt mid-flight.** Agents don't know the full plan upfront. PlanDB expects that. `split` a task when it turns out harder than expected. `insert` a step you missed between two existing tasks — dependencies rewire automatically. `pivot` an entire subtree when an approach fails. The plan is a living hypothesis, not a static spec.
 
-- **Knowledge that finds you.** Record discoveries with `plandb context`. Three days later, a different agent claims a related task and gets that context surfaced automatically via BM25. Nobody searched for it. Nobody remembered to pass it along.
+- **Knowledge that finds you.** Record discoveries, blockers, and decisions with `plandb context` as you work. When an agent claims a related task days later, that context surfaces automatically via BM25 — no one searched for it, no one remembered to pass it along. Knowledge compounds across agents and sessions.
 
 <details><summary><strong>Everything else</strong></summary>
 
-- **Plans that adapt mid-flight.** `split` when harder than expected. `insert` a missed step. `pivot` an entire subtree when an approach fails. Dependencies rewire automatically.
 - **Atomic multi-agent claiming.** `plandb go` uses atomic operations — two agents cannot claim the same task. No locks, no races, no duplicate work.
 - **Critical path analysis.** `plandb critical-path` shows the longest dependency chain. `plandb bottlenecks` shows what blocks the most downstream work. Focus where it matters.
-- **Quality gates.** `--pre "precondition"` and `--post "verify"` attach conditions agents see on claim and completion.
+- **Pre/post conditions.** `--pre "schema must exist"` and `--post "all tests pass"` attach conditions agents see when claiming and completing tasks.
 - **BM25 search across everything.** Tasks, descriptions, context entries, notes — all searchable with `plandb search`.
 - **Zero infrastructure.** Single binary. SQLite. No Docker, no cloud, no config files. Works offline.
 - **Three interfaces.** CLI for shell agents. MCP server for Claude Code / Cursor / Windsurf. HTTP API for custom agents and dashboards.
 - **Export/import patterns.** Save a decomposition as YAML, reuse it across projects. `plandb export` / `plandb import`.
-- **Live dashboard.** `plandb watch` for a terminal-based live view that updates as tasks complete.
+- **Live terminal dashboard.** `plandb watch` for a real-time view that refreshes as tasks complete.
 
 </details>
 
@@ -94,7 +95,7 @@ Two tasks ready = two agents work in parallel. Atomic claiming prevents conflict
 
 We gave one Claude Code instance one sentence: *"Build a GPT from scratch in Rust, then train it to do tool calling."*
 
-No human intervention. PlanDB orchestrated the entire thing. The agent built a **3,769-line transformer** in pure Rust (zero ML frameworks), then ran **7 RL experiments**. The plan evolved from 6 → 20 tasks — splitting when work proved complex, parallelizing independent experiments, pivoting when REINFORCE collapsed:
+No human intervention. PlanDB planned the entire thing. The agent built a **3,769-line transformer** in pure Rust (zero ML frameworks), then ran **7 RL experiments**. The plan evolved from 6 to 20 tasks — splitting when work proved complex, parallelizing independent experiments, pivoting when REINFORCE collapsed:
 
 ```mermaid
 graph LR
@@ -148,7 +149,7 @@ A backend subtask can depend on a frontend task directly. Composites auto-comple
 | **Comments** | `plandb context --kind discovery` | Knowledge persists across sessions and agents |
 | **Triage** | `plandb critical-path` | Prioritize the bottleneck, not just the next task |
 | **Search** | `plandb search "query"` | BM25 across everything the project has learned |
-| **Quality gates** | `--pre "..." --post "..."` | Conditions agents see on claim and completion |
+| **Pre/post conditions** | `--pre "..." --post "..."` | Conditions agents see on claim and completion |
 | **Retrospective** | Context auto-surfaces via `plandb go` | Agent B gets what Agent A discovered — automatically |
 
 </details>
@@ -163,7 +164,7 @@ A backend subtask can depend on a frontend task directly. Composites auto-comple
 
 ## Part of AgentField
 
-PlanDB is the task planning layer for [**AgentField**](https://github.com/Agent-Field/agentfield) — the open-source AI backend for building and running AI agents. [**SWE-AF**](https://github.com/Agent-Field/SWE-AF) uses PlanDB internally to orchestrate parallel agent workstreams.
+PlanDB is the task planning layer for [**AgentField**](https://github.com/Agent-Field/agentfield) — the open-source AI backend for building and running AI agents. [**SWE-AF**](https://github.com/Agent-Field/SWE-AF) uses PlanDB internally to coordinate parallel agent workstreams.
 
 **[Architecture Docs](docs/ARCHITECTURE.md)** · **[Examples](examples/)** · **[CLI Reference: `plandb --help`](#)**
 
