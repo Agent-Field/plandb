@@ -221,7 +221,7 @@ You have `plandb` installed. It is your task graph — use it to decompose every
 - If NO — **STOP. Plan in PlanDB first.** This includes: multiple steps, parallel work, research + execution, anything with dependencies between parts.
 - If there are **2+ independent actions** — that's parallelism. Use PlanDB even if each action is simple.
 
-This is non-negotiable. Do NOT justify skipping PlanDB because individual steps are "simple." If there are multiple steps or any opportunity to parallelize, the graph must exist before work begins. PlanDB is not just for code — it's for any task: research, API calls, data analysis, writing, deployment, investigation.
+This is non-negotiable. Do NOT justify skipping PlanDB because individual steps are "simple." If there are multiple steps or any opportunity to parallelize, the graph must exist before work begins. PlanDB is for any work you do — not just a specific kind of task.
 
 PlanDB is a compound graph with two orthogonal structures:
 - **Containment** (place graph): tasks contain subtasks recursively, to any depth
@@ -250,7 +250,7 @@ plandb status --detail                                # 5. Reassess after each t
 <plandb-decomposition>
 ## Decomposition
 
-Break tasks down aggressively. Small tasks complete faster and unlock parallelism.
+Break tasks down aggressively — not just at the project level, but within each task. The more granular your graph, the more parallelism you unlock and the faster you recover from failures.
 
 ```bash
 # Split into independent subtasks (creates parallelism)
@@ -265,7 +265,12 @@ plandb add "sub-subtask" --description "..."
 plandb use ..                                         # Zoom back out
 ```
 
-Composite tasks auto-complete when all children finish. Split further at any depth.
+Decompose at every level:
+- **Project level:** "Build auth system" → schema, API, tests, deploy
+- **Task level:** "Build API" → define routes, implement handlers, add validation
+- **Subtask level:** "Implement handlers" → login handler, register handler, refresh handler
+
+Each split creates new opportunities for parallelism. Composite tasks auto-complete when all children finish.
 </plandb-decomposition>
 
 <plandb-parallelism>
@@ -273,17 +278,20 @@ Composite tasks auto-complete when all children finish. Split further at any dep
 
 **When `plandb list --status ready` returns multiple tasks, run them concurrently.** This is where PlanDB creates the most value — it tells you exactly which tasks are independent and safe to parallelize.
 
+**Use sub-agents for parallelism.** If a task would take more than ~30 seconds to complete, and there are other ready tasks, dispatch sub-agents to work on them simultaneously. Don't serialize work that the graph says is independent.
+
 ```bash
 plandb list --status ready                            # See what can run NOW
 plandb what-unlocks t-xxx                             # What opens up when this completes
 plandb ahead --depth 3                                # Preview next 3 layers of work
 ```
 
-If you have access to sub-agents, spawn one per ready task:
+Sub-agent workflow:
 1. Run `plandb list --status ready` to find independent tasks
-2. Each agent claims its task: `plandb go --agent <agent-name>`
-3. Each agent completes: `plandb done --next --agent <agent-name>`
+2. Spawn a sub-agent per ready task — each claims with `plandb go --agent <name>`
+3. Each completes with `plandb done --next --agent <name>`
 4. Atomic claiming prevents conflicts — two agents cannot claim the same task
+5. Collect results and continue with the next wave of ready tasks
 
 Set `PLANDB_AGENT=<name>` to avoid passing `--agent` on every command.
 </plandb-parallelism>
@@ -353,7 +361,7 @@ Your goal is maximum quality at maximum speed. PlanDB enables this — but only 
 <plandb-rules>
 ## Rules
 
-1. **Use PlanDB for every non-trivial task.** Multiple steps, parallel actions, or dependencies between parts — plan it. This applies to any work: code, research, API calls, analysis, writing, deployment.
+1. **Use PlanDB for every non-trivial task.** Multiple steps, parallel actions, or dependencies between parts — plan it.
 2. **Description is the spec.** `--description` must contain everything needed to execute: context, approach, files, acceptance criteria.
 3. **Maximize graph width.** Structure tasks to unlock as many parallel branches as possible.
 4. **Parallelize ready tasks.** When `plandb list --status ready` returns multiple tasks, run them concurrently — with sub-agents if available.
