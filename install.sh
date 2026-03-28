@@ -501,7 +501,7 @@ select_frameworks() {
     local path=$(framework_path "$entry")
     local marker=""
     if already_configured "$path" 2>/dev/null; then
-      marker=" ${DIM}(already configured)${RESET}"
+      marker=" ${DIM}(will update)${RESET}"
     fi
     echo -e "    ${DIM}${i}.${RESET} ${name}${marker}"
     i=$((i + 1))
