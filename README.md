@@ -51,6 +51,47 @@ plandb prompt --for http   # HTTP agents (custom, webhooks)
 
 </details>
 
+### What Gets Installed
+
+| Framework | What's configured | How it works |
+|---|---|---|
+| **Claude Code** | Rules file (`~/.claude/rules/plandb.md`) + Skill (`~/.claude/skills/plandb/`) | Always-on rules make agents plan automatically. The `/plandb` skill adds a structured 6-phase workflow with command gotchas and anti-patterns. |
+| **Cursor** | Manual (instructions printed) | Paste into Cursor Settings → General → Rules for AI |
+| **Codex** | `~/.codex/AGENTS.override.md` | Appended to agent instructions |
+| **Gemini CLI** | `~/.gemini/GEMINI.md` | Appended to agent instructions |
+| **Others** | Framework-specific config files | Aider, OpenCode, Windsurf — appended to their instruction files |
+
+## Try It Now
+
+Copy-paste this into your terminal to see PlanDB plan and execute a small project:
+
+```bash
+# 1. Create a project
+plandb init "todo-api"
+
+# 2. Build a task graph with dependencies
+plandb add "Design data model" --as model --kind research \
+  --description "Define Todo struct: id, title, completed, created_at. Choose storage approach."
+plandb add "Implement CRUD handlers" --as crud --kind code --dep t-model \
+  --description "Create, Read, Update, Delete endpoints following REST conventions."
+plandb add "Add validation" --as validate --kind code --dep t-model \
+  --description "Validate title length (1-200 chars), reject empty titles."
+plandb add "Write tests" --as tests --kind test --dep t-crud --dep t-validate \
+  --description "Table-driven tests for all endpoints. Cover happy path + edge cases."
+
+# 3. See the plan
+plandb status --detail
+
+# 4. Start working — PlanDB picks the right task
+plandb go                  # Claims "Design data model" (only ready task)
+plandb done --next         # Complete it → "CRUD handlers" and "Validation" both become ready
+
+# 5. Two tasks ready = two agents can work in parallel
+plandb list --status ready # Shows t-crud and t-validate — independent, parallelizable
+```
+
+Now tell your agent: *"Build a todo API"* — it will use PlanDB to plan, parallelize, and adapt automatically.
+
 ## Why PlanDB
 
 - **Compound graph, not a flat task list.** Most tools give you a list or a tree. PlanDB is a compound graph — tasks contain subtasks to any depth (like folders), and dependencies connect tasks *across* those boundaries (like symlinks). Your "Build API" subtask inside Backend can directly depend on "Define Schema" inside Database. One `split` turns a stuck task into three parallel subtasks. One `--dep` wires them into the right execution order. That's why agents using PlanDB naturally parallelize — the graph tells them exactly what's independent.
