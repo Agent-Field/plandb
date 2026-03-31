@@ -63,22 +63,21 @@ plandb prompt --for http   # HTTP agents (custom, webhooks)
 
 ## Try It Now
 
-After installing, open your AI agent (Claude Code, Codex, Gemini CLI, etc.) and paste this prompt:
+After installing, open your AI agent and paste one of these prompts:
 
+**Claude Code** (uses the `/plandb` skill for structured planning):
 ```
-Build a CLI todo app in Python with add, list, complete, and delete commands.
+/plandb Build a CLI todo app in Python with add, list, complete, and delete commands.
 Store todos in a local JSON file. Include tests.
 ```
 
-Your agent will automatically use PlanDB to:
-1. **Decompose** the task into a dependency graph (schema → commands → storage → tests)
-2. **Parallelize** independent work (e.g., `add` and `list` commands don't depend on each other)
-3. **Track progress** with `plandb go` / `plandb done --next`
-4. **Record discoveries** as it works (`plandb context`)
+**Any agent** (Codex, Gemini CLI, Cursor, etc.):
+```
+Use plandb to plan and build a CLI todo app in Python with add, list, complete,
+and delete commands. Store todos in a local JSON file. Include tests.
+```
 
-Watch the terminal — you'll see `plandb init`, `plandb add`, `plandb go`, `plandb done` calls as the agent plans and executes autonomously.
-
-**In Claude Code**, the installer also sets up the `/plandb` skill — a structured 6-phase workflow with command gotchas and anti-patterns that the agent follows automatically.
+Watch the terminal — the agent will decompose the task into a dependency graph, parallelize independent work, and track progress with `plandb go` / `plandb done --next` automatically.
 
 ## Why PlanDB
 
