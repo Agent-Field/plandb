@@ -370,6 +370,445 @@ Your goal is maximum quality at maximum speed. PlanDB enables this — but only 
 PLANDB_BLOCK
 }
 
+# ── Claude Code skill content ──────────────────────────────────────
+
+SKILL_DIR="${HOME}/.claude/skills/plandb"
+SKILL_MARKER="<!-- plandb-skill -->"
+
+plandb_skill_content() {
+  cat << 'SKILL_BLOCK'
+---
+name: plandb
+description: "Enforce PlanDB task graph usage for all non-trivial work. Triggers on multi-step tasks, parallel work, feature implementation, refactoring, or any request with dependencies. Ensures proper init, decomposition, parallelism, context recording, and critical-path prioritization."
+allowed-tools: [Bash, Agent, Read, Write, Edit, Grep, Glob]
+version: 1.0.0
+---
+
+# PlanDB — Mandatory Task Planning Workflow
+
+<purpose>
+This skill enforces disciplined use of the PlanDB task graph for every non-trivial task.
+It is a **rigid** skill — follow the phases exactly. Do not skip steps or rationalize shortcuts.
+</purpose>
+
+## Command Gotchas (READ FIRST — common mistakes)
+
+<critical-command-rules>
+
+**These are the most common PlanDB mistakes. Memorize them.**
+
+| WRONG | WHY IT FAILS | CORRECT |
+|-------|-------------|---------|
+| `plandb go t-xxx` | `go` takes NO positional args. It auto-picks the next ready task. | `plandb task claim t-xxx` (to claim a specific task) |
+| `plandb task complete t-xxx` | No `complete` subcommand exists. | `plandb done` or `plandb task done` |
+| `plandb task finish t-xxx` | No `finish` subcommand exists. | `plandb done` or `plandb task done` |
+| `plandb go && plandb done` | You must do the actual work between `go` and `done`. | `plandb go` → do work → `plandb done` |
+| `plandb done t-xxx` | `done` completes the *currently running* task. No task ID arg. | `plandb task claim t-xxx && plandb task start t-xxx` then `plandb done` |
+| `plandb add "title"` (no description) | Description is mandatory — title is just a label. | `plandb add "title" --description "full spec"` |
+| `plandb status t-xxx` | `status` is project-level. To see one task: | `plandb show t-xxx` or `plandb task get t-xxx` |
+
+**Key command semantics:**
+- **`plandb go`** = claim + start the next ready task (no args, auto-selects)
+- **`plandb task claim <id>`** = claim a *specific* task by ID
+- **`plandb done`** = complete the currently running task (no task ID arg)
+- **`plandb done --next`** = complete current + auto-claim next ready task
+- **`plandb show <id>`** = view details of a specific task
+- **`plandb list --status ready`** = see all claimable tasks
+
+</critical-command-rules>
+
+---
+
+## Decision Gate (MUST run first)
+
+Before ANY work, answer this question:
+
+> **Can this task be completed in a single action with no dependencies and no parallelism opportunity?**
+
+- **YES** (truly single action) → Do it directly. PlanDB not needed.
+- **NO** (multiple steps, parallel branches, dependencies, research + execution) → **STOP. Enter PlanDB workflow below.**
+- **2+ independent actions** (even if each is simple) → That's parallelism. **Use PlanDB.**
+
+```
+EXAMPLES — USE PLANDB:
+  "Add auth to the API"              → research + schema + handler + tests + review
+  "Fix these 3 bugs"                 → 3 independent fixes = parallel branches
+  "Refactor the storage layer"       → plan + multiple files + tests
+  "Build a dashboard page"           → API + components + styling + wiring
+
+EXAMPLES — SKIP PLANDB:
+  "Rename this variable"             → single find-and-replace
+  "What does this function do?"      → read + explain
+  "Add a comment to line 42"         → single edit
+```
+
+---
+
+## Phase 0: Project Bootstrap
+
+**Detect existing state before creating anything.**
+
+```bash
+# Step 1: Check for existing PlanDB database in the working directory
+ls .plandb.db 2>/dev/null
+
+# Step 2: If database exists, check active projects
+plandb project list --compact 2>/dev/null
+
+# Step 3: Check current scope
+plandb status 2>/dev/null
+```
+
+### Decision Tree
+
+```dot
+digraph bootstrap {
+  "Check .plandb.db exists" -> "DB found" [label="yes"];
+  "Check .plandb.db exists" -> "No DB" [label="no"];
+
+  "DB found" -> "plandb project list";
+  "plandb project list" -> "Active project matches task?" [label="projects exist"];
+  "plandb project list" -> "plandb init 'task-name'" [label="no projects"];
+
+  "Active project matches task?" -> "plandb use <project>" [label="yes, reuse"];
+  "Active project matches task?" -> "plandb init 'new-task'" [label="no, new project"];
+
+  "No DB" -> "plandb init 'task-name'" [label="creates .plandb.db"];
+
+  "plandb use <project>" -> "Phase 1: Decomposition";
+  "plandb init 'task-name'" -> "Phase 1: Decomposition";
+  "plandb init 'new-task'" -> "Phase 1: Decomposition";
+}
+```
+
+**Rules:**
+- If a `.plandb.db` exists and has a project matching the current task scope, **reuse it** with `plandb use <project>`.
+- If a `.plandb.db` exists but the current task is unrelated, create a **new project** in the same database with `plandb init "new-task-name"`.
+- If no `.plandb.db` exists, `plandb init "task-name"` creates both the database and the project.
+- Project names should be short, descriptive kebab-case: `auth-system`, `dashboard-redesign`, `fix-memory-leak`.
+- **NEVER** use `PLANDB_DB` to point at a global/shared database unless the user explicitly requests it. Default to per-directory `.plandb.db`.
+
+### Shared Database (only if user requests)
+
+If the user says "use a common plandb" or "shared database":
+
+```bash
+export PLANDB_DB=~/.plandb/shared.db
+plandb init "task-name"
+```
+
+---
+
+## Phase 1: Decomposition
+
+**Think before adding tasks.** Reason about the problem structure:
+
+1. **What are the independent dimensions?** → Those become parallel branches (no `--dep`).
+2. **What must happen in sequence?** → Those get `--dep` chains.
+3. **What will you only learn by doing?** → Keep those tasks small so pivoting is cheap.
+4. **What's the critical path?** → Front-load research/design tasks that unblock everything.
+
+### Building the Graph
+
+```bash
+# Add root-level tasks with full descriptions
+plandb add "Design API schema" \
+  --kind research \
+  --description "Review existing models in src/models/. Design REST endpoints for user CRUD. Output: endpoint list with request/response shapes. Acceptance: covers all user stories from the spec." \
+  --as schema
+
+plandb add "Implement handlers" \
+  --kind code \
+  --dep t-schema \
+  --description "Create handler functions for each endpoint from the schema design. Follow existing patterns in src/handlers/. Each handler must have input validation. Acceptance: all endpoints return correct status codes." \
+  --as handlers
+
+plandb add "Write tests" \
+  --kind test \
+  --dep t-schema \
+  --description "Write unit + integration tests for all endpoints. Use table-driven tests. Target 80%+ coverage. Acceptance: all tests pass, coverage verified." \
+  --as tests
+
+# Independent tasks (no --dep) = parallel branches
+plandb add "Update README" \
+  --kind generic \
+  --description "Add API documentation section. Include endpoint table, auth requirements, example requests." \
+  --as docs
+```
+
+### Decomposition Rules
+
+| Guideline | Why |
+|-----------|-----|
+| **Every task MUST have `--description`** | Description is the spec. Title is just a label. |
+| **If a task takes >30 seconds, split it** | Smaller = more parallelism, cheaper pivots |
+| **Split by outcome, not by phase** | "Auth handler" + "User handler" parallelizes. "Write all handlers" then "test all" does not. |
+| **Use `--kind`** | `code`, `research`, `review`, `test`, `shell`, `generic` — helps prioritization |
+| **Use `--pre` and `--post` for quality gates** | `--pre "schema doc exists"` / `--post "all tests pass"` |
+| **Use `--as` for readable IDs** | `--as auth` creates `t-auth` — easier than `t-k3m9` |
+
+### Splitting Existing Tasks
+
+When a task turns out to be too large mid-execution:
+
+```bash
+# Parallel split (independent subtasks)
+plandb split --into "Validate input, Transform data, Write response"
+
+# Sequential split (dependency chain)
+plandb split --into "Parse request > Validate > Execute > Respond"
+
+# Deep nesting — scope into a composite, add subtasks
+plandb use t-handlers
+plandb add "Auth middleware" --kind code --description "..."
+plandb add "Rate limiter" --kind code --description "..."
+plandb use ..
+```
+
+**Composite tasks auto-complete when all children finish.** Never manually mark a composite task as done.
+
+---
+
+## Phase 2: Validate the Graph
+
+**Before starting ANY work, verify the graph is well-formed.**
+
+```bash
+# Check graph structure
+plandb status --full
+
+# Verify critical path makes sense
+plandb critical-path
+
+# Check for bottlenecks
+plandb bottlenecks
+
+# Preview first 3 waves of work
+plandb ahead --depth 3
+```
+
+### Quality Checks
+
+- [ ] **Width check**: Are there 2+ tasks with `ready` status? If the graph is purely sequential, reconsider — can anything parallelize?
+- [ ] **Description check**: Does every leaf task have a self-contained `--description`? Could a sub-agent execute it without additional context?
+- [ ] **Dependency check**: Are dependencies minimal? Don't add deps "just in case" — only where data flows or ordering is genuinely required.
+- [ ] **Granularity check**: Is every leaf task completable in <30 seconds? If not, plan to split during execution.
+
+---
+
+## Phase 3: Execute
+
+### The Core Loop
+
+```bash
+# 1. Claim next ready task
+plandb go
+
+# 2. Do the work (the task description is your spec)
+
+# 3. Record any discoveries immediately
+plandb context "learned that X uses Y pattern" --kind discovery
+
+# 4. Complete + claim next
+plandb done --next
+
+# 5. Reassess after each task
+plandb status --detail
+```
+
+### Parallel Execution (CRITICAL)
+
+**When `plandb list --status ready` returns multiple tasks, run them concurrently.**
+
+```bash
+# Check what's ready
+plandb list --status ready
+
+# If multiple tasks ready → spawn sub-agents
+# Each agent claims atomically — no conflicts possible
+```
+
+**Sub-agent dispatch pattern:**
+
+1. Run `plandb list --status ready` — get list of independent tasks.
+2. For each ready task, spawn a sub-agent with:
+   - The task description as the prompt
+   - `PLANDB_AGENT=<agent-name>` set in environment
+   - Instructions to run `plandb go --agent <name>` then `plandb done --next --agent <name>`
+3. Collect results from all sub-agents.
+4. Run `plandb status --detail` to see what unlocked.
+5. Repeat with next wave of ready tasks.
+
+**Never serialize work that the graph says is independent.**
+
+### Critical Path Priority
+
+When choosing what to work on:
+
+```bash
+plandb critical-path    # Shows the longest chain — this determines total completion time
+plandb bottlenecks      # Shows tasks blocking the most downstream work
+```
+
+**Rule: Always prefer critical-path tasks over non-critical ones.** Off-critical work can wait; critical-path delays extend the total timeline.
+
+---
+
+## Phase 4: Adapt Mid-Flight
+
+**Plans are hypotheses. When reality changes, adapt — never abandon PlanDB.**
+
+| Situation | Action |
+|-----------|--------|
+| Discovered a missed step | `plandb task insert --after t-a --before t-b --title "..." --description "..."` |
+| Current task is too large | `plandb split --into "A, B, C"` (from within the running task) |
+| Learned something a future task needs | `plandb task amend t-xxx --prepend "NOTE: discovered that ..."` |
+| Need to replace an entire approach | `plandb task pivot t-xxx --file new-tasks.yaml` |
+| Considering cancelling a branch | `plandb what-if cancel t-xxx` (preview first!) |
+| New dependency discovered | `plandb task add-dep --from t-src --to t-dst` |
+
+**Never skip adaptation.** If you find yourself working outside the graph, STOP and update the graph first. The graph is your source of truth.
+
+---
+
+## Phase 5: Record Knowledge
+
+**Record context aggressively throughout execution.**
+
+```bash
+# Discoveries — technical findings
+plandb context "API requires OAuth2 bearer tokens, not API keys" --kind discovery
+
+# Decisions — choices made and why
+plandb context "chose SQLite over Postgres for local dev: simpler setup, sufficient scale" --kind decision
+
+# Patterns — reusable approaches found
+plandb context "all handlers in this codebase follow the middleware(validate(handle())) pattern" --kind pattern
+
+# Blockers — things that are stuck
+plandb context "CI pipeline timeout at 10min, need to split test suite" --kind blocker
+
+# Constraints — boundaries that limit solutions
+plandb context "must maintain backward compat with v2 API clients" --kind constraint
+```
+
+**Context auto-links to the running task and auto-surfaces on `plandb go`.** Record immediately — don't wait until later. It costs nothing and compounds over time.
+
+---
+
+## Phase 6: Completion
+
+When all tasks are done:
+
+```bash
+# Final status check
+plandb status --detail
+
+# Verify nothing left
+plandb list --status ready
+plandb list --status running
+
+# Review what was learned
+plandb contexts
+```
+
+**A project is complete when `plandb status` shows 100% and no tasks are `ready` or `running`.**
+
+---
+
+## Anti-Patterns (NEVER do these)
+
+| Anti-Pattern | Why It's Wrong | Do This Instead |
+|-------------|----------------|-----------------|
+| Skip PlanDB because "it's simple" | Multi-step is multi-step, regardless of individual step complexity | Use the Decision Gate honestly |
+| Add tasks without `--description` | Title is a label, not a spec. Sub-agents can't execute labels. | Write self-contained descriptions |
+| Create a purely sequential graph | No parallelism = no speed gain from PlanDB | Find independent dimensions and split |
+| Work outside the graph | Untracked work can't be coordinated or resumed | Update the graph, then work |
+| Abandon PlanDB when plans change | The whole point is adaptation | Use `insert`, `amend`, `pivot`, `split` |
+| Manually manage task status | PlanDB handles state transitions automatically | Use `go`, `done`, `fail` — never set status directly |
+| Serialize ready tasks | Wastes the parallelism PlanDB provides | Dispatch sub-agents for concurrent ready tasks |
+| Forget to record context | Knowledge is lost between sessions | Use `plandb context` immediately on any discovery |
+| Create tasks with no deps when deps exist | Graph won't enforce ordering | Think about data flow and add proper `--dep` edges |
+| `plandb go t-xxx` | `go` takes NO args — it auto-selects | Use `plandb task claim t-xxx` to claim a specific task |
+| `plandb task complete` | No such subcommand | Use `plandb done` or `plandb task done` |
+| `plandb go && done && go && done` chaining | Must do actual work between go and done | `go` → work → `done --next` → work → `done --next` |
+| Passing task ID to `plandb done` | `done` completes the currently running task | Just `plandb done` — it knows which task is running |
+
+---
+
+## Quick Reference
+
+```
+BOOTSTRAP:
+  plandb init "name"                          Create project + DB
+  plandb project list                         List existing projects
+  plandb use <project>                        Switch to existing project
+
+BUILD GRAPH:
+  plandb add "title" --description "spec"     Add task (ALWAYS use --description)
+  plandb add "t" --dep t-xxx --as my-id       Add with dependency + custom ID
+  plandb split --into "A, B, C"               Parallel split
+  plandb split --into "A > B > C"             Sequential split
+  plandb use t-xxx / plandb use ..            Navigate hierarchy
+
+EXECUTE:
+  plandb go                                   Claim next ready task (NO args!)
+  plandb task claim t-xxx                     Claim a SPECIFIC task by ID
+  plandb done                                 Complete current task (NO task ID arg!)
+  plandb done --next                          Complete + claim next
+  plandb done --result '{"key":"val"}'        Complete with structured output
+  plandb show t-xxx                           View details of a specific task
+
+INTROSPECT:
+  plandb status --detail                      Per-task breakdown
+  plandb status --full                        Full compound graph
+  plandb critical-path                        Longest chain (prioritize this)
+  plandb bottlenecks                          Most-blocking tasks
+  plandb list --status ready                  What can run NOW
+  plandb ahead --depth 3                      Preview next 3 waves
+
+ADAPT:
+  plandb task insert --after t-a --before t-b Insert step
+  plandb task amend t-xxx --prepend "NOTE:"   Annotate future task
+  plandb task pivot t-xxx --file tasks.yaml   Replace subtree
+  plandb what-if cancel t-xxx                 Preview cancel effects
+
+KNOWLEDGE:
+  plandb context "learned X" --kind discovery Record knowledge
+  plandb search "query"                       Search everything
+  plandb contexts                             List all context entries
+
+MULTI-AGENT:
+  plandb go --agent worker-1                  Agent-specific claiming
+  plandb done --next --agent worker-1         Agent-specific completion
+  PLANDB_AGENT=worker-1                       Set default agent ID
+```
+SKILL_BLOCK
+}
+
+plandb_skillkit_json() {
+  local now
+  now=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+  cat <<EOF
+{
+  "name": "plandb",
+  "description": "Enforce PlanDB task graph usage for all non-trivial work. Ensures proper init, decomposition, parallelism, context recording, and critical-path prioritization.",
+  "source": "local",
+  "sourceType": "local",
+  "subpath": "plandb",
+  "installedAt": "${now}",
+  "enabled": true
+}
+EOF
+}
+
+install_claude_skill() {
+  mkdir -p "$SKILL_DIR"
+  plandb_skill_content > "${SKILL_DIR}/SKILL.md"
+  plandb_skillkit_json > "${SKILL_DIR}/.skillkit.json"
+  ok "Claude Code skill: installed (${SKILL_DIR}/)"
+}
+
 # ── Framework configuration ─────────────────────────────────────────
 
 FRAMEWORKS=(
@@ -459,6 +898,11 @@ configure_framework() {
     else
       echo "read: ${HOME}/.aider.conventions.md" > "$aider_conf"
     fi
+  fi
+
+  # Install Claude Code skill alongside the rules file
+  if [[ "$id" == "claude" ]]; then
+    install_claude_skill
   fi
 
   ok "${name}: configured (${path})"
