@@ -63,34 +63,22 @@ plandb prompt --for http   # HTTP agents (custom, webhooks)
 
 ## Try It Now
 
-Copy-paste this into your terminal to see PlanDB plan and execute a small project:
+After installing, open your AI agent (Claude Code, Codex, Gemini CLI, etc.) and paste this prompt:
 
-```bash
-# 1. Create a project
-plandb init "todo-api"
-
-# 2. Build a task graph with dependencies
-plandb add "Design data model" --as model --kind research \
-  --description "Define Todo struct: id, title, completed, created_at. Choose storage approach."
-plandb add "Implement CRUD handlers" --as crud --kind code --dep t-model \
-  --description "Create, Read, Update, Delete endpoints following REST conventions."
-plandb add "Add validation" --as validate --kind code --dep t-model \
-  --description "Validate title length (1-200 chars), reject empty titles."
-plandb add "Write tests" --as tests --kind test --dep t-crud --dep t-validate \
-  --description "Table-driven tests for all endpoints. Cover happy path + edge cases."
-
-# 3. See the plan
-plandb status --detail
-
-# 4. Start working — PlanDB picks the right task
-plandb go                  # Claims "Design data model" (only ready task)
-plandb done --next         # Complete it → "CRUD handlers" and "Validation" both become ready
-
-# 5. Two tasks ready = two agents can work in parallel
-plandb list --status ready # Shows t-crud and t-validate — independent, parallelizable
+```
+Build a CLI todo app in Python with add, list, complete, and delete commands.
+Store todos in a local JSON file. Include tests.
 ```
 
-Now tell your agent: *"Build a todo API"* — it will use PlanDB to plan, parallelize, and adapt automatically.
+Your agent will automatically use PlanDB to:
+1. **Decompose** the task into a dependency graph (schema → commands → storage → tests)
+2. **Parallelize** independent work (e.g., `add` and `list` commands don't depend on each other)
+3. **Track progress** with `plandb go` / `plandb done --next`
+4. **Record discoveries** as it works (`plandb context`)
+
+Watch the terminal — you'll see `plandb init`, `plandb add`, `plandb go`, `plandb done` calls as the agent plans and executes autonomously.
+
+**In Claude Code**, the installer also sets up the `/plandb` skill — a structured 6-phase workflow with command gotchas and anti-patterns that the agent follows automatically.
 
 ## Why PlanDB
 
