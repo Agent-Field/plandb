@@ -29,7 +29,7 @@ PlanDB gives them one — like giving every agent their own Linear workspace, ex
 One command. Your agents start using it immediately — no config, no copy-paste, no prompt engineering.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Agent-Field/plandb/main/install.sh | bash
+curl -fsSL https://agentfield.ai/plandb/install | bash
 ```
 
 The installer downloads the binary **and** auto-configures your agents with full planning instructions. Supports Claude Code, Cursor, Codex, Gemini CLI, OpenCode, Windsurf, and Aider. Re-run anytime to update — it's idempotent.
@@ -37,8 +37,8 @@ The installer downloads the binary **and** auto-configures your agents with full
 <details><summary>More install options</summary>
 
 ```bash
-curl -fsSL .../install.sh | bash -s -- --all           # Silent: configure all detected frameworks
-curl -fsSL .../install.sh | bash -s -- --binary-only   # Just the binary, no framework config
+curl -fsSL https://agentfield.ai/plandb/install | bash -s -- --all           # Silent: configure all detected frameworks
+curl -fsSL https://agentfield.ai/plandb/install | bash -s -- --binary-only   # Just the binary, no framework config
 
 # From source
 cargo install --path .
