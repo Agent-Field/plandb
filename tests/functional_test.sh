@@ -639,6 +639,18 @@ assert_eq "get returns post_condition" "all endpoints return JSON" "$(jq_field "
 PLAIN_TASK=$($PLANDB --db "$DB" --json task create --project "$PROJ_ID" "No Conditions")
 assert_eq "no pre_condition is empty" "" "$(jq_field "$PLAIN_TASK" "pre_condition")"
 
+# Verify pre/post condition surfaces in go/done text output (not just JSON)
+COND_PROJ=$($PLANDB --db "$DB" --json project create "conditions-surfacing")
+COND_PROJ_ID=$(jq_field "$COND_PROJ" "id")
+$PLANDB --db "$DB" --json task create --project "$COND_PROJ_ID" "Conditioned Go" --pre "env vars set" --post "result must include summary" >/dev/null
+GO_TEXT=$($PLANDB --db "$DB" task go --project "$COND_PROJ_ID" --agent cond-agent 2>&1 || true)
+assert_contains "go text output shows pre-condition" "pre-condition: env vars set" "$GO_TEXT"
+assert_contains "go text output shows post-condition" "post-condition (acceptance): result must include summary" "$GO_TEXT"
+
+# done without --result on a task with post_condition should hint + echo acceptance criteria
+DONE_HINT=$($PLANDB --db "$DB" task done --agent cond-agent 2>&1 || true)
+assert_contains "done hints about post-condition when no result" "post-condition" "$DONE_HINT"
+
 echo ""
 
 # ─────────────────────────────────────────────

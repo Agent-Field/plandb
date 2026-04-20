@@ -877,6 +877,11 @@ pub fn go_cmd(db: &Database, args: &GoArgs, json: bool) -> Result<()> {
             eprintln!("pre-condition: {}", pre);
         }
 
+        if let Some(post) = response["task"]["post_condition"].as_str() {
+            eprintln!();
+            eprintln!("post-condition (acceptance): {}", post);
+        }
+
         // Concise action hints — just the essentials
         if !json {
             let ready = response["remaining"]["ready"].as_u64().unwrap_or(0);
@@ -977,11 +982,18 @@ pub fn done_cmd(db: &Database, args: DoneArgs, json: bool, compact: bool) -> Res
     let has_downstream = list_dependencies(db, &task.id)
         .map(|deps| deps.iter().any(|d| d.from_task == task.id))
         .unwrap_or(false);
+    let has_post_condition = task.post_condition.is_some();
 
-    if !result_provided && has_downstream {
+    if !result_provided && (has_downstream || has_post_condition) {
+        let reason = match (has_downstream, has_post_condition) {
+            (true, true) => "task has downstream dependents and a post-condition",
+            (true, false) => "task has downstream dependents",
+            (false, true) => "task has a post-condition to verify",
+            _ => unreachable!(),
+        };
         eprintln!(
-            "hint: this task has downstream dependents. Consider: plandb done {} --result '<your findings>'",
-            task.id
+            "hint: {}. Consider: plandb done {} --result '<your findings>'",
+            reason, task.id
         );
     }
 
