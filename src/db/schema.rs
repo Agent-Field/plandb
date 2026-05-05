@@ -185,27 +185,41 @@ const INDEX_LEARNING_TAGS_TAG: &str =
     "CREATE INDEX IF NOT EXISTS idx_learning_tags_tag ON learning_tags(tag);";
 
 const CREATE_TASK_READINESS_VIEW: &str = r#"
-CREATE VIEW IF NOT EXISTS task_readiness AS
+DROP VIEW IF EXISTS task_readiness;
+CREATE VIEW task_readiness AS
+WITH RECURSIVE ancestor_chain(task_id, ancestor_id, depth) AS (
+  SELECT id, id, 0 FROM tasks
+  UNION ALL
+  SELECT ac.task_id, t.parent_task_id, ac.depth + 1
+  FROM ancestor_chain ac
+  JOIN tasks t ON t.id = ac.ancestor_id
+  WHERE t.parent_task_id IS NOT NULL
+    AND ac.depth < 32
+),
+effective_unmet AS (
+  SELECT
+    ac.task_id,
+    COUNT(CASE
+      WHEN d.kind IN ('blocks', 'feeds_into')
+       AND upstream.status NOT IN ('done', 'done_partial')
+      THEN 1
+    END) AS unmet_deps
+  FROM ancestor_chain ac
+  LEFT JOIN dependencies d ON d.to_task = ac.ancestor_id
+  LEFT JOIN tasks upstream ON upstream.id = d.from_task
+  GROUP BY ac.task_id
+)
 SELECT
   t.id,
   t.status,
-  COUNT(CASE
-    WHEN d.kind IN ('blocks', 'feeds_into')
-     AND upstream.status NOT IN ('done', 'done_partial')
-    THEN 1
-  END) AS unmet_deps,
+  COALESCE(eu.unmet_deps, 0) AS unmet_deps,
   CASE
     WHEN t.status = 'pending'
-     AND COUNT(CASE
-         WHEN d.kind IN ('blocks','feeds_into')
-          AND upstream.status NOT IN ('done','done_partial')
-         THEN 1 END) = 0
+     AND COALESCE(eu.unmet_deps, 0) = 0
     THEN 1 ELSE 0
   END AS promotable
 FROM tasks t
-LEFT JOIN dependencies d ON d.to_task = t.id
-LEFT JOIN tasks upstream ON upstream.id = d.from_task
-GROUP BY t.id;
+LEFT JOIN effective_unmet eu ON eu.task_id = t.id;
 "#;
 
 pub fn init_db(path: &str) -> Result<Database> {

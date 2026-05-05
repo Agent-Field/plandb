@@ -133,6 +133,207 @@ fn promote_sweep_moves_pending_to_ready() {
 }
 
 #[test]
+fn test_child_of_composite_with_unmet_parent_deps_not_ready() {
+    let db_path = test_db_path();
+    let db = init_db(&db_path).unwrap();
+    let project = create_project(&db, "CompositeBlocked", None, None).unwrap();
+
+    let blocker = create_task(
+        &db,
+        &make_task(&project.id, "blocker", TaskStatus::Pending),
+        &[],
+    )
+    .unwrap();
+
+    let mut parent = make_task(&project.id, "parent", TaskStatus::Pending);
+    parent.is_composite = true;
+    let parent = create_task(&db, &parent, &[]).unwrap();
+
+    let mut child = make_task(&project.id, "child", TaskStatus::Pending);
+    child.parent_task_id = Some(parent.id.clone());
+    let child = create_task(&db, &child, &[]).unwrap();
+
+    add_dependency(
+        &db,
+        &blocker.id,
+        &parent.id,
+        DependencyKind::FeedsInto,
+        DependencyCondition::All,
+        None,
+    )
+    .unwrap();
+
+    promote_ready_tasks(&db).unwrap();
+
+    assert_eq!(
+        get_task(&db, &blocker.id).unwrap().status,
+        TaskStatus::Ready
+    );
+    assert_eq!(
+        get_task(&db, &parent.id).unwrap().status,
+        TaskStatus::Pending
+    );
+    assert_eq!(
+        get_task(&db, &child.id).unwrap().status,
+        TaskStatus::Pending
+    );
+}
+
+#[test]
+fn test_child_promotes_when_parent_deps_satisfied() {
+    let db_path = test_db_path();
+    let db = init_db(&db_path).unwrap();
+    let project = create_project(&db, "CompositeUnblocked", None, None).unwrap();
+
+    let blocker = create_task(
+        &db,
+        &make_task(&project.id, "blocker", TaskStatus::Pending),
+        &[],
+    )
+    .unwrap();
+
+    let mut parent = make_task(&project.id, "parent", TaskStatus::Pending);
+    parent.is_composite = true;
+    let parent = create_task(&db, &parent, &[]).unwrap();
+
+    let mut child = make_task(&project.id, "child", TaskStatus::Pending);
+    child.parent_task_id = Some(parent.id.clone());
+    let child = create_task(&db, &child, &[]).unwrap();
+
+    add_dependency(
+        &db,
+        &blocker.id,
+        &parent.id,
+        DependencyKind::FeedsInto,
+        DependencyCondition::All,
+        None,
+    )
+    .unwrap();
+
+    promote_ready_tasks(&db).unwrap();
+    complete_task(&db, &blocker.id, None).unwrap();
+    promote_ready_tasks(&db).unwrap();
+
+    assert_eq!(get_task(&db, &parent.id).unwrap().status, TaskStatus::Ready);
+    assert_eq!(get_task(&db, &child.id).unwrap().status, TaskStatus::Ready);
+}
+
+#[test]
+fn test_grandchild_inherits_through_two_levels() {
+    let db_path = test_db_path();
+    let db = init_db(&db_path).unwrap();
+    let project = create_project(&db, "CompositeGrandchild", None, None).unwrap();
+
+    let blocker = create_task(
+        &db,
+        &make_task(&project.id, "blocker", TaskStatus::Pending),
+        &[],
+    )
+    .unwrap();
+
+    let mut parent = make_task(&project.id, "parent", TaskStatus::Pending);
+    parent.is_composite = true;
+    let parent = create_task(&db, &parent, &[]).unwrap();
+
+    let mut child = make_task(&project.id, "child", TaskStatus::Pending);
+    child.parent_task_id = Some(parent.id.clone());
+    child.is_composite = true;
+    let child = create_task(&db, &child, &[]).unwrap();
+
+    let mut grandchild = make_task(&project.id, "grandchild", TaskStatus::Pending);
+    grandchild.parent_task_id = Some(child.id.clone());
+    let grandchild = create_task(&db, &grandchild, &[]).unwrap();
+
+    add_dependency(
+        &db,
+        &blocker.id,
+        &parent.id,
+        DependencyKind::Blocks,
+        DependencyCondition::All,
+        None,
+    )
+    .unwrap();
+
+    promote_ready_tasks(&db).unwrap();
+
+    assert_eq!(
+        get_task(&db, &blocker.id).unwrap().status,
+        TaskStatus::Ready
+    );
+    assert_eq!(
+        get_task(&db, &parent.id).unwrap().status,
+        TaskStatus::Pending
+    );
+    assert_eq!(
+        get_task(&db, &child.id).unwrap().status,
+        TaskStatus::Pending
+    );
+    assert_eq!(
+        get_task(&db, &grandchild.id).unwrap().status,
+        TaskStatus::Pending
+    );
+
+    complete_task(&db, &blocker.id, None).unwrap();
+    promote_ready_tasks(&db).unwrap();
+
+    assert_eq!(get_task(&db, &parent.id).unwrap().status, TaskStatus::Ready);
+    assert_eq!(get_task(&db, &child.id).unwrap().status, TaskStatus::Ready);
+    assert_eq!(
+        get_task(&db, &grandchild.id).unwrap().status,
+        TaskStatus::Ready
+    );
+}
+
+#[test]
+fn test_no_parent_existing_behavior_preserved() {
+    let db_path = test_db_path();
+    let db = init_db(&db_path).unwrap();
+    let project = create_project(&db, "FlatDeps", None, None).unwrap();
+
+    let upstream = create_task(
+        &db,
+        &make_task(&project.id, "upstream", TaskStatus::Pending),
+        &[],
+    )
+    .unwrap();
+    let downstream = create_task(
+        &db,
+        &make_task(&project.id, "downstream", TaskStatus::Pending),
+        &[],
+    )
+    .unwrap();
+
+    add_dependency(
+        &db,
+        &upstream.id,
+        &downstream.id,
+        DependencyKind::FeedsInto,
+        DependencyCondition::All,
+        None,
+    )
+    .unwrap();
+
+    promote_ready_tasks(&db).unwrap();
+
+    assert_eq!(
+        get_task(&db, &upstream.id).unwrap().status,
+        TaskStatus::Ready
+    );
+    assert_eq!(
+        get_task(&db, &downstream.id).unwrap().status,
+        TaskStatus::Pending
+    );
+
+    complete_task(&db, &upstream.id, None).unwrap();
+    promote_ready_tasks(&db).unwrap();
+
+    assert_eq!(
+        get_task(&db, &downstream.id).unwrap().status,
+        TaskStatus::Ready
+    );
+}
+
+#[test]
 fn sweeper_reclaims_retries_and_rolls_up_composites() {
     let db_path = test_db_path();
     let db = init_db(&db_path).unwrap();
