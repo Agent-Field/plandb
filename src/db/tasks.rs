@@ -468,6 +468,22 @@ pub(crate) fn row_to_task(row: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {
 
 pub fn create_task(db: &Database, task: &Task, tags: &[String]) -> Result<Task> {
     let conn = db.lock()?;
+    insert_task(&conn, task, tags)?;
+    drop(conn);
+    let task = get_task(db, &task.id)?;
+    let _ = crate::db::insert_event(
+        db,
+        Some(&task.id),
+        Some(&task.project_id),
+        task.agent_id.as_deref(),
+        crate::models::EventType::TaskCreated,
+        Some(serde_json::json!({"title": task.title})),
+        crate::db::now_utc_naive(),
+    );
+    Ok(task)
+}
+
+fn insert_task(conn: &rusqlite::Connection, task: &Task, tags: &[String]) -> Result<()> {
     let mut task_with_defaults = task.clone();
     if task_with_defaults.max_retries < 0 {
         task_with_defaults.max_retries = 0;
@@ -527,18 +543,7 @@ pub fn create_task(db: &Database, task: &Task, tags: &[String]) -> Result<Task> 
     for tag in tags {
         conn.execute(INSERT_TASK_TAG, params![&task_id, tag])?;
     }
-    drop(conn);
-    let task = get_task(db, &task_id)?;
-    let _ = crate::db::insert_event(
-        db,
-        Some(&task.id),
-        Some(&task.project_id),
-        task.agent_id.as_deref(),
-        crate::models::EventType::TaskCreated,
-        Some(serde_json::json!({"title": task.title})),
-        crate::db::now_utc_naive(),
-    );
-    Ok(task)
+    Ok(())
 }
 
 pub fn get_task(db: &Database, task_id: &str) -> Result<Task> {
@@ -1450,21 +1455,26 @@ pub fn split_task(db: &Database, task_id: &str, parts: Vec<SplitPart>) -> Result
         return Err(anyhow::anyhow!("split requires at least one part"));
     }
 
-    let parent = get_task(db, task_id)?;
-    {
-        let conn = db.lock()?;
-        conn.execute(
-            "UPDATE tasks SET is_composite = 1, status = 'pending', agent_id = NULL, updated_at = datetime('now') WHERE id = ?1",
-            params![task_id],
-        )?;
-    }
-
     let mut seen_titles = HashSet::new();
     for part in &parts {
         if !seen_titles.insert(part.title.clone()) {
             return Err(anyhow::anyhow!("duplicate split title: {}", part.title));
         }
     }
+
+    // Hold the connection and write transaction through the entire mutation so
+    // concurrent claimers cannot observe children before their edges exist.
+    // Any validation or SQL failure rolls back the parent, children and events.
+    let mut conn = db.lock()?;
+    let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+    let parent = tx
+        .query_row(SELECT_TASK_BY_ID, params![task_id], row_to_task)
+        .optional()?
+        .ok_or_else(|| PlandbError::NotFound(format!("task {task_id}")))?;
+    tx.execute(
+        "UPDATE tasks SET is_composite = 1, status = 'pending', agent_id = NULL, updated_at = datetime('now') WHERE id = ?1",
+        params![task_id],
+    )?;
 
     let now = now_utc_naive();
     let mut title_to_id = HashMap::new();
@@ -1528,12 +1538,16 @@ pub fn split_task(db: &Database, task_id: &str, parts: Vec<SplitPart>) -> Result
                 .map(|value| serde_json::Value::String(value.clone()));
         }
 
-        let created_task = create_task(db, &task, &[])?;
+        insert_task(&tx, &task, &[])?;
+        tx.execute(
+            "INSERT INTO events(task_id, project_id, event_type, payload, timestamp) VALUES (?1, ?2, 'task_created', ?3, ?4)",
+            params![&task.id, &task.project_id, serde_json::json!({"title": task.title}).to_string(), dt_to_sql(now)],
+        )?;
         if part.done.unwrap_or(false) {
-            done_ids.push(created_task.id.clone());
+            done_ids.push(task.id.clone());
         }
-        title_to_id.insert(part.title.clone(), created_task.id.clone());
-        created.push(created_task.id);
+        title_to_id.insert(part.title.clone(), task.id.clone());
+        created.push(task.id);
     }
 
     for part in &parts {
@@ -1545,19 +1559,16 @@ pub fn split_task(db: &Database, task_id: &str, parts: Vec<SplitPart>) -> Result
                 let from_id = title_to_id.get(dep_title).ok_or_else(|| {
                     anyhow::anyhow!("deps_on references unknown part: {}", dep_title)
                 })?;
-                add_dependency(
-                    db,
-                    from_id,
-                    to_id,
-                    crate::models::DependencyKind::FeedsInto,
-                    crate::models::DependencyCondition::All,
-                    None,
+                tx.execute(
+                    "INSERT INTO dependencies(from_task, to_task, kind, condition) VALUES (?1, ?2, 'feeds_into', 'all')",
+                    params![from_id, to_id],
                 )?;
             }
         }
     }
 
-    let _ = promote_ready_tasks(db)?;
+    tx.execute(PROMOTE_READY, params![dt_to_sql(now)])?;
+    tx.commit()?;
 
     Ok(SplitResult {
         parent_task_id: task_id.to_string(),

@@ -72,6 +72,85 @@ fn create_project_and_task() {
 }
 
 #[test]
+fn split_failure_preserves_parent_children_dependencies_and_events() {
+    let db = init_db(":memory:").unwrap();
+    let project = create_project(&db, "atomic split", None, None).unwrap();
+    let parent = create_task(
+        &db,
+        &make_task(&project.id, "parent", TaskStatus::Ready),
+        &[],
+    )
+    .unwrap();
+    claim_task(&db, &parent.id, "owner").unwrap();
+    let parent = start_task(&db, &parent.id).unwrap();
+    let before_events = list_events(&db, EventFilters::default()).unwrap().len();
+
+    for spec in [
+        r#"[{"title":"A"},{"title":"A"}]"#,
+        r#"[{"title":"A"},{"title":"B","deps_on":["missing"]}]"#,
+        // The second edge fails at the SQL constraint, after the first exists.
+        r#"[{"title":"A"},{"title":"B","deps_on":["A","A"]}]"#,
+    ] {
+        let parts = serde_json::from_str(spec).unwrap();
+        assert!(split_task(&db, &parent.id, parts).is_err());
+        let after = get_task(&db, &parent.id).unwrap();
+        assert_eq!(
+            serde_json::to_value(&after).unwrap(),
+            serde_json::to_value(&parent).unwrap()
+        );
+        assert!(list_subtree(&db, &parent.id).unwrap().is_empty());
+        assert_eq!(
+            list_events(&db, EventFilters::default()).unwrap().len(),
+            before_events
+        );
+        let count: i64 = db
+            .lock()
+            .unwrap()
+            .query_row("SELECT COUNT(*) FROM dependencies", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+}
+
+#[test]
+fn split_commits_children_dependencies_results_and_events_together() {
+    let db = init_db(":memory:").unwrap();
+    let project = create_project(&db, "successful split", None, None).unwrap();
+    let parent = create_task(
+        &db,
+        &make_task(&project.id, "parent", TaskStatus::Ready),
+        &[],
+    )
+    .unwrap();
+    let parts = serde_json::from_str(r#"[{"title":"A","done":true,"result":"contract"},{"title":"B","deps_on":["A"]},{"title":"C","deps_on":["B"]}]"#).unwrap();
+    let split = split_task(&db, &parent.id, parts).unwrap();
+    assert_eq!(split.created.len(), 3);
+    let a = get_task(&db, &split.title_to_id["A"]).unwrap();
+    assert_eq!(a.result, Some(serde_json::json!("contract")));
+    assert_eq!(
+        get_task(&db, &split.title_to_id["B"]).unwrap().status,
+        TaskStatus::Ready
+    );
+    assert_eq!(
+        get_task(&db, &split.title_to_id["C"]).unwrap().status,
+        TaskStatus::Pending
+    );
+    assert!(get_task(&db, &parent.id).unwrap().is_composite);
+    assert_eq!(
+        list_events(
+            &db,
+            EventFilters {
+                event_type: Some(EventType::TaskCreated),
+                ..Default::default()
+            }
+        )
+        .unwrap()
+        .len(),
+        4
+    );
+}
+
+#[test]
 fn claim_task_concurrency_single_winner() {
     let db_path = test_db_path();
     let db = init_db(&db_path).unwrap();
